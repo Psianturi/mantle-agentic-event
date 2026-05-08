@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar } from '@phosphor-icons/react'
+import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
@@ -12,6 +12,7 @@ interface AgentCardProps {
   onClick?: () => void
   onConfigure?: (agent: Agent) => void
   onChat?: (agent: Agent) => void
+  onViewEvolution?: (agent: Agent) => void
 }
 
 const statusColors = {
@@ -41,7 +42,7 @@ const subAgentLabels = {
   'mint-master': 'Mint-Master'
 }
 
-export function AgentCard({ agent, onClick, onConfigure, onChat }: AgentCardProps) {
+export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution }: AgentCardProps) {
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
@@ -202,35 +203,51 @@ export function AgentCard({ agent, onClick, onConfigure, onChat }: AgentCardProp
             </TooltipProvider>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            {onChat && (
+          <div className="space-y-2">
+            {onViewEvolution && (
               <Button
                 onClick={(e) => {
                   e.stopPropagation()
-                  onChat(agent)
+                  onViewEvolution(agent)
                 }}
                 variant="outline"
                 size="sm"
-                className="border-accent/30 hover:bg-accent/10 hover:border-accent/50 transition-all"
+                className="w-full border-secondary/30 hover:bg-secondary/10 hover:border-secondary/50 transition-all"
               >
-                <ChatCircle className="mr-1.5" weight="duotone" size={16} />
-                Chat
+                <TreeStructure className="mr-1.5" weight="duotone" size={16} />
+                Evolution Path
               </Button>
             )}
-            {onConfigure && (
-              <Button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onConfigure(agent)
-                }}
-                variant="outline"
-                size="sm"
-                className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all"
-              >
-                <GearSix className="mr-1.5" weight="duotone" size={16} />
-                Config
-              </Button>
-            )}
+            <div className="grid grid-cols-2 gap-2">
+              {onChat && (
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onChat(agent)
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="border-accent/30 hover:bg-accent/10 hover:border-accent/50 transition-all"
+                >
+                  <ChatCircle className="mr-1.5" weight="duotone" size={16} />
+                  Chat
+                </Button>
+              )}
+              {onConfigure && (
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onConfigure(agent)
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all"
+                >
+                  <GearSix className="mr-1.5" weight="duotone" size={16} />
+                  Config
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </Card>

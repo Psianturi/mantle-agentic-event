@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
-import { Agent, NFT, TerminalLog, Event, SubAgentType } from '@/lib/types'
+import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal } from '@/lib/types'
 import { getMockAgents, getMockNFTs, getMockEvents } from '@/lib/mockData'
 import { AgentCard } from '@/components/AgentCard'
 import { NFTCard } from '@/components/NFTCard'
@@ -25,6 +25,8 @@ import { SubAgentDelegation } from '@/components/SubAgentDelegation'
 import { ContractDeploymentProgress } from '@/components/ContractDeploymentProgress'
 import { ContractVerificationTracker } from '@/components/ContractVerificationTracker'
 import { VerificationDashboard } from '@/components/VerificationDashboard'
+import { AgentEvolutionDialog } from '@/components/AgentEvolutionDialog'
+import { PendingProposals } from '@/components/PendingProposals'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -89,6 +91,7 @@ function App() {
   const [chatDialogOpen, setChatDialogOpen] = useState(false)
   const [nftMetadataDialogOpen, setNFTMetadataDialogOpen] = useState(false)
   const [batchIPFSDialogOpen, setBatchIPFSDialogOpen] = useState(false)
+  const [evolutionDialogOpen, setEvolutionDialogOpen] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null)
   const [selectedTab, setSelectedTab] = useState('dashboard')
@@ -100,6 +103,7 @@ function App() {
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
   const [verificationData, setVerificationData] = useKV<ContractVerificationData[]>('maef-verifications', [])
   const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())
+  const [proposals, setProposals] = useKV<AgentProposal[]>('maef-proposals', [])
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
 
@@ -454,6 +458,27 @@ function App() {
     )
   }
 
+  const handleViewEvolution = (agent: Agent) => {
+    setSelectedAgent(agent)
+    setEvolutionDialogOpen(true)
+  }
+
+  const handleApproveProposal = (proposalId: string) => {
+    setProposals((current) =>
+      (current ?? []).map((p) =>
+        p.id === proposalId ? { ...p, status: 'approved' } : p
+      )
+    )
+  }
+
+  const handleRejectProposal = (proposalId: string) => {
+    setProposals((current) =>
+      (current ?? []).map((p) =>
+        p.id === proposalId ? { ...p, status: 'rejected' } : p
+      )
+    )
+  }
+
   const stats = [
     { label: 'Active Agents', value: agents?.length ?? 0, icon: Robot, color: 'text-primary' },
     { label: 'NFTs Minted', value: nfts?.length ?? 0, icon: WalletIcon, color: 'text-secondary' },
@@ -618,6 +643,15 @@ function App() {
                 />
               ))}
 
+              {proposals && proposals.filter(p => p.status === 'pending').length > 0 && (
+                <PendingProposals
+                  proposals={proposals}
+                  agents={agents ?? []}
+                  onApprove={handleApproveProposal}
+                  onReject={handleRejectProposal}
+                />
+              )}
+
               <div>
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                   <span>Your Agents</span>
@@ -647,7 +681,7 @@ function App() {
                         transition={{ delay: idx * 0.1 }}
                       >
                         <div className="space-y-3">
-                          <AgentCard agent={agent} onClick={() => agent.wisdomUnlocked && handleOpenWisdomReport(agent)} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} />
+                          <AgentCard agent={agent} onClick={() => agent.wisdomUnlocked && handleOpenWisdomReport(agent)} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} />
                           {agent.wisdomUnlocked && (
                             <Button
                               onClick={() => handleOpenWisdomReport(agent)}
@@ -724,7 +758,7 @@ function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: idx * 0.1 }}
                     >
-                      <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} />
+                      <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} />
                     </motion.div>
                   ))}
                 </div>
@@ -844,6 +878,11 @@ function App() {
           <AgentChatDialog
             open={chatDialogOpen}
             onOpenChange={setChatDialogOpen}
+            agent={selectedAgent}
+          />
+          <AgentEvolutionDialog
+            open={evolutionDialogOpen}
+            onOpenChange={setEvolutionDialogOpen}
             agent={selectedAgent}
           />
         </>
