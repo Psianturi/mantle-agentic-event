@@ -14,6 +14,7 @@ import { TerminalConsole } from '@/components/TerminalConsole'
 import { WalletConnect } from '@/components/WalletConnect'
 import { WisdomReportDialog } from '@/components/WisdomReportDialog'
 import { AgentConfigDialog } from '@/components/AgentConfigDialog'
+import { AnalyticsCharts } from '@/components/AnalyticsCharts'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -311,6 +312,9 @@ function App() {
               <TabsTrigger value="dashboard" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
                 Dashboard
               </TabsTrigger>
+              <TabsTrigger value="analytics" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+                Analytics
+              </TabsTrigger>
               <TabsTrigger value="factory" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
                 Factory
               </TabsTrigger>
@@ -396,6 +400,22 @@ function App() {
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            <TabsContent value="analytics" className="space-y-6 animate-slide-up">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/30 to-accent/30 border border-primary/40 flex items-center justify-center">
+                      <ChartLine className="text-primary" weight="duotone" size={26} />
+                    </div>
+                    <span>Event Analytics Dashboard</span>
+                  </h2>
+                  <p className="text-muted-foreground">Track agent performance, event trends, and platform insights</p>
+                </div>
+              </div>
+              
+              <AnalyticsCharts agents={agents} events={events} nfts={nfts} />
             </TabsContent>
 
             <TabsContent value="factory" className="space-y-6 animate-slide-up">
