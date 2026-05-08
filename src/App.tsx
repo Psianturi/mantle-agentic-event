@@ -17,7 +17,8 @@ import { AgentConfigDialog } from '@/components/AgentConfigDialog'
 import { AnalyticsCharts } from '@/components/AnalyticsCharts'
 import { AgentChatDialog } from '@/components/AgentChatDialog'
 import { NFTMetadataDialog } from '@/components/NFTMetadataDialog'
-import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain } from '@phosphor-icons/react'
+import { BatchIPFSUploadDialog } from '@/components/BatchIPFSUploadDialog'
+import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
@@ -77,6 +78,7 @@ function App() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false)
   const [chatDialogOpen, setChatDialogOpen] = useState(false)
   const [nftMetadataDialogOpen, setNFTMetadataDialogOpen] = useState(false)
+  const [batchIPFSDialogOpen, setBatchIPFSDialogOpen] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null)
   const [selectedTab, setSelectedTab] = useState('dashboard')
@@ -328,6 +330,29 @@ function App() {
     setChatDialogOpen(true)
   }
 
+  const handleBatchIPFSComplete = (results: Array<{
+    eventId: string
+    metadataCID: string
+    imageCID: string
+    metadataURI: string
+  }>) => {
+    setNFTs((current) =>
+      (current ?? []).map((nft) => {
+        const result = results.find(r => r.eventId === nft.eventId)
+        if (result) {
+          return {
+            ...nft,
+            metadataCID: result.metadataCID,
+            imageCID: result.imageCID,
+            metadataURI: result.metadataURI,
+            imageUrl: `https://ipfs.io/ipfs/${result.imageCID}`
+          }
+        }
+        return nft
+      })
+    )
+  }
+
   const stats = [
     { label: 'Active Agents', value: agents?.length ?? 0, icon: Robot, color: 'text-primary' },
     { label: 'NFTs Minted', value: nfts?.length ?? 0, icon: WalletIcon, color: 'text-secondary' },
@@ -561,13 +586,27 @@ function App() {
 
             <TabsContent value="vault" className="space-y-6 animate-slide-up">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <span>NFT Vault</span>
-                  <span className="text-sm text-muted-foreground font-normal">({nfts?.length ?? 0} NFTs)</span>
-                </h2>
-                <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass-card border-primary/20">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <p className="text-sm text-muted-foreground font-mono">Mantle Network</p>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <span>NFT Vault</span>
+                    <span className="text-sm text-muted-foreground font-normal">({nfts?.length ?? 0} NFTs)</span>
+                  </h2>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass-card border-primary/20">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <p className="text-sm text-muted-foreground font-mono">Mantle Network</p>
+                  </div>
+                  {events && events.filter(e => e.status === 'completed').length > 0 && (
+                    <Button
+                      onClick={() => setBatchIPFSDialogOpen(true)}
+                      disabled={isViewOnly}
+                      className="bg-gradient-to-r from-primary to-accent hover:opacity-90 font-semibold shadow-lg shadow-primary/30"
+                    >
+                      <CloudArrowUp className="mr-2" weight="duotone" />
+                      Batch Upload to IPFS
+                    </Button>
+                  )}
                 </div>
               </div>
               
@@ -663,6 +702,14 @@ function App() {
         open={nftMetadataDialogOpen}
         onOpenChange={setNFTMetadataDialogOpen}
         nft={selectedNFT}
+      />
+
+      <BatchIPFSUploadDialog
+        open={batchIPFSDialogOpen}
+        onOpenChange={setBatchIPFSDialogOpen}
+        events={events ?? []}
+        agents={agents ?? []}
+        onBatchComplete={handleBatchIPFSComplete}
       />
 
       <TerminalConsole logs={logs} />

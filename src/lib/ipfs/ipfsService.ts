@@ -284,6 +284,97 @@ class IPFSService {
     }
   }
 
+  async batchCreateNFTMetadata(
+    batchParams: Array<{
+      eventTitle: string
+      eventUrl: string
+      summary: string
+      agentName: string
+      agentId: string
+      platform: string
+      date: number
+      tokenId: string
+      niche?: string
+    }>,
+    onProgress?: (current: number, total: number, itemTitle: string) => void
+  ): Promise<Array<{ metadata: NFTMetadata; metadataCID: string; imageCID: string; index: number }>> {
+    const results: Array<{ metadata: NFTMetadata; metadataCID: string; imageCID: string; index: number }> = []
+    const total = batchParams.length
+
+    for (let i = 0; i < batchParams.length; i++) {
+      const params = batchParams[i]
+      
+      if (onProgress) {
+        onProgress(i + 1, total, params.eventTitle)
+      }
+
+      try {
+        const result = await this.createNFTMetadata(params)
+        results.push({
+          ...result,
+          index: i
+        })
+      } catch (error) {
+        console.error(`Failed to create metadata for item ${i + 1}:`, error)
+        throw new Error(`Batch upload failed at item ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    }
+
+    return results
+  }
+
+  async batchUploadImages(
+    imageBlobs: Array<{ blob: Blob; metadata: any }>,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<Array<IPFSUploadResult>> {
+    const results: Array<IPFSUploadResult> = []
+    const total = imageBlobs.length
+
+    for (let i = 0; i < imageBlobs.length; i++) {
+      const { blob } = imageBlobs[i]
+      
+      if (onProgress) {
+        onProgress(i + 1, total)
+      }
+
+      try {
+        const result = await this.uploadImage(blob)
+        results.push(result)
+      } catch (error) {
+        console.error(`Failed to upload image ${i + 1}:`, error)
+        throw new Error(`Batch image upload failed at item ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    }
+
+    return results
+  }
+
+  async batchUploadJSON(
+    jsonData: Array<any>,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<Array<IPFSUploadResult>> {
+    const results: Array<IPFSUploadResult> = []
+    const total = jsonData.length
+
+    for (let i = 0; i < jsonData.length; i++) {
+      const data = jsonData[i]
+      
+      if (onProgress) {
+        onProgress(i + 1, total)
+      }
+
+      try {
+        const result = await this.uploadJSON(data)
+        results.push(result)
+      } catch (error) {
+        console.error(`Failed to upload JSON ${i + 1}:`, error)
+        throw new Error(`Batch JSON upload failed at item ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    }
+
+    return results
+  }
+
   getGatewayUrl(cid: string): string {
     return `${this.gateway}${cid}`
   }
