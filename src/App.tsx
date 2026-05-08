@@ -37,6 +37,8 @@ import { GenesisMintConfirmation } from '@/components/GenesisMintConfirmation'
 import { SecurityAuditLog } from '@/components/SecurityAuditLog'
 import { GlobalSecurityAuditLog } from '@/components/GlobalSecurityAuditLog'
 import { AgentBreedingDialog } from '@/components/AgentBreedingDialog'
+import { FusionCooldownTimer } from '@/components/FusionCooldownTimer'
+import { BreedingCooldownBoost } from '@/components/BreedingCooldownBoost'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -615,6 +617,29 @@ function App() {
     
     if (parent1 && parent2) {
       addLog(newAgent.id, 'secretary', `[SYSTEM] Parents: "${parent1.name}" + "${parent2.name}" | Generation ${newAgent.generation} | ${result.geneticBonus.length} genetic bonuses applied.`, 'info')
+    }
+  }
+
+  const handleCooldownBoost = (agentId: string) => {
+    setAgents((current) =>
+      (current ?? []).map((a) =>
+        a.id === agentId
+          ? { ...a, lastBreedingTime: undefined, breedingCooldownHours: undefined }
+          : a
+      )
+    )
+
+    setUserBalance((current) => (current ?? 0) - 0.5)
+
+    const agent = agents?.find(a => a.id === agentId)
+
+    toast.success('⚡ Neural Recovery Complete!', {
+      description: `${agent?.name} is now ready for fusion. Cooldown bypassed.`,
+      duration: 4000
+    })
+
+    if (agent) {
+      addLog(agent.id, 'mint-master', `[SYSTEM] Neural recovery boost applied. Agent is ready for immediate fusion.`, 'success')
     }
   }
 
@@ -1266,22 +1291,38 @@ function App() {
                   </Card>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {agents.map((agent, idx) => (
-                      <motion.div
-                        key={agent.id}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: idx * 0.1 }}
-                      >
-                        <AgentCard 
-                          agent={agent} 
-                          onConfigure={handleConfigureAgent} 
-                          onChat={handleChatWithAgent} 
-                          onViewEvolution={handleViewEvolution}
-                          onToggleAutoReplenish={handleToggleAutoReplenish}
-                        />
-                      </motion.div>
-                    ))}
+                    {agents.map((agent, idx) => {
+                      const isOnCooldown = agent.lastBreedingTime && agent.breedingCooldownHours && 
+                        (Date.now() - agent.lastBreedingTime) < (agent.breedingCooldownHours * 60 * 60 * 1000)
+                      
+                      return (
+                        <motion.div
+                          key={agent.id}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: idx * 0.1 }}
+                          className="space-y-3"
+                        >
+                          <AgentCard 
+                            agent={agent} 
+                            onConfigure={handleConfigureAgent} 
+                            onChat={handleChatWithAgent} 
+                            onViewEvolution={handleViewEvolution}
+                            onToggleAutoReplenish={handleToggleAutoReplenish}
+                          />
+                          {isOnCooldown && (
+                            <div className="space-y-2">
+                              <FusionCooldownTimer agent={agent} />
+                              <BreedingCooldownBoost 
+                                agent={agent} 
+                                userBalance={userBalance ?? 0}
+                                onBoost={handleCooldownBoost}
+                              />
+                            </div>
+                          )}
+                        </motion.div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -1318,6 +1359,7 @@ function App() {
             open={evolutionDialogOpen}
             onOpenChange={setEvolutionDialogOpen}
             agent={selectedAgent}
+            allAgents={agents ?? []}
           />
         </>
       )}
