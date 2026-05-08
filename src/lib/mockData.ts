@@ -78,7 +78,9 @@ export function getMockAgents(): Agent[] {
       status: 'active',
       createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000,
       subAgents: createSubAgentsWithStatus(['active', 'processing', 'idle', 'idle']),
-      wisdomUnlocked: false
+      wisdomUnlocked: false,
+      mantleBalance: 25.487,
+      gasSpent: 0.032
     },
     {
       id: 'agent-002',
@@ -91,7 +93,9 @@ export function getMockAgents(): Agent[] {
       status: 'idle',
       createdAt: Date.now() - 14 * 24 * 60 * 60 * 1000,
       subAgents: createSubAgentsWithStatus(['idle', 'idle', 'idle', 'idle']),
-      wisdomUnlocked: true
+      wisdomUnlocked: true,
+      mantleBalance: 42.156,
+      gasSpent: 0.054
     },
     {
       id: 'agent-003',
@@ -104,7 +108,9 @@ export function getMockAgents(): Agent[] {
       status: 'processing',
       createdAt: Date.now() - 3 * 24 * 60 * 60 * 1000,
       subAgents: createSubAgentsWithStatus(['idle', 'active', 'idle', 'processing']),
-      wisdomUnlocked: false
+      wisdomUnlocked: false,
+      mantleBalance: 18.923,
+      gasSpent: 0.021
     },
     {
       id: 'agent-004',
@@ -117,7 +123,9 @@ export function getMockAgents(): Agent[] {
       status: 'idle',
       createdAt: Date.now() - 10 * 24 * 60 * 60 * 1000,
       subAgents: createSubAgentsWithStatus(['idle', 'idle', 'active', 'idle']),
-      wisdomUnlocked: false
+      wisdomUnlocked: false,
+      mantleBalance: 33.712,
+      gasSpent: 0.043
     },
     {
       id: 'agent-005',
@@ -130,7 +138,9 @@ export function getMockAgents(): Agent[] {
       status: 'idle',
       createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
       subAgents: createSubAgentsWithStatus(['idle', 'idle', 'idle', 'idle']),
-      wisdomUnlocked: false
+      wisdomUnlocked: false,
+      mantleBalance: 15.234,
+      gasSpent: 0.011
     }
   ]
 }

@@ -11,7 +11,10 @@ import { AgentCard } from '@/components/AgentCard'
 import { NFTCard } from '@/components/NFTCard'
 import { SpawnAgentDialog } from '@/components/SpawnAgentDialog'
 import { TerminalConsole } from '@/components/TerminalConsole'
-import { Sparkle, Robot, Wallet, ChartLine, Globe, Plus } from '@phosphor-icons/react'
+import { WalletConnect } from '@/components/WalletConnect'
+import { WisdomReportDialog } from '@/components/WisdomReportDialog'
+import { AgentConfigDialog } from '@/components/AgentConfigDialog'
+import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 
@@ -27,21 +30,30 @@ function App() {
   const [nfts, setNFTs] = useKV<NFT[]>('maef-nfts', getMockNFTs())
   const [events, setEvents] = useKV<Event[]>('maef-events', getMockEvents())
   const [logs, setLogs] = useState<TerminalLog[]>([])
+  const [walletConnected, setWalletConnected] = useState(false)
+  const [walletAddress, setWalletAddress] = useState<string>()
   
   useEffect(() => {
     const interval = setInterval(() => {
       if (agents && agents.length > 0) {
-        const randomAgent = agents[Math.floor(Math.random() * agents.length)]
+        const activeAgents = agents.filter(a => a.status !== 'idle')
+        const targetAgent = activeAgents.length > 0 
+          ? activeAgents[Math.floor(Math.random() * activeAgents.length)]
+          : agents[Math.floor(Math.random() * agents.length)]
+        
         const randomSubAgentType = simulationMessages[Math.floor(Math.random() * simulationMessages.length)]
         const randomMessage = randomSubAgentType.messages[Math.floor(Math.random() * randomSubAgentType.messages.length)]
         
+        const agentName = targetAgent.name
+        const formattedMessage = `[${agentName} - ${randomSubAgentType.type}] ${randomMessage}`
+        
         const newLog: TerminalLog = {
           id: `sim-log-${Date.now()}-${Math.random()}`,
-          agentId: randomAgent.id,
+          agentId: targetAgent.id,
           subAgentType: randomSubAgentType.type as SubAgentType,
-          message: randomMessage,
+          message: formattedMessage,
           timestamp: Date.now(),
-          type: Math.random() > 0.8 ? 'success' : 'info'
+          type: Math.random() > 0.85 ? 'success' : 'info'
         }
         
         setLogs((current) => {
@@ -49,14 +61,28 @@ function App() {
           return newLogs.slice(-50)
         })
       }
-    }, 3000 + Math.random() * 2000)
+    }, 2500 + Math.random() * 2000)
     
     return () => clearInterval(interval)
   }, [agents])
   
   const [spawnDialogOpen, setSpawnDialogOpen] = useState(false)
+  const [wisdomDialogOpen, setWisdomDialogOpen] = useState(false)
+  const [configDialogOpen, setConfigDialogOpen] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [selectedTab, setSelectedTab] = useState('dashboard')
   const [eventUrl, setEventUrl] = useState('')
+
+  const handleWalletConnect = (address: string) => {
+    setWalletConnected(true)
+    setWalletAddress(address)
+  }
+
+  const handleWalletDisconnect = () => {
+    setWalletConnected(false)
+    setWalletAddress(undefined)
+    toast.info('Wallet disconnected')
+  }
 
   const handleAgentCreated = (newAgent: Agent) => {
     setAgents((current) => [...(current ?? []), newAgent])
@@ -64,7 +90,9 @@ function App() {
       description: `Wallet: ${newAgent.walletAddress.slice(0, 10)}...`
     })
     
-    addLog(newAgent.id, 'secretary', 'Agent initialization complete', 'success')
+    addLog(newAgent.id, 'secretary', `[${newAgent.name} - secretary] Agent initialization complete`, 'success')
+    
+    addLog(newAgent.id, 'secretary', `[${newAgent.name} - secretary] Deploying smart contract on Mantle Network...`, 'info')
   }
 
   const addLog = (agentId: string, subAgentType: Agent['subAgents'][0]['type'], message: string, type: TerminalLog['type']) => {
@@ -80,6 +108,11 @@ function App() {
   }
 
   const handleAttendEvent = async () => {
+    if (!walletConnected) {
+      toast.error('Please connect your wallet first!')
+      return
+    }
+
     if (!eventUrl.trim()) {
       toast.error('Please enter an event URL')
       return
@@ -93,28 +126,29 @@ function App() {
 
     toast.info('Initiating event attendance workflow...')
     
-    addLog(agent.id, 'secretary', `Joining event: ${eventUrl}`, 'info')
+    addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Joining event: ${eventUrl}`, 'info')
     await new Promise(resolve => setTimeout(resolve, 1000))
     
-    addLog(agent.id, 'secretary', 'Registration successful', 'success')
+    addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Registration successful`, 'success')
     await new Promise(resolve => setTimeout(resolve, 800))
     
-    addLog(agent.id, 'scribe', 'Extracting event content...', 'info')
+    addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Extracting event content...`, 'info')
     await new Promise(resolve => setTimeout(resolve, 1500))
     
-    addLog(agent.id, 'scribe', 'Generating summary with AI...', 'info')
+    addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Generating summary with AI...`, 'info')
     await new Promise(resolve => setTimeout(resolve, 1200))
     
-    addLog(agent.id, 'scribe', 'Summary generated successfully', 'success')
+    addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Summary generated successfully`, 'success')
     await new Promise(resolve => setTimeout(resolve, 500))
     
-    addLog(agent.id, 'mint-master', 'Estimating Mantle gas fees...', 'info')
+    const gasEstimate = (Math.random() * 0.005 + 0.008).toFixed(4)
+    addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Estimating Mantle gas fees... ${gasEstimate} MNT`, 'info')
     await new Promise(resolve => setTimeout(resolve, 800))
     
-    addLog(agent.id, 'mint-master', 'Minting NFT on Mantle Network...', 'info')
+    addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Minting NFT on Mantle Network... Gas spent: ${gasEstimate} MNT`, 'info')
     await new Promise(resolve => setTimeout(resolve, 1500))
     
-    addLog(agent.id, 'mint-master', 'NFT minted successfully! 🎉', 'success')
+    addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted successfully! 🎉`, 'success')
 
     const newEvent: Event = {
       id: `event-${Date.now()}`,
@@ -139,12 +173,22 @@ function App() {
       imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT'
     }
 
+    const newEventsAttended = agent.eventsAttended + 1
+    const gasSpentAmount = parseFloat(gasEstimate)
+
     setEvents((current) => [...(current ?? []), newEvent])
     setNFTs((current) => [...(current ?? []), newNFT])
     setAgents((current) =>
       (current ?? []).map((a) =>
         a.id === agent.id
-          ? { ...a, eventsAttended: a.eventsAttended + 1, level: Math.floor((a.eventsAttended + 1) / 2) + 1, wisdomUnlocked: a.eventsAttended + 1 >= 5 }
+          ? { 
+              ...a, 
+              eventsAttended: newEventsAttended, 
+              level: Math.floor(newEventsAttended / 2) + 1, 
+              wisdomUnlocked: newEventsAttended >= 5,
+              gasSpent: (a.gasSpent || 0) + gasSpentAmount,
+              mantleBalance: (a.mantleBalance || 0) - gasSpentAmount
+            }
           : a
       )
     )
@@ -153,14 +197,49 @@ function App() {
     toast.success('Event attendance complete! NFT minted.', {
       description: `Transaction: ${newNFT.transactionHash.slice(0, 10)}...`
     })
+
+    if (newEventsAttended === 5) {
+      setTimeout(() => {
+        toast.success('🎉 Wisdom Unlocked!', {
+          description: 'Generate your Wisdom Report now!',
+          duration: 5000
+        })
+      }, 1000)
+    }
+  }
+
+  const handleOpenWisdomReport = (agent: Agent) => {
+    if (agent.wisdomUnlocked) {
+      setSelectedAgent(agent)
+      setWisdomDialogOpen(true)
+    } else {
+      toast.error('Wisdom not yet unlocked', {
+        description: `Agent needs to attend ${5 - agent.eventsAttended} more event(s)`
+      })
+    }
+  }
+
+  const handleConfigureAgent = (agent: Agent) => {
+    setSelectedAgent(agent)
+    setConfigDialogOpen(true)
+  }
+
+  const handleSaveAgentConfig = (agentId: string, instructions: string) => {
+    setAgents((current) =>
+      (current ?? []).map((a) =>
+        a.id === agentId ? { ...a, customInstructions: instructions } : a
+      )
+    )
   }
 
   const stats = [
     { label: 'Active Agents', value: agents?.length ?? 0, icon: Robot, color: 'text-primary' },
-    { label: 'NFTs Minted', value: nfts?.length ?? 0, icon: Wallet, color: 'text-secondary' },
+    { label: 'NFTs Minted', value: nfts?.length ?? 0, icon: WalletIcon, color: 'text-secondary' },
     { label: 'Events Attended', value: events?.length ?? 0, icon: Globe, color: 'text-primary' },
     { label: 'Wisdom Unlocked', value: agents?.filter(a => a.wisdomUnlocked).length ?? 0, icon: ChartLine, color: 'text-secondary' }
   ]
+
+  const isViewOnly = !walletConnected
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -184,11 +263,19 @@ function App() {
                   <p className="text-xs text-muted-foreground font-mono">Mantle Agentic Event Factory</p>
                 </div>
               </div>
-              <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-lg glass-card border-primary/20">
-                <Sparkle size={16} className="text-primary" weight="fill" />
-                <p className="text-sm text-foreground/90 font-medium">
-                  Turn Information Overload into On-Chain Wisdom
-                </p>
+              <div className="flex items-center gap-4">
+                {isViewOnly && (
+                  <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                    <p className="text-sm text-amber-500 font-semibold">View Only Mode</p>
+                  </div>
+                )}
+                <WalletConnect
+                  onConnect={handleWalletConnect}
+                  isConnected={walletConnected}
+                  address={walletAddress}
+                  onDisconnect={handleWalletDisconnect}
+                />
               </div>
             </div>
           </div>
@@ -230,6 +317,9 @@ function App() {
               <TabsTrigger value="vault" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
                 NFT Vault
               </TabsTrigger>
+              <TabsTrigger value="community" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+                Community Insights
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="dashboard" className="space-y-6 animate-slide-up">
@@ -245,16 +335,20 @@ function App() {
                     placeholder="Enter YouTube or Luma event URL..."
                     value={eventUrl}
                     onChange={(e) => setEventUrl(e.target.value)}
+                    disabled={isViewOnly}
                     className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
                   />
                   <Button
                     onClick={handleAttendEvent}
-                    disabled={!eventUrl.trim()}
+                    disabled={!eventUrl.trim() || isViewOnly}
                     className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
                   >
                     Attend Event
                   </Button>
                 </div>
+                {isViewOnly && (
+                  <p className="text-xs text-amber-500 mt-3">Connect your wallet to attend events</p>
+                )}
               </Card>
 
               <div>
@@ -267,7 +361,11 @@ function App() {
                     <Robot size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
                     <h3 className="text-lg font-semibold mb-2">No Agents Yet</h3>
                     <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">Spawn your first AI agent to start attending events and minting NFTs</p>
-                    <Button onClick={() => setSpawnDialogOpen(true)} className="bg-gradient-to-r from-secondary to-accent font-semibold shadow-lg shadow-secondary/30">
+                    <Button 
+                      onClick={() => setSpawnDialogOpen(true)} 
+                      disabled={isViewOnly}
+                      className="bg-gradient-to-r from-secondary to-accent font-semibold shadow-lg shadow-secondary/30"
+                    >
                       <Plus className="mr-2" weight="bold" />
                       Spawn Agent
                     </Button>
@@ -281,7 +379,18 @@ function App() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.1 }}
                       >
-                        <AgentCard agent={agent} />
+                        <div className="space-y-3">
+                          <AgentCard agent={agent} onClick={() => agent.wisdomUnlocked && handleOpenWisdomReport(agent)} onConfigure={handleConfigureAgent} />
+                          {agent.wisdomUnlocked && (
+                            <Button
+                              onClick={() => handleOpenWisdomReport(agent)}
+                              className="w-full bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-white font-bold shadow-2xl shadow-amber-500/30"
+                            >
+                              <Brain className="mr-2" weight="duotone" />
+                              Generate Wisdom Report
+                            </Button>
+                          )}
+                        </div>
                       </motion.div>
                     ))}
                   </div>
@@ -302,12 +411,16 @@ function App() {
                   </p>
                   <Button
                     onClick={() => setSpawnDialogOpen(true)}
+                    disabled={isViewOnly}
                     size="lg"
                     className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-8 shadow-lg shadow-secondary/30"
                   >
                     <Plus className="mr-2" weight="bold" size={20} />
                     Spawn New Agent
                   </Button>
+                  {isViewOnly && (
+                    <p className="text-xs text-amber-500 mt-4">Connect your wallet to spawn agents</p>
+                  )}
                 </div>
               </Card>
 
@@ -324,7 +437,7 @@ function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: idx * 0.1 }}
                     >
-                      <AgentCard agent={agent} />
+                      <AgentCard agent={agent} onConfigure={handleConfigureAgent} />
                     </motion.div>
                   ))}
                 </div>
@@ -345,7 +458,7 @@ function App() {
               
               {!nfts || nfts.length === 0 ? (
                 <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-primary/30">
-                  <Wallet size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
+                  <WalletIcon size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
                   <h3 className="text-lg font-semibold mb-2">No NFTs Yet</h3>
                   <p className="text-sm text-muted-foreground max-w-md mx-auto">
                     Attend events with your agents to mint Proof-of-Attendance NFTs on Mantle Network
@@ -366,6 +479,28 @@ function App() {
                 </div>
               )}
             </TabsContent>
+
+            <TabsContent value="community" className="space-y-6 animate-slide-up">
+              <Card className="glass-card-hover p-10 text-center border-2 border-primary/30">
+                <Globe size={64} className="mx-auto mb-4 text-primary animate-float" weight="duotone" />
+                <h3 className="text-2xl font-bold mb-3">Community Insights</h3>
+                <p className="text-muted-foreground max-w-md mx-auto mb-6">
+                  Explore the latest NFTs minted by agents across the MAEF ecosystem. See what events the community is attending.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+                  {nfts?.slice(0, 6).map((nft, idx) => (
+                    <motion.div
+                      key={nft.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: idx * 0.1 }}
+                    >
+                      <NFTCard nft={nft} />
+                    </motion.div>
+                  ))}
+                </div>
+              </Card>
+            </TabsContent>
           </Tabs>
         </main>
       </div>
@@ -375,6 +510,22 @@ function App() {
         onOpenChange={setSpawnDialogOpen}
         onAgentCreated={handleAgentCreated}
       />
+
+      {selectedAgent && (
+        <>
+          <WisdomReportDialog
+            open={wisdomDialogOpen}
+            onOpenChange={setWisdomDialogOpen}
+            agent={selectedAgent}
+          />
+          <AgentConfigDialog
+            open={configDialogOpen}
+            onOpenChange={setConfigDialogOpen}
+            agent={selectedAgent}
+            onSave={handleSaveAgentConfig}
+          />
+        </>
+      )}
 
       <TerminalConsole logs={logs} />
       <Toaster />
