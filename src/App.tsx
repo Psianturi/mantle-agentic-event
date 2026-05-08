@@ -603,9 +603,6 @@ function App() {
               <TabsTrigger value="vault" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
                 NFT Vault
               </TabsTrigger>
-              <TabsTrigger value="verification" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
-                Contract Verification
-              </TabsTrigger>
               <TabsTrigger value="community" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
                 Community Insights
               </TabsTrigger>
@@ -804,6 +801,21 @@ function App() {
                   ))}
                 </div>
               </div>
+
+              {verificationData && verificationData.length > 0 && (
+                <div className="mt-12">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+                      <ShieldCheck className="text-primary" weight="duotone" size={22} />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold">Contract Verification Status</h3>
+                      <p className="text-sm text-muted-foreground">Track smart contract deployments and verification on Mantle Explorer</p>
+                    </div>
+                  </div>
+                  <VerificationDashboard verifications={verificationData} />
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="vault" className="space-y-6 animate-slide-up">
@@ -860,10 +872,6 @@ function App() {
                   ))}
                 </div>
               )}
-            </TabsContent>
-
-            <TabsContent value="verification" className="space-y-6 animate-slide-up">
-              <VerificationDashboard verifications={verificationData ?? []} />
             </TabsContent>
 
             <TabsContent value="community" className="space-y-6 animate-slide-up">
