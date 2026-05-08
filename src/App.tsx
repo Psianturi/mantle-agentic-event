@@ -19,6 +19,7 @@ import { AgentChatDialog } from '@/components/AgentChatDialog'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
+import { useBlockchain } from '@/hooks/useBlockchain'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -34,6 +35,7 @@ function App() {
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
+  const blockchain = useBlockchain()
   
   useEffect(() => {
     const interval = setInterval(() => {
@@ -76,12 +78,24 @@ function App() {
   const [selectedTab, setSelectedTab] = useState('dashboard')
   const [eventUrl, setEventUrl] = useState('')
 
-  const handleWalletConnect = (address: string) => {
-    setWalletConnected(true)
-    setWalletAddress(address)
+  const handleWalletConnect = async (address: string) => {
+    try {
+      const connectedAddress = await blockchain.connectWallet()
+      setWalletConnected(true)
+      setWalletAddress(connectedAddress)
+      toast.success('Wallet connected successfully!', {
+        description: `Connected to Mantle Network`
+      })
+    } catch (error) {
+      console.error('Wallet connection failed:', error)
+      toast.error('Failed to connect wallet', {
+        description: error instanceof Error ? error.message : 'Please try again'
+      })
+    }
   }
 
   const handleWalletDisconnect = () => {
+    blockchain.disconnectWallet()
     setWalletConnected(false)
     setWalletAddress(undefined)
     toast.info('Wallet disconnected')
@@ -143,15 +157,6 @@ function App() {
     
     addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Summary generated successfully`, 'success')
     await new Promise(resolve => setTimeout(resolve, 500))
-    
-    const gasEstimate = (Math.random() * 0.005 + 0.008).toFixed(4)
-    addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Estimating Mantle gas fees... ${gasEstimate} MNT`, 'info')
-    await new Promise(resolve => setTimeout(resolve, 800))
-    
-    addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Minting NFT on Mantle Network... Gas spent: ${gasEstimate} MNT`, 'info')
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted successfully! 🎉`, 'success')
 
     const newEvent: Event = {
       id: `event-${Date.now()}`,
@@ -164,50 +169,94 @@ function App() {
       status: 'completed'
     }
 
-    const newNFT: NFT = {
-      id: `nft-${Date.now()}`,
-      agentId: agent.id,
-      eventId: newEvent.id,
-      eventTitle: newEvent.title,
-      summary: newEvent.summary,
-      date: Date.now(),
-      transactionHash: `0x${Math.random().toString(16).slice(2)}`,
-      tokenId: `${1000 + (nfts?.length ?? 0) + 1}`,
-      imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT'
-    }
+    try {
+      const gasEstimate = await blockchain.estimateGas({
+        agentWallet: agent.walletAddress,
+        eventTitle: newEvent.title,
+        eventUrl: newEvent.url,
+        platform: newEvent.platform,
+        agentName: agent.name,
+        summary: newEvent.summary
+      })
 
-    const newEventsAttended = agent.eventsAttended + 1
-    const gasSpentAmount = parseFloat(gasEstimate)
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Estimating Mantle gas fees... ${gasEstimate} MNT`, 'info')
+      await new Promise(resolve => setTimeout(resolve, 800))
+      
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Minting NFT on Mantle Network...`, 'info')
+      
+      const mintResult = await blockchain.mintNFT({
+        agentWallet: agent.walletAddress,
+        eventTitle: newEvent.title,
+        eventUrl: newEvent.url,
+        platform: newEvent.platform,
+        agentName: agent.name,
+        summary: newEvent.summary
+      })
 
-    setEvents((current) => [...(current ?? []), newEvent])
-    setNFTs((current) => [...(current ?? []), newNFT])
-    setAgents((current) =>
-      (current ?? []).map((a) =>
-        a.id === agent.id
-          ? { 
-              ...a, 
-              eventsAttended: newEventsAttended, 
-              level: Math.floor(newEventsAttended / 2) + 1, 
-              wisdomUnlocked: newEventsAttended >= 5,
-              gasSpent: (a.gasSpent || 0) + gasSpentAmount,
-              mantleBalance: (a.mantleBalance || 0) - gasSpentAmount
-            }
-          : a
+      if (!mintResult.success) {
+        throw new Error(mintResult.error || 'Failed to mint NFT')
+      }
+
+      const gasUsedAmount = parseFloat(mintResult.gasUsed || gasEstimate)
+      
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted successfully! Gas spent: ${gasUsedAmount.toFixed(6)} MNT 🎉`, 'success')
+
+      const newNFT: NFT = {
+        id: `nft-${Date.now()}`,
+        agentId: agent.id,
+        eventId: newEvent.id,
+        eventTitle: newEvent.title,
+        summary: newEvent.summary,
+        date: Date.now(),
+        transactionHash: mintResult.transactionHash || `0x${Math.random().toString(16).slice(2)}`,
+        tokenId: mintResult.tokenId || `${1000 + (nfts?.length ?? 0) + 1}`,
+        imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT'
+      }
+
+      const newEventsAttended = agent.eventsAttended + 1
+
+      setEvents((current) => [...(current ?? []), newEvent])
+      setNFTs((current) => [...(current ?? []), newNFT])
+      setAgents((current) =>
+        (current ?? []).map((a) =>
+          a.id === agent.id
+            ? { 
+                ...a, 
+                eventsAttended: newEventsAttended, 
+                level: Math.floor(newEventsAttended / 2) + 1, 
+                wisdomUnlocked: newEventsAttended >= 5,
+                gasSpent: (a.gasSpent || 0) + gasUsedAmount,
+                mantleBalance: (a.mantleBalance || 0) - gasUsedAmount
+              }
+            : a
+        )
       )
-    )
 
-    setEventUrl('')
-    toast.success('Event attendance complete! NFT minted.', {
-      description: `Transaction: ${newNFT.transactionHash.slice(0, 10)}...`
-    })
+      await blockchain.refreshBalance()
 
-    if (newEventsAttended === 5) {
-      setTimeout(() => {
-        toast.success('🎉 Wisdom Unlocked!', {
-          description: 'Generate your Wisdom Report now!',
-          duration: 5000
-        })
-      }, 1000)
+      setEventUrl('')
+      toast.success('Event attendance complete! NFT minted on Mantle.', {
+        description: `Transaction: ${newNFT.transactionHash.slice(0, 10)}...`,
+        action: {
+          label: 'View on Explorer',
+          onClick: () => window.open(blockchain.getExplorerUrl(newNFT.transactionHash), '_blank')
+        }
+      })
+
+      if (newEventsAttended === 5) {
+        setTimeout(() => {
+          toast.success('🎉 Wisdom Unlocked!', {
+            description: 'Generate your Wisdom Report now!',
+            duration: 5000
+          })
+        }, 1000)
+      }
+    } catch (error) {
+      console.error('NFT minting error:', error)
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minting failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+      toast.error('Failed to mint NFT', {
+        description: error instanceof Error ? error.message : 'Please try again'
+      })
     }
   }
 
