@@ -2,6 +2,7 @@ export type Niche = 'Blockchain/DeFi' | 'Trading/Investment' | 'Technology' | 'H
 export type Personality = 'Aggressive' | 'Analytical' | 'Creative'
 export type AgentStatus = 'idle' | 'active' | 'processing' | 'error'
 export type SubAgentType = 'secretary' | 'scribe' | 'social-lite' | 'mint-master'
+export type RarityTier = 'common' | 'rare' | 'epic' | 'legendary' | 'mythic'
 
 export interface SubAgent {
   type: SubAgentType
@@ -37,6 +38,7 @@ export interface Agent {
   geneticTraits?: string[]
   lastBreedingTime?: number
   breedingCooldownHours?: number
+  rarityTier?: RarityTier
 }
 
 export interface EvolutionLevel {
@@ -176,6 +178,7 @@ export interface MarketplaceAgent {
   generation?: number
   parentIds?: string[]
   geneticTraits?: string[]
+  rarityTier?: RarityTier
 }
 
 export interface MarketplaceFilters {
