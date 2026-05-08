@@ -215,15 +215,18 @@ export function AgentBreedingDialog({
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto glass-card border-2 border-primary/30">
         <DialogHeader>
           <DialogTitle className="text-3xl font-bold flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-secondary/30 to-accent/30 border border-secondary/40 flex items-center justify-center animate-glow-pulse-purple">
-              <Dna size={28} className="text-secondary" weight="duotone" />
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-secondary/30 via-accent/30 to-primary/30 border-2 border-secondary/40 flex items-center justify-center animate-glow-pulse-purple shadow-2xl shadow-secondary/30">
+              <Dna size={32} className="text-secondary" weight="duotone" />
             </div>
-            <span className="bg-gradient-to-r from-secondary via-accent to-primary bg-clip-text text-transparent">
-              Agent Breeding Laboratory
-            </span>
+            <div className="flex flex-col">
+              <span className="bg-gradient-to-r from-secondary via-accent to-primary bg-clip-text text-transparent">
+                Neural Fusion Lab
+              </span>
+              <span className="text-xs text-muted-foreground font-normal">Advanced Genetic Engineering</span>
+            </div>
           </DialogTitle>
-          <DialogDescription className="text-base">
-            Merge wisdom from two agents to create a superior offspring with inherited traits and knowledge.
+          <DialogDescription className="text-base mt-2">
+            Merge wisdom from two agents to create a superior offspring with inherited traits and knowledge. This process burns MNT tokens to sustain the Agentic Economy.
           </DialogDescription>
         </DialogHeader>
 
@@ -236,16 +239,31 @@ export function AgentBreedingDialog({
               exit={{ opacity: 0 }}
               className="space-y-6"
             >
-              <Card className="p-5 bg-gradient-to-br from-amber-500/5 to-orange-500/10 border-2 border-amber-500/30">
-                <div className="flex items-start gap-3">
-                  <Sparkle size={24} className="text-amber-500 flex-shrink-0 mt-0.5" weight="duotone" />
-                  <div>
-                    <h4 className="font-bold text-amber-500 mb-1">Breeding Requirements</h4>
-                    <ul className="text-sm text-foreground/90 space-y-1">
-                      <li>• Both parents must have Wisdom Unlocked (5+ events attended)</li>
-                      <li>• Each agent can breed up to 3 times</li>
-                      <li>• Breeding Cost: <span className="font-bold text-amber-500">{BREEDING_COST} MNT</span></li>
-                      <li>• Offspring inherits ~33% of combined parent wisdom</li>
+              <Card className="p-6 bg-gradient-to-br from-amber-500/5 via-orange-500/10 to-amber-500/5 border-2 border-amber-500/30 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-500/5 to-transparent animate-pulse" />
+                <div className="relative flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center flex-shrink-0">
+                    <Sparkle size={24} className="text-amber-500" weight="duotone" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-amber-500 mb-3 text-lg">Neural Fusion Requirements</h4>
+                    <ul className="text-sm text-foreground/90 space-y-2">
+                      <li className="flex items-start gap-2">
+                        <span className="text-amber-500 flex-shrink-0">✓</span>
+                        <span>Both parents must have <span className="font-semibold text-amber-400">Wisdom Unlocked</span> (5+ events attended)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-amber-500 flex-shrink-0">✓</span>
+                        <span>Each agent can participate in up to <span className="font-semibold text-amber-400">3 breeding cycles</span></span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-amber-500 flex-shrink-0">✓</span>
+                        <span>Fusion Cost: <span className="font-bold text-amber-400 text-base">{BREEDING_COST} MNT</span> (burned to sustain economy)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-amber-500 flex-shrink-0">✓</span>
+                        <span>Offspring inherits <span className="font-semibold text-amber-400">~33% of combined parent wisdom</span></span>
+                      </li>
                     </ul>
                   </div>
                 </div>
@@ -267,9 +285,12 @@ export function AgentBreedingDialog({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-3">
-                  <Label className="text-lg font-semibold flex items-center gap-2">
-                    <span>Parent 1</span>
-                    {selectedParent1 && <Check size={18} className="text-green-500" weight="bold" />}
+                  <Label className="text-lg font-semibold flex items-center gap-2 mb-1">
+                    <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+                      <span className="text-primary font-bold">A</span>
+                    </div>
+                    <span>Parent Alpha</span>
+                    {selectedParent1 && <Check size={20} className="text-green-500" weight="bold" />}
                   </Label>
                   <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
                     {eligibleAgents.map((agent) => (
@@ -311,9 +332,12 @@ export function AgentBreedingDialog({
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-lg font-semibold flex items-center gap-2">
-                    <span>Parent 2</span>
-                    {selectedParent2 && <Check size={18} className="text-green-500" weight="bold" />}
+                  <Label className="text-lg font-semibold flex items-center gap-2 mb-1">
+                    <div className="w-8 h-8 rounded-lg bg-secondary/20 border border-secondary/40 flex items-center justify-center">
+                      <span className="text-secondary font-bold">B</span>
+                    </div>
+                    <span>Parent Beta</span>
+                    {selectedParent2 && <Check size={20} className="text-green-500" weight="bold" />}
                   </Label>
                   <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
                     {eligibleAgents.map((agent) => (
@@ -361,53 +385,60 @@ export function AgentBreedingDialog({
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-4"
                 >
-                  <Card className="p-5 bg-gradient-to-br from-primary/5 to-secondary/5 border border-primary/20">
-                    <h4 className="font-bold mb-3 flex items-center gap-2">
-                      <Lightning size={20} className="text-primary" weight="fill" />
-                      Predicted Offspring Traits
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground mb-1">Inherited Wisdom</p>
-                        <p className="font-bold text-primary">
-                          ~{calculateInheritedWisdom(selectedParent1, selectedParent2)} Events Worth
-                        </p>
+                  <Card className="p-6 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 border-2 border-primary/30 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,243,255,0.1),transparent_70%)]" />
+                    <div className="relative">
+                      <h4 className="font-bold mb-4 flex items-center gap-2 text-lg">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-secondary/30 border border-primary/40 flex items-center justify-center">
+                          <Lightning size={22} className="text-primary" weight="fill" />
+                        </div>
+                        <span>Predicted Genetic Output</span>
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-5">
+                        <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+                          <p className="text-muted-foreground mb-1 text-xs uppercase tracking-wider">Inherited Wisdom</p>
+                          <p className="font-bold text-primary text-lg">
+                            {calculateInheritedWisdom(selectedParent1, selectedParent2)} Events
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-secondary/10 border border-secondary/20">
+                          <p className="text-muted-foreground mb-1 text-xs uppercase tracking-wider">Starting Level</p>
+                          <p className="font-bold text-secondary text-lg">
+                            Level {Math.floor(calculateInheritedWisdom(selectedParent1, selectedParent2) / 2) + 1}
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
+                          <p className="text-muted-foreground mb-1 text-xs uppercase tracking-wider">Generation</p>
+                          <p className="font-bold text-accent text-lg">
+                            Gen {Math.max(selectedParent1.generation ?? 1, selectedParent2.generation ?? 1) + 1}
+                          </p>
+                        </div>
                       </div>
                       <div>
-                        <p className="text-muted-foreground mb-1">Starting Level</p>
-                        <p className="font-bold text-secondary">
-                          Level {Math.floor(calculateInheritedWisdom(selectedParent1, selectedParent2) / 2) + 1}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground mb-1">Generation</p>
-                        <p className="font-bold text-accent">
-                          Gen {Math.max(selectedParent1.generation ?? 1, selectedParent2.generation ?? 1) + 1}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4">
-                      <p className="text-muted-foreground mb-2">Genetic Bonuses:</p>
-                      <div className="flex flex-wrap gap-2">
-                        {getGeneticBonuses(selectedParent1, selectedParent2).map((bonus, idx) => (
-                          <Badge key={idx} className="bg-gradient-to-r from-primary/20 to-secondary/20 text-foreground">
-                            {bonus}
-                          </Badge>
-                        ))}
+                        <p className="text-muted-foreground mb-3 text-sm font-semibold">Genetic Enhancement Matrix:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {getGeneticBonuses(selectedParent1, selectedParent2).map((bonus, idx) => (
+                            <Badge key={idx} className="bg-gradient-to-r from-primary/20 to-secondary/20 text-foreground border border-primary/30 px-3 py-1.5">
+                              <Sparkle size={12} className="mr-1.5" weight="fill" />
+                              {bonus}
+                            </Badge>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </Card>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="offspring-name" className="text-base font-semibold">
-                      Offspring Name
+                  <div className="space-y-3">
+                    <Label htmlFor="offspring-name" className="text-base font-semibold flex items-center gap-2">
+                      <Sparkle size={18} className="text-primary" weight="duotone" />
+                      Offspring Identity
                     </Label>
                     <Input
                       id="offspring-name"
-                      placeholder="Enter a name for the new agent..."
+                      placeholder="Enter a name for the hybrid agent..."
                       value={offspringName}
                       onChange={(e) => setOffspringName(e.target.value)}
-                      className="border-primary/30 focus:border-primary font-semibold"
+                      className="border-2 border-primary/30 focus:border-primary font-semibold text-lg h-12"
                     />
                   </div>
                 </motion.div>
@@ -415,18 +446,24 @@ export function AgentBreedingDialog({
 
               {isBreeding && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="space-y-3"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="space-y-4"
                 >
-                  <div className="flex items-center justify-center gap-3">
-                    <ArrowsLeftRight size={24} className="text-primary animate-pulse" weight="bold" />
-                    <span className="text-lg font-semibold">Merging Wisdom...</span>
-                  </div>
-                  <Progress value={breedingProgress} className="h-3" />
-                  <p className="text-sm text-center text-muted-foreground">
-                    Synthesizing genetic traits and knowledge matrices
-                  </p>
+                  <Card className="p-6 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/30">
+                    <div className="flex items-center justify-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center animate-pulse">
+                        <ArrowsLeftRight size={24} className="text-primary" weight="bold" />
+                      </div>
+                      <span className="text-xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                        Neural Fusion In Progress
+                      </span>
+                    </div>
+                    <Progress value={breedingProgress} className="h-4 mb-3" />
+                    <p className="text-sm text-center text-muted-foreground font-mono">
+                      [{breedingProgress}%] Synthesizing genetic traits and knowledge matrices...
+                    </p>
+                  </Card>
                 </motion.div>
               )}
 
@@ -442,17 +479,18 @@ export function AgentBreedingDialog({
                 <Button
                   onClick={handleBreed}
                   disabled={!canBreed || isBreeding}
-                  className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold shadow-lg shadow-secondary/30"
+                  size="lg"
+                  className="bg-gradient-to-r from-secondary via-accent to-primary hover:opacity-90 font-bold shadow-2xl shadow-secondary/40 text-base"
                 >
                   {isBreeding ? (
                     <>
-                      <Sparkle className="mr-2 animate-spin" weight="fill" />
-                      Breeding...
+                      <Sparkle className="mr-2 animate-spin" weight="fill" size={20} />
+                      Initiating Neural Fusion...
                     </>
                   ) : (
                     <>
-                      <Dna className="mr-2" weight="duotone" />
-                      Breed Agents ({BREEDING_COST} MNT)
+                      <Dna className="mr-2" weight="duotone" size={20} />
+                      Initiate Neural Fusion ({BREEDING_COST} MNT)
                     </>
                   )}
                 </Button>
@@ -465,22 +503,26 @@ export function AgentBreedingDialog({
               animate={{ opacity: 1, scale: 1 }}
               className="space-y-6"
             >
-              <Card className="p-8 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 border-2 border-primary/40 text-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 animate-pulse" />
+              <Card className="p-10 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 border-2 border-primary/40 text-center relative overflow-hidden">
+                <div className="absolute inset-0">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-secondary/10 animate-pulse" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(157,0,255,0.15),transparent_70%)]" />
+                </div>
                 <div className="relative">
-                  <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-secondary/40 to-accent/40 border-2 border-secondary/50 flex items-center justify-center animate-glow-pulse-purple shadow-2xl">
-                    <Sparkle size={48} className="text-secondary" weight="fill" />
+                  <div className="w-28 h-28 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-secondary/40 via-accent/40 to-primary/40 border-2 border-secondary/50 flex items-center justify-center animate-glow-pulse-purple shadow-2xl">
+                    <Sparkle size={56} className="text-secondary" weight="fill" />
                   </div>
-                  <h3 className="text-3xl font-bold mb-3 bg-gradient-to-r from-secondary via-accent to-primary bg-clip-text text-transparent">
-                    Breeding Successful!
+                  <h3 className="text-4xl font-bold mb-4 bg-gradient-to-r from-secondary via-accent to-primary bg-clip-text text-transparent">
+                    🧬 Neural Fusion Complete!
                   </h3>
-                  <p className="text-xl font-semibold mb-2">{breedingResult?.offspring.name}</p>
-                  <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground">
-                    <Badge className="bg-primary/20 text-primary">
+                  <p className="text-2xl font-bold mb-3 text-foreground">{breedingResult?.offspring.name}</p>
+                  <p className="text-sm text-muted-foreground mb-4">Hybrid Intelligence Created</p>
+                  <div className="flex items-center justify-center gap-3 text-sm">
+                    <Badge className="bg-primary/20 text-primary border border-primary/30 px-3 py-1.5">
                       Gen {breedingResult?.offspring.generation}
                     </Badge>
-                    <Badge variant="outline">{breedingResult?.offspring.niche}</Badge>
-                    <Badge variant="outline">{breedingResult?.offspring.personality}</Badge>
+                    <Badge variant="outline" className="border-primary/30 px-3 py-1.5">{breedingResult?.offspring.niche}</Badge>
+                    <Badge variant="outline" className="border-secondary/30 px-3 py-1.5">{breedingResult?.offspring.personality}</Badge>
                   </div>
                 </div>
               </Card>
