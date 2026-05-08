@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure } from '@phosphor-icons/react'
+import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +13,8 @@ interface AgentCardProps {
   onConfigure?: (agent: Agent) => void
   onChat?: (agent: Agent) => void
   onViewEvolution?: (agent: Agent) => void
+  onTopUpGas?: (agent: Agent) => void
+  onListMarketplace?: (agent: Agent) => void
 }
 
 const statusColors = {
@@ -42,7 +44,7 @@ const subAgentLabels = {
   'mint-master': 'Mint-Master'
 }
 
-export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution }: AgentCardProps) {
+export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace }: AgentCardProps) {
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
@@ -63,7 +65,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl -ml-16 -mb-16 group-hover:bg-secondary/15 transition-all duration-500" />
         
         <div className="relative z-10">
-          <div className="flex items-start justify-between mb-5">
+          <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3" onClick={onClick}>
               <div className={cn(
                 'w-12 h-12 rounded-xl flex items-center justify-center relative',
@@ -74,9 +76,21 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                 {agent.status === 'active' && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full animate-pulse" />
                 )}
+                {agent.isGenesis && (
+                  <div className="absolute -bottom-1 -right-1">
+                    <Crown size={14} className="text-amber-500" weight="fill" />
+                  </div>
+                )}
               </div>
               <div>
-                <h3 className="font-bold text-lg tracking-tight">{agent.name}</h3>
+                <h3 className="font-bold text-lg tracking-tight flex items-center gap-2">
+                  {agent.name}
+                  {agent.isGenesis && (
+                    <Badge className="bg-amber-500/20 text-amber-500 text-[10px] font-bold border-amber-500/30 px-1.5 py-0">
+                      GENESIS
+                    </Badge>
+                  )}
+                </h3>
                 <p className="text-xs text-muted-foreground font-mono">
                   {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
                 </p>
@@ -86,6 +100,24 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               {agent.status.toUpperCase()}
             </Badge>
           </div>
+
+          {agent.ownershipStatus && (
+            <div className="mb-4 p-2.5 rounded-lg bg-accent/10 border border-accent/30" onClick={onClick}>
+              <div className="flex items-center gap-2">
+                {agent.ownershipStatus === 'original-creator' ? (
+                  <>
+                    <Crown className="text-accent" weight="fill" size={16} />
+                    <span className="text-xs font-semibold text-accent uppercase tracking-wider">Original Creator</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="text-secondary" weight="fill" size={16} />
+                    <span className="text-xs font-semibold text-secondary uppercase tracking-wider">Acquired via Marketplace</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4 mb-5" onClick={onClick}>
             <div>
@@ -101,17 +133,45 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
             </div>
           </div>
 
-          <div className="mb-5 p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20" onClick={onClick}>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <CurrencyCircleDollar size={18} className="text-primary" weight="duotone" />
-                <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Mantle Balance</span>
+          <div className="mb-5 space-y-3">
+            <div className="p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <CurrencyCircleDollar size={18} className="text-primary" weight="duotone" />
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Mantle Balance</span>
+                </div>
+                <span className="text-sm font-bold font-mono text-primary">{agent.mantleBalance?.toFixed(3) || '0.000'} MNT</span>
               </div>
-              <span className="text-sm font-bold font-mono text-primary">{agent.mantleBalance?.toFixed(3) || '0.000'} MNT</span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-muted-foreground">Gas Spent:</span>
+                <span className="text-xs font-mono text-muted-foreground">{agent.gasSpent?.toFixed(4) || '0.0000'} MNT</span>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Gas Spent:</span>
-              <span className="text-xs font-mono text-muted-foreground">{agent.gasSpent?.toFixed(4) || '0.0000'} MNT</span>
+
+            <div className="p-3 rounded-lg bg-gradient-to-r from-secondary/10 to-accent/10 border border-secondary/30">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Wallet size={18} className="text-secondary" weight="duotone" />
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Agentic Smart Account</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-muted-foreground">Agent Gas Balance:</span>
+                <span className="text-sm font-bold font-mono text-secondary">{(agent.agentGasBalance ?? 0).toFixed(4)} MNT</span>
+              </div>
+              {onTopUpGas && (
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onTopUpGas(agent)
+                  }}
+                  size="sm"
+                  className="w-full h-7 bg-gradient-to-r from-secondary/20 to-accent/20 hover:from-secondary/30 hover:to-accent/30 border border-secondary/40 hover:border-secondary/60 text-secondary font-semibold text-xs transition-all"
+                >
+                  <Lightning className="mr-1" weight="fill" size={14} />
+                  Top-Up Gas
+                </Button>
+              )}
             </div>
           </div>
 
@@ -216,6 +276,20 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               >
                 <TreeStructure className="mr-1.5" weight="duotone" size={16} />
                 Evolution Path
+              </Button>
+            )}
+            {onListMarketplace && agent.ownershipStatus === 'original-creator' && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onListMarketplace(agent)
+                }}
+                variant="outline"
+                size="sm"
+                className="w-full border-accent/30 hover:bg-accent/10 hover:border-accent/50 transition-all text-accent"
+              >
+                <ShoppingCart className="mr-1.5" weight="duotone" size={16} />
+                List on Marketplace
               </Button>
             )}
             <div className="grid grid-cols-2 gap-2">
