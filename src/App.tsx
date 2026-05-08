@@ -5,9 +5,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
-import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal } from '@/lib/types'
-import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals } from '@/lib/mockData'
+import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent } from '@/lib/types'
+import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
 import { AgentCard } from '@/components/AgentCard'
+import { MarketplaceAgentCard } from '@/components/MarketplaceAgentCard'
+import { GasPriceMonitor } from '@/components/GasPriceMonitor'
 import { NFTCard } from '@/components/NFTCard'
 import { SpawnAgentDialog } from '@/components/SpawnAgentDialog'
 import { TerminalConsole } from '@/components/TerminalConsole'
@@ -32,7 +34,7 @@ import { TopUpGasDialog } from '@/components/TopUpGasDialog'
 import { GenesisMintConfirmation } from '@/components/GenesisMintConfirmation'
 import { SecurityAuditLog } from '@/components/SecurityAuditLog'
 import { GlobalSecurityAuditLog } from '@/components/GlobalSecurityAuditLog'
-import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning } from '@phosphor-icons/react'
+import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
@@ -115,6 +117,8 @@ function App() {
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false)
   const [genesisMintDialogOpen, setGenesisMintDialogOpen] = useState(false)
   const [selectedAgentForTopUp, setSelectedAgentForTopUp] = useState<Agent | null>(null)
+  const [marketplaceAgents, setMarketplaceAgents] = useKV<MarketplaceAgent[]>('maef-marketplace', getMockMarketplaceAgents())
+  const [purchasingAgentId, setPurchasingAgentId] = useState<string | null>(null)
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
 
@@ -513,6 +517,61 @@ function App() {
     )
   }
 
+  const handleBuyAgent = async (marketplaceAgent: MarketplaceAgent) => {
+    if (!walletConnected) {
+      toast.error('Please connect your wallet first!')
+      return
+    }
+
+    if ((userBalance ?? 0) < marketplaceAgent.price) {
+      toast.error('Insufficient balance!', {
+        description: `You need ${marketplaceAgent.price} MNT but only have ${(userBalance ?? 0).toFixed(2)} MNT`
+      })
+      return
+    }
+
+    setPurchasingAgentId(marketplaceAgent.id)
+
+    await new Promise(resolve => setTimeout(resolve, 2000))
+
+    const newAgent: Agent = {
+      ...marketplaceAgent,
+      ownershipStatus: 'marketplace-acquired',
+      autoReplenishGas: false
+    }
+
+    setAgents((current) => [...(current ?? []), newAgent])
+    setMarketplaceAgents((current) => (current ?? []).filter(a => a.id !== marketplaceAgent.id))
+    setUserBalance((current) => (current ?? 0) - marketplaceAgent.price)
+
+    setPurchasingAgentId(null)
+
+    toast.success('Purchase Successful! Identity Wiped. Wisdom Inherited.', {
+      description: `Agent "${marketplaceAgent.name}" is now yours!`
+    })
+
+    addLog(newAgent.id, 'secretary', `[SYSTEM] Agent "${newAgent.name}" purchased. Memory reset, wisdom data preserved.`, 'success')
+  }
+
+  const handleToggleAutoReplenish = (agent: Agent, enabled: boolean) => {
+    setAgents((current) =>
+      (current ?? []).map((a) =>
+        a.id === agent.id ? { ...a, autoReplenishGas: enabled } : a
+      )
+    )
+
+    if (enabled) {
+      toast.success('Auto-Replenishment Activated', {
+        description: `${agent.name} will auto-replenish gas when below 0.05 MNT`
+      })
+      addLog(agent.id, 'mint-master', `[SYSTEM] Auto-replenishment active. Agent is fully self-sustaining.`, 'success')
+    } else {
+      toast.info('Auto-Replenishment Deactivated', {
+        description: `${agent.name} will no longer auto-replenish gas`
+      })
+    }
+  }
+
   const stats = [
     { label: 'Active Agents', value: agents?.length ?? 0, icon: Robot, color: 'text-primary' },
     { label: 'NFTs Minted', value: nfts?.length ?? 0, icon: WalletIcon, color: 'text-secondary' },
@@ -551,12 +610,24 @@ function App() {
                   <p className="text-xs text-muted-foreground font-mono">Mantle Agentic Event Factory</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 {isViewOnly && (
                   <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
                     <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
                     <p className="text-sm text-amber-500 font-semibold">View Only Mode</p>
                   </div>
+                )}
+                {walletConnected && (
+                  <>
+                    <GasPriceMonitor />
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass-card border-primary/30 shadow-lg">
+                      <WalletIcon size={18} className="text-primary" weight="duotone" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Balance</span>
+                        <span className="text-sm font-bold font-mono text-primary">{(userBalance ?? 0).toFixed(2)} MNT</span>
+                      </div>
+                    </div>
+                  </>
                 )}
                 <WalletConnect
                   onConnect={handleWalletConnect}
@@ -595,23 +666,26 @@ function App() {
           </div>
 
           <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-            <TabsList className="glass-card mb-8 p-1.5 border border-primary/20">
-              <TabsTrigger value="dashboard" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+            <TabsList className="glass-card mb-8 p-2 border border-primary/20 gap-1.5">
+              <TabsTrigger value="dashboard" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
                 Dashboard
               </TabsTrigger>
-              <TabsTrigger value="architecture" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+              <TabsTrigger value="marketplace" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-secondary/20 data-[state=active]:to-accent/20 data-[state=active]:text-secondary transition-all duration-300 hover:bg-secondary/5 hover:scale-105">
+                Marketplace
+              </TabsTrigger>
+              <TabsTrigger value="architecture" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
                 How It Works
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+              <TabsTrigger value="analytics" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
                 Analytics
               </TabsTrigger>
-              <TabsTrigger value="factory" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+              <TabsTrigger value="factory" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
                 Factory
               </TabsTrigger>
-              <TabsTrigger value="vault" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+              <TabsTrigger value="vault" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
                 NFT Vault
               </TabsTrigger>
-              <TabsTrigger value="community" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+              <TabsTrigger value="community" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
                 Community Insights
               </TabsTrigger>
             </TabsList>
@@ -727,7 +801,14 @@ function App() {
                         transition={{ delay: idx * 0.1 }}
                       >
                         <div className="space-y-3">
-                          <AgentCard agent={agent} onClick={() => agent.wisdomUnlocked && handleOpenWisdomReport(agent)} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} />
+                          <AgentCard 
+                            agent={agent} 
+                            onClick={() => agent.wisdomUnlocked && handleOpenWisdomReport(agent)} 
+                            onConfigure={handleConfigureAgent} 
+                            onChat={handleChatWithAgent} 
+                            onViewEvolution={handleViewEvolution}
+                            onToggleAutoReplenish={handleToggleAutoReplenish}
+                          />
                           {agent.wisdomUnlocked && (
                             <Button
                               onClick={() => handleOpenWisdomReport(agent)}
@@ -743,6 +824,53 @@ function App() {
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            <TabsContent value="marketplace" className="space-y-6 animate-slide-up">
+              <Card className="glass-card-hover p-10 text-center border-2 border-secondary/30 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 via-transparent to-accent/5" />
+                <div className="relative">
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-secondary/30 to-accent/30 border-2 border-secondary/40 flex items-center justify-center animate-glow-pulse-purple shadow-2xl shadow-secondary/30">
+                    <Storefront size={40} className="text-secondary" weight="fill" />
+                  </div>
+                  <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-secondary via-accent to-primary bg-clip-text text-transparent">Agent Marketplace</h2>
+                  <p className="text-muted-foreground mb-4 max-w-xl mx-auto text-base">
+                    Buy pre-trained AI agents from other users. Identity is wiped, but wisdom is inherited.
+                  </p>
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <span className="font-semibold">{marketplaceAgents?.length ?? 0} agents available</span>
+                    <span>•</span>
+                    <span>Prices range from 1.8 - 4.5 MNT</span>
+                  </div>
+                </div>
+              </Card>
+
+              {!marketplaceAgents || marketplaceAgents.length === 0 ? (
+                <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-secondary/30">
+                  <Storefront size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
+                  <h3 className="text-lg font-semibold mb-2">No Agents Available</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Check back later for agents listed by other users.
+                  </p>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {marketplaceAgents.map((agent, idx) => (
+                    <motion.div
+                      key={agent.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                    >
+                      <MarketplaceAgentCard 
+                        agent={agent} 
+                        onBuy={handleBuyAgent}
+                        isPurchasing={purchasingAgentId === agent.id}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="architecture" className="space-y-6 animate-slide-up">

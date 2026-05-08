@@ -2,6 +2,7 @@ import { Agent } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
@@ -15,6 +16,7 @@ interface AgentCardProps {
   onViewEvolution?: (agent: Agent) => void
   onTopUpGas?: (agent: Agent) => void
   onListMarketplace?: (agent: Agent) => void
+  onToggleAutoReplenish?: (agent: Agent, enabled: boolean) => void
 }
 
 const statusColors = {
@@ -44,7 +46,7 @@ const subAgentLabels = {
   'mint-master': 'Mint-Master'
 }
 
-export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace }: AgentCardProps) {
+export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace, onToggleAutoReplenish }: AgentCardProps) {
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
@@ -155,10 +157,58 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                   <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Agentic Smart Account</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <span className="text-xs text-muted-foreground">Agent Gas Balance:</span>
                 <span className="text-sm font-bold font-mono text-secondary">{(agent.agentGasBalance ?? 0).toFixed(4)} MNT</span>
               </div>
+              
+              {onToggleAutoReplenish && (
+                <div className="mb-3 p-2.5 rounded-md bg-background/50 border border-border/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-2 cursor-help">
+                              <Lightning size={14} className={agent.autoReplenishGas ? 'text-green-500' : 'text-muted-foreground'} weight="fill" />
+                              <span className="text-xs font-semibold">Auto-Replenish</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs bg-card border-primary/30">
+                            <p className="text-xs text-muted-foreground">
+                              Automatically deducts <span className="font-bold text-primary">0.1 MNT</span> from User Wallet when Agent Gas falls below <span className="font-bold text-destructive">0.05 MNT</span>
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <Switch
+                      checked={agent.autoReplenishGas || false}
+                      onCheckedChange={(checked) => {
+                        if (onToggleAutoReplenish) {
+                          onToggleAutoReplenish(agent, checked)
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="data-[state=checked]:bg-green-500"
+                    />
+                  </div>
+                  {agent.autoReplenishGas && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-2 pt-2 border-t border-border/30"
+                    >
+                      <div className="flex items-center gap-2 text-[10px] text-green-500">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                        <span className="font-semibold uppercase tracking-wide">Self-Sustaining Mode Active</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+              )}
+              
               {onTopUpGas && (
                 <Button
                   onClick={(e) => {

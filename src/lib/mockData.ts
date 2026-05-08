@@ -1,4 +1,4 @@
-import { Agent, SubAgent, Event, NFT, Niche, Personality, AgentProposal, SecurityAuditEntry } from './types'
+import { Agent, SubAgent, Event, NFT, Niche, Personality, AgentProposal, SecurityAuditEntry, MarketplaceAgent } from './types'
 
 const niches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
 const personalities: Personality[] = ['Aggressive', 'Analytical', 'Creative']
@@ -607,6 +607,134 @@ export function getMockProposals(): AgentProposal[] {
       status: 'pending',
       createdAt: now - 1 * hourInMs,
       expiresAt: now + 23 * hourInMs
+    }
+  ]
+}
+
+export function getMockMarketplaceAgents(): MarketplaceAgent[] {
+  const now = Date.now()
+  const dayInMs = 24 * 60 * 60 * 1000
+
+  return [
+    {
+      id: 'marketplace-agent-001',
+      name: 'Omega DeFi Master',
+      personality: 'Aggressive',
+      niche: 'Blockchain/DeFi',
+      walletAddress: generateWalletAddress(),
+      eventsAttended: 12,
+      level: 6,
+      wisdomUnlocked: true,
+      price: 2.5,
+      seller: 'CryptoWhale',
+      sellerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb4',
+      listedAt: now - 3 * dayInMs,
+      agentGasBalance: 0.85,
+      status: 'idle',
+      subAgents: createSubAgents(),
+      createdAt: now - 45 * dayInMs,
+      mantleBalance: 0,
+      gasSpent: 0.187
+    },
+    {
+      id: 'marketplace-agent-002',
+      name: 'Trading Oracle',
+      personality: 'Analytical',
+      niche: 'Trading/Investment',
+      walletAddress: generateWalletAddress(),
+      eventsAttended: 15,
+      level: 8,
+      wisdomUnlocked: true,
+      price: 3.8,
+      seller: 'DeFi_Trader_Pro',
+      sellerAddress: '0x8ba1f109551bd432803012645ac136ddd64dba72',
+      listedAt: now - 1 * dayInMs,
+      agentGasBalance: 1.2,
+      status: 'idle',
+      subAgents: createSubAgents(),
+      createdAt: now - 60 * dayInMs,
+      mantleBalance: 0,
+      gasSpent: 0.245
+    },
+    {
+      id: 'marketplace-agent-003',
+      name: 'Tech Innovator',
+      personality: 'Creative',
+      niche: 'Technology',
+      walletAddress: generateWalletAddress(),
+      eventsAttended: 7,
+      level: 4,
+      wisdomUnlocked: true,
+      price: 1.8,
+      seller: 'BuilderDAO',
+      sellerAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
+      listedAt: now - 5 * dayInMs,
+      agentGasBalance: 0.42,
+      status: 'idle',
+      subAgents: createSubAgents(),
+      createdAt: now - 30 * dayInMs,
+      mantleBalance: 0,
+      gasSpent: 0.098
+    },
+    {
+      id: 'marketplace-agent-004',
+      name: 'Wellness Guru',
+      personality: 'Creative',
+      niche: 'Health/Wellness',
+      walletAddress: generateWalletAddress(),
+      eventsAttended: 10,
+      level: 5,
+      wisdomUnlocked: true,
+      price: 2.2,
+      seller: 'HealthyLiving',
+      sellerAddress: '0x1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B',
+      listedAt: now - 7 * dayInMs,
+      agentGasBalance: 0.68,
+      status: 'idle',
+      subAgents: createSubAgents(),
+      createdAt: now - 50 * dayInMs,
+      mantleBalance: 0,
+      gasSpent: 0.132
+    },
+    {
+      id: 'marketplace-agent-005',
+      name: 'Quantum Sage',
+      personality: 'Analytical',
+      niche: 'Blockchain/DeFi',
+      walletAddress: generateWalletAddress(),
+      eventsAttended: 18,
+      level: 9,
+      wisdomUnlocked: true,
+      price: 4.5,
+      seller: 'DAO_Collective',
+      sellerAddress: '0x9c5A8f5C0e3b7D1d4A2F6B8C3E9D7A5B1C4F6E8D',
+      listedAt: now - 2 * dayInMs,
+      agentGasBalance: 1.5,
+      status: 'idle',
+      subAgents: createSubAgents(),
+      createdAt: now - 90 * dayInMs,
+      mantleBalance: 0,
+      gasSpent: 0.312
+    },
+    {
+      id: 'marketplace-agent-006',
+      name: 'Alpha Strategist',
+      personality: 'Aggressive',
+      niche: 'Trading/Investment',
+      walletAddress: generateWalletAddress(),
+      eventsAttended: 9,
+      level: 5,
+      wisdomUnlocked: true,
+      price: 2.0,
+      seller: 'InvestorDAO',
+      sellerAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb4',
+      listedAt: now - 4 * dayInMs,
+      agentGasBalance: 0.55,
+      status: 'idle',
+      subAgents: createSubAgents(),
+      createdAt: now - 35 * dayInMs,
+      mantleBalance: 0,
+      gasSpent: 0.115
     }
   ]
 }
