@@ -802,20 +802,28 @@ function App() {
                 </div>
               </div>
 
-              {verificationData && verificationData.length > 0 && (
-                <div className="mt-12">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                      <ShieldCheck className="text-primary" weight="duotone" size={22} />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold">Contract Verification Status</h3>
-                      <p className="text-sm text-muted-foreground">Track smart contract deployments and verification on Mantle Explorer</p>
-                    </div>
+              <div className="mt-12 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+                    <ShieldCheck className="text-primary" weight="duotone" size={22} />
                   </div>
-                  <VerificationDashboard verifications={verificationData} />
+                  <div>
+                    <h3 className="text-xl font-bold">Contract Verification Status</h3>
+                    <p className="text-sm text-muted-foreground">Track smart contract deployments and verification on Mantle Explorer</p>
+                  </div>
                 </div>
-              )}
+                {verificationData && verificationData.length > 0 ? (
+                  <VerificationDashboard verifications={verificationData} />
+                ) : (
+                  <Card className="glass-card-hover p-8 text-center border-2 border-dashed border-primary/30">
+                    <ShieldCheck size={48} className="mx-auto mb-3 text-muted-foreground opacity-50" weight="duotone" />
+                    <h4 className="text-base font-semibold mb-2 text-muted-foreground">No Contract Verifications Yet</h4>
+                    <p className="text-sm text-muted-foreground/80 max-w-md mx-auto">
+                      Smart contracts will appear here after spawning new agents. Each agent deployment is automatically verified on Mantle Explorer.
+                    </p>
+                  </Card>
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="vault" className="space-y-6 animate-slide-up">
