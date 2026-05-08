@@ -47,11 +47,23 @@ MAEF is a cutting-edge SaaS platform built on the Mantle Network that enables us
 
 ## Documentation
 
+**📚 [Complete Documentation Index](./DOCUMENTATION_INDEX.md)** - Navigate all documentation by role and topic
+
+### Core Documentation
 - [Product Requirements](./PRD.md)
 - [Blockchain Integration Guide](./BLOCKCHAIN_INTEGRATION.md)
 - [Smart Contract Improvements](./SMART_CONTRACT_IMPROVEMENTS.md)
 - [Platform Analysis](./HACKATHON_ANALYSIS.md)
 - [Security Guidelines](./SECURITY.md)
+
+### Development Guidelines
+- [Daily Analysis Report](./DAILY_ANALYSIS.md) - Current status and improvement recommendations
+- [Summary (Bahasa Indonesia)](./SUMMARY_ID.md) - Ringkasan analisis dan rekomendasi
+- [Commit Message Guidelines](./COMMIT_GUIDELINES.md) - Professional commit standards (English)
+- [Pre-Commit Checklist](./PRE_COMMIT_CHECKLIST.md) - Quality assurance before every commit
+- [Dependency Update Guide](./DEPENDENCY_UPDATE_GUIDE.md) - How to handle pending dependency updates
+- [Quick Fixes Checklist](./QUICK_FIXES.md) - Actionable improvements and quick wins
+- [Environment Variables](./.env.example) - Configuration template
 
 ## License
 
