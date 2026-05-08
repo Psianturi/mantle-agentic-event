@@ -50,6 +50,8 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
+  const isHighGeneration = agent.generation && agent.generation >= 3
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -61,8 +63,54 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
       <Card className={cn(
         'glass-card-hover p-6 relative overflow-hidden group transition-all duration-300',
         agent.status === 'active' && 'neon-border-cyan',
-        agent.status === 'processing' && 'neon-border-purple'
+        agent.status === 'processing' && 'neon-border-purple',
+        isHighGeneration && 'border-transparent'
       )}>
+        {isHighGeneration && (
+          <>
+            <div className="absolute inset-0 rounded-lg">
+              <motion.div
+                className="absolute inset-0 rounded-lg"
+                animate={{
+                  background: [
+                    'linear-gradient(0deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
+                    'linear-gradient(90deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
+                    'linear-gradient(180deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
+                    'linear-gradient(270deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
+                    'linear-gradient(360deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
+                  ]
+                }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                style={{
+                  filter: 'blur(2px)',
+                  padding: '2px',
+                }}
+              />
+            </div>
+            <div className="absolute top-2 right-2 z-20">
+              <motion.div
+                animate={{
+                  scale: [1, 1.05, 1],
+                  opacity: [0.8, 1, 0.8]
+                }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <Badge className="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white text-[10px] font-bold px-2.5 py-0.5 shadow-2xl shadow-amber-500/50 border-none relative overflow-hidden">
+                  <motion.div
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
+                    animate={{
+                      x: ['-100%', '200%']
+                    }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  />
+                  <span className="relative z-10 flex items-center gap-1">
+                    ✨ MYTHIC GEN-{agent.generation}
+                  </span>
+                </Badge>
+              </motion.div>
+            </div>
+          </>
+        )}
         <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-primary/15 transition-all duration-500" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl -ml-16 -mb-16 group-hover:bg-secondary/15 transition-all duration-500" />
         

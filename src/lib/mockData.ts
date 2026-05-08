@@ -176,6 +176,31 @@ export function getMockAgents(): Agent[] {
       breedingCount: 0,
       maxBreedings: 3,
       geneticTraits: []
+    },
+    {
+      id: 'agent-006',
+      name: 'Mythic Fusion Alpha',
+      personality: 'Aggressive',
+      niche: 'Blockchain/DeFi',
+      walletAddress: '0x7E4F2B9C8D1A3F6E5B2C9A4D7E1F3B8C5A2E9D1F',
+      eventsAttended: 15,
+      level: 8,
+      status: 'idle',
+      createdAt: Date.now() - 45 * 24 * 60 * 60 * 1000,
+      subAgents: createSubAgentsWithStatus(['active', 'idle', 'idle', 'idle']),
+      wisdomUnlocked: true,
+      mantleBalance: 67.892,
+      gasSpent: 0.147,
+      isGenesis: false,
+      ownershipStatus: 'bred',
+      agentGasBalance: 2.34,
+      generation: 3,
+      parentIds: ['agent-001', 'agent-002'],
+      breedingCount: 1,
+      maxBreedings: 5,
+      geneticTraits: ['Enhanced Pattern Recognition', 'Cross-Chain Intelligence', 'Hybrid Wisdom Core'],
+      lastBreedingTime: Date.now() - (18 * 60 * 60 * 1000),
+      breedingCooldownHours: 24
     }
   ]
 }
