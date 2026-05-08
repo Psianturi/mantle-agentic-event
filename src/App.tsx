@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useKV } from '@github/spark/hooks'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
-import { Agent, NFT, TerminalLog, Event } from '@/lib/types'
+import { Agent, NFT, TerminalLog, Event, SubAgentType } from '@/lib/types'
 import { getMockAgents, getMockNFTs, getMockEvents } from '@/lib/mockData'
 import { AgentCard } from '@/components/AgentCard'
 import { NFTCard } from '@/components/NFTCard'
@@ -15,11 +15,44 @@ import { Sparkle, Robot, Wallet, ChartLine, Globe, Plus } from '@phosphor-icons/
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 
+const simulationMessages = [
+  { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
+  { type: 'scribe', messages: ['Transcribing YouTube podcast...', 'Extracting key insights from video...', 'Analyzing speaker sentiment...', 'Processing audio content...'] },
+  { type: 'social-lite', messages: ['Monitoring Telegram channel...', 'Checking Discord notifications...', 'Analyzing community sentiment...', 'Engaging with community members...'] },
+  { type: 'mint-master', messages: ['Estimating Mantle gas fees...', 'Optimizing transaction parameters...', 'Preparing NFT metadata...', 'Calculating optimal mint timing...'] }
+]
+
 function App() {
   const [agents, setAgents] = useKV<Agent[]>('maef-agents', getMockAgents())
   const [nfts, setNFTs] = useKV<NFT[]>('maef-nfts', getMockNFTs())
   const [events, setEvents] = useKV<Event[]>('maef-events', getMockEvents())
   const [logs, setLogs] = useState<TerminalLog[]>([])
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (agents && agents.length > 0) {
+        const randomAgent = agents[Math.floor(Math.random() * agents.length)]
+        const randomSubAgentType = simulationMessages[Math.floor(Math.random() * simulationMessages.length)]
+        const randomMessage = randomSubAgentType.messages[Math.floor(Math.random() * randomSubAgentType.messages.length)]
+        
+        const newLog: TerminalLog = {
+          id: `sim-log-${Date.now()}-${Math.random()}`,
+          agentId: randomAgent.id,
+          subAgentType: randomSubAgentType.type as SubAgentType,
+          message: randomMessage,
+          timestamp: Date.now(),
+          type: Math.random() > 0.8 ? 'success' : 'info'
+        }
+        
+        setLogs((current) => {
+          const newLogs = [...current, newLog]
+          return newLogs.slice(-50)
+        })
+      }
+    }, 3000 + Math.random() * 2000)
+    
+    return () => clearInterval(interval)
+  }, [agents])
   
   const [spawnDialogOpen, setSpawnDialogOpen] = useState(false)
   const [selectedTab, setSelectedTab] = useState('dashboard')
@@ -131,45 +164,55 @@ function App() {
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(0,243,255,0.1),transparent_50%),radial-gradient(circle_at_80%_80%,rgba(157,0,255,0.1),transparent_50%)]" />
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDMpIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-40" />
+      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(0,243,255,0.15),transparent_50%),radial-gradient(ellipse_at_bottom_right,rgba(157,0,255,0.15),transparent_50%),radial-gradient(ellipse_at_center,rgba(100,100,255,0.05),transparent_70%)]" />
+      <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSA2MCAwIEwgMCAwIDAgNjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0icmdiYSgwLDI0MywyNTUsMC4wNSkiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-30" />
+      <div className="fixed inset-0 bg-gradient-to-b from-transparent via-background/50 to-background pointer-events-none" />
 
       <div className="relative z-10">
-        <header className="border-b border-border/50 backdrop-blur-sm bg-background/80 sticky top-0 z-40">
-          <div className="container mx-auto px-6 py-4">
+        <header className="border-b border-primary/20 backdrop-blur-xl bg-background/70 sticky top-0 z-40 shadow-lg shadow-primary/5">
+          <div className="container mx-auto px-6 py-5">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center animate-glow-pulse">
-                  <Sparkle size={24} className="text-background" weight="fill" />
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-accent to-secondary flex items-center justify-center animate-glow-pulse shadow-lg shadow-primary/50">
+                    <Sparkle size={26} className="text-background" weight="fill" />
+                  </div>
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-secondary blur-xl opacity-50 -z-10" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight">MAEF</h1>
-                  <p className="text-xs text-muted-foreground">Mantle Agentic Event Factory</p>
+                  <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">MAEF</h1>
+                  <p className="text-xs text-muted-foreground font-mono">Mantle Agentic Event Factory</p>
                 </div>
               </div>
-              <p className="text-sm text-muted-foreground italic hidden md:block">
-                Turn Information Overload into On-Chain Wisdom
-              </p>
+              <div className="hidden md:flex items-center gap-3 px-4 py-2 rounded-lg glass-card border-primary/20">
+                <Sparkle size={16} className="text-primary" weight="fill" />
+                <p className="text-sm text-foreground/90 font-medium">
+                  Turn Information Overload into On-Chain Wisdom
+                </p>
+              </div>
             </div>
           </div>
         </header>
 
-        <main className="container mx-auto px-6 py-8 pb-64">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <main className="container mx-auto px-6 py-8 pb-72">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
             {stats.map((stat, i) => (
               <motion.div
                 key={stat.label}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
+                transition={{ delay: i * 0.1, duration: 0.5 }}
               >
-                <Card className="glass-card p-4">
-                  <div className="flex items-center justify-between">
+                <Card className="glass-card-hover p-5 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl group-hover:from-primary/20 transition-all duration-500" />
+                  <div className="relative flex items-center justify-between">
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider">{stat.label}</p>
-                      <p className="text-2xl font-bold mt-1">{stat.value}</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2">{stat.label}</p>
+                      <p className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">{stat.value}</p>
                     </div>
-                    <stat.icon size={32} className={stat.color} weight="duotone" />
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center group-hover:scale-110 group-hover:border-primary/50 transition-all duration-300">
+                      <stat.icon size={28} className={stat.color} weight="duotone" />
+                    </div>
                   </div>
                 </Card>
               </motion.div>
@@ -177,29 +220,37 @@ function App() {
           </div>
 
           <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-            <TabsList className="glass-card mb-6">
-              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-              <TabsTrigger value="factory">Factory</TabsTrigger>
-              <TabsTrigger value="vault">NFT Vault</TabsTrigger>
+            <TabsList className="glass-card mb-8 p-1.5 border border-primary/20">
+              <TabsTrigger value="dashboard" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="factory" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+                Factory
+              </TabsTrigger>
+              <TabsTrigger value="vault" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+                NFT Vault
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="dashboard" className="space-y-6">
-              <Card className="glass-card p-6">
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <Globe className="text-primary" weight="duotone" />
-                  Attend Event
+            <TabsContent value="dashboard" className="space-y-6 animate-slide-up">
+              <Card className="glass-card-hover p-6 border-2 border-primary/20">
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+                    <Globe className="text-primary" weight="duotone" size={22} />
+                  </div>
+                  <span>Attend Event</span>
                 </h2>
                 <div className="flex gap-3">
                   <Input
                     placeholder="Enter YouTube or Luma event URL..."
                     value={eventUrl}
                     onChange={(e) => setEventUrl(e.target.value)}
-                    className="flex-1 border-primary/20 focus:border-primary"
+                    className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
                   />
                   <Button
                     onClick={handleAttendEvent}
                     disabled={!eventUrl.trim()}
-                    className="bg-gradient-to-r from-secondary to-accent hover:opacity-90"
+                    className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
                   >
                     Attend Event
                   </Button>
@@ -207,72 +258,110 @@ function App() {
               </Card>
 
               <div>
-                <h2 className="text-xl font-bold mb-4">Your Agents</h2>
+                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
+                  <span>Your Agents</span>
+                  <span className="text-sm text-muted-foreground font-normal">({agents?.length ?? 0} active)</span>
+                </h2>
                 {!agents || agents.length === 0 ? (
-                  <Card className="glass-card p-12 text-center">
-                    <Robot size={64} className="mx-auto mb-4 text-muted-foreground" weight="duotone" />
+                  <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-primary/30">
+                    <Robot size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
                     <h3 className="text-lg font-semibold mb-2">No Agents Yet</h3>
-                    <p className="text-sm text-muted-foreground mb-4">Spawn your first AI agent to get started</p>
-                    <Button onClick={() => setSpawnDialogOpen(true)} className="bg-gradient-to-r from-secondary to-accent">
+                    <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">Spawn your first AI agent to start attending events and minting NFTs</p>
+                    <Button onClick={() => setSpawnDialogOpen(true)} className="bg-gradient-to-r from-secondary to-accent font-semibold shadow-lg shadow-secondary/30">
                       <Plus className="mr-2" weight="bold" />
                       Spawn Agent
                     </Button>
                   </Card>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {agents.map((agent) => (
-                      <AgentCard key={agent.id} agent={agent} />
+                    {agents.map((agent, idx) => (
+                      <motion.div
+                        key={agent.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                      >
+                        <AgentCard agent={agent} />
+                      </motion.div>
                     ))}
                   </div>
                 )}
               </div>
             </TabsContent>
 
-            <TabsContent value="factory" className="space-y-6">
-              <Card className="glass-card p-8 text-center">
-                <Sparkle size={64} className="mx-auto mb-4 text-primary" weight="fill" />
-                <h2 className="text-2xl font-bold mb-2">Agent Factory</h2>
-                <p className="text-muted-foreground mb-6">
-                  Create autonomous AI agents tailored to your information needs
-                </p>
-                <Button
-                  onClick={() => setSpawnDialogOpen(true)}
-                  size="lg"
-                  className="bg-gradient-to-r from-secondary to-accent hover:opacity-90"
-                >
-                  <Plus className="mr-2" weight="bold" />
-                  Spawn New Agent
-                </Button>
+            <TabsContent value="factory" className="space-y-6 animate-slide-up">
+              <Card className="glass-card-hover p-10 text-center border-2 border-primary/30 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5" />
+                <div className="relative">
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary/30 to-secondary/30 border-2 border-primary/40 flex items-center justify-center animate-glow-pulse shadow-2xl shadow-primary/30">
+                    <Sparkle size={40} className="text-primary" weight="fill" />
+                  </div>
+                  <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">Agent Factory</h2>
+                  <p className="text-muted-foreground mb-8 max-w-xl mx-auto text-base">
+                    Create autonomous AI agents tailored to your information needs. Each agent comes with 4 specialized sub-agents.
+                  </p>
+                  <Button
+                    onClick={() => setSpawnDialogOpen(true)}
+                    size="lg"
+                    className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-8 shadow-lg shadow-secondary/30"
+                  >
+                    <Plus className="mr-2" weight="bold" size={20} />
+                    Spawn New Agent
+                  </Button>
+                </div>
               </Card>
 
               <div>
-                <h3 className="text-xl font-bold mb-4">All Agents ({agents?.length ?? 0})</h3>
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                  <span>All Agents</span>
+                  <span className="text-sm text-muted-foreground font-normal">({agents?.length ?? 0} total)</span>
+                </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {agents?.map((agent) => (
-                    <AgentCard key={agent.id} agent={agent} />
+                  {agents?.map((agent, idx) => (
+                    <motion.div
+                      key={agent.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: idx * 0.1 }}
+                    >
+                      <AgentCard agent={agent} />
+                    </motion.div>
                   ))}
                 </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="vault" className="space-y-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold">NFT Vault</h2>
-                <p className="text-sm text-muted-foreground">{nfts?.length ?? 0} NFTs minted</p>
+            <TabsContent value="vault" className="space-y-6 animate-slide-up">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <span>NFT Vault</span>
+                  <span className="text-sm text-muted-foreground font-normal">({nfts?.length ?? 0} NFTs)</span>
+                </h2>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass-card border-primary/20">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <p className="text-sm text-muted-foreground font-mono">Mantle Network</p>
+                </div>
               </div>
               
               {!nfts || nfts.length === 0 ? (
-                <Card className="glass-card p-12 text-center">
-                  <Wallet size={64} className="mx-auto mb-4 text-muted-foreground" weight="duotone" />
+                <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-primary/30">
+                  <Wallet size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
                   <h3 className="text-lg font-semibold mb-2">No NFTs Yet</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Attend events with your agents to mint Proof-of-Attendance NFTs
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Attend events with your agents to mint Proof-of-Attendance NFTs on Mantle Network
                   </p>
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {nfts?.map((nft) => (
-                    <NFTCard key={nft.id} nft={nft} />
+                  {nfts?.map((nft, idx) => (
+                    <motion.div
+                      key={nft.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: idx * 0.08 }}
+                    >
+                      <NFTCard nft={nft} />
+                    </motion.div>
                   ))}
                 </div>
               )}

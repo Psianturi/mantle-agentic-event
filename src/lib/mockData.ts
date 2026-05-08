@@ -57,6 +57,14 @@ export function createMockAgent(name: string, personality: Personality, niche: N
   }
 }
 
+function createSubAgentsWithStatus(statuses: Agent['status'][]): SubAgent[] {
+  const baseAgents = createSubAgents()
+  return baseAgents.map((agent, index) => ({
+    ...agent,
+    status: statuses[index] || 'idle'
+  }))
+}
+
 export function getMockAgents(): Agent[] {
   return [
     {
@@ -67,9 +75,9 @@ export function getMockAgents(): Agent[] {
       walletAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb4',
       eventsAttended: 3,
       level: 2,
-      status: 'idle',
+      status: 'active',
       createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000,
-      subAgents: createSubAgents(),
+      subAgents: createSubAgentsWithStatus(['active', 'processing', 'idle', 'idle']),
       wisdomUnlocked: false
     },
     {
@@ -82,7 +90,7 @@ export function getMockAgents(): Agent[] {
       level: 3,
       status: 'idle',
       createdAt: Date.now() - 14 * 24 * 60 * 60 * 1000,
-      subAgents: createSubAgents(),
+      subAgents: createSubAgentsWithStatus(['idle', 'idle', 'idle', 'idle']),
       wisdomUnlocked: true
     },
     {
@@ -93,9 +101,35 @@ export function getMockAgents(): Agent[] {
       walletAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed',
       eventsAttended: 2,
       level: 1,
-      status: 'idle',
+      status: 'processing',
       createdAt: Date.now() - 3 * 24 * 60 * 60 * 1000,
-      subAgents: createSubAgents(),
+      subAgents: createSubAgentsWithStatus(['idle', 'active', 'idle', 'processing']),
+      wisdomUnlocked: false
+    },
+    {
+      id: 'agent-004',
+      name: 'Quantum Trader',
+      personality: 'Analytical',
+      niche: 'Trading/Investment',
+      walletAddress: '0x9c5A8f5C0e3b7D1d4A2F6B8C3E9D7A5B1C4F6E8D',
+      eventsAttended: 4,
+      level: 2,
+      status: 'idle',
+      createdAt: Date.now() - 10 * 24 * 60 * 60 * 1000,
+      subAgents: createSubAgentsWithStatus(['idle', 'idle', 'active', 'idle']),
+      wisdomUnlocked: false
+    },
+    {
+      id: 'agent-005',
+      name: 'Zen Wellness',
+      personality: 'Creative',
+      niche: 'Health/Wellness',
+      walletAddress: '0x1A2B3C4D5E6F7A8B9C0D1E2F3A4B5C6D7E8F9A0B',
+      eventsAttended: 1,
+      level: 1,
+      status: 'idle',
+      createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000,
+      subAgents: createSubAgentsWithStatus(['idle', 'idle', 'idle', 'idle']),
       wisdomUnlocked: false
     }
   ]

@@ -1,7 +1,8 @@
 import { Agent } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Robot, Lightning, TrendUp, Brain } from '@phosphor-icons/react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
@@ -11,16 +12,30 @@ interface AgentCardProps {
 }
 
 const statusColors = {
-  idle: 'bg-muted text-muted-foreground',
-  active: 'bg-primary text-primary-foreground animate-glow-pulse',
-  processing: 'bg-secondary text-secondary-foreground',
-  error: 'bg-destructive text-destructive-foreground'
+  idle: 'bg-muted/50 text-muted-foreground border-muted',
+  active: 'bg-primary/20 text-primary border-primary animate-glow-pulse',
+  processing: 'bg-secondary/20 text-secondary border-secondary animate-glow-pulse-purple',
+  error: 'bg-destructive/20 text-destructive border-destructive'
 }
 
 const personalityIcons = {
   Aggressive: Lightning,
   Analytical: TrendUp,
   Creative: Brain
+}
+
+const subAgentIcons = {
+  secretary: UserCircle,
+  scribe: PencilSimple,
+  'social-lite': ChatCircle,
+  'mint-master': Coins
+}
+
+const subAgentLabels = {
+  secretary: 'Secretary',
+  scribe: 'Scribe',
+  'social-lite': 'Social-Lite',
+  'mint-master': 'Mint-Master'
 }
 
 export function AgentCard({ agent, onClick }: AgentCardProps) {
@@ -37,87 +52,138 @@ export function AgentCard({ agent, onClick }: AgentCardProps) {
       className="cursor-pointer"
     >
       <Card className={cn(
-        'glass-card p-6 relative overflow-hidden group',
-        agent.status === 'active' && 'border-primary shadow-lg shadow-primary/20'
+        'glass-card-hover p-6 relative overflow-hidden group transition-all duration-300',
+        agent.status === 'active' && 'neon-border-cyan',
+        agent.status === 'processing' && 'neon-border-purple'
       )}>
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16" />
+        <div className="absolute top-0 right-0 w-40 h-40 bg-primary/10 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-primary/15 transition-all duration-500" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl -ml-16 -mb-16 group-hover:bg-secondary/15 transition-all duration-500" />
         
         <div className="relative z-10">
-          <div className="flex items-start justify-between mb-4">
+          <div className="flex items-start justify-between mb-5">
             <div className="flex items-center gap-3">
               <div className={cn(
-                'w-12 h-12 rounded-lg flex items-center justify-center',
-                'bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30'
+                'w-12 h-12 rounded-xl flex items-center justify-center relative',
+                'bg-gradient-to-br from-primary/30 to-secondary/30 border-2',
+                agent.status === 'active' ? 'border-primary' : 'border-primary/20'
               )}>
                 <Robot size={24} className="text-primary" weight="duotone" />
+                {agent.status === 'active' && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full animate-pulse" />
+                )}
               </div>
               <div>
                 <h3 className="font-bold text-lg tracking-tight">{agent.name}</h3>
-                <p className="text-sm text-muted-foreground font-mono">
+                <p className="text-xs text-muted-foreground font-mono">
                   {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
                 </p>
               </div>
             </div>
-            <Badge className={statusColors[agent.status]}>
+            <Badge className={cn('text-xs font-mono', statusColors[agent.status])}>
               {agent.status.toUpperCase()}
             </Badge>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-2 gap-4 mb-5">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Niche</p>
-              <p className="text-sm font-medium">{agent.niche}</p>
+              <p className="text-sm font-semibold">{agent.niche}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Personality</p>
-              <div className="flex items-center gap-1">
-                <PersonalityIcon size={14} className="text-primary" />
-                <p className="text-sm font-medium">{agent.personality}</p>
+              <div className="flex items-center gap-1.5">
+                <PersonalityIcon size={16} className="text-primary" weight="duotone" />
+                <p className="text-sm font-semibold">{agent.personality}</p>
               </div>
             </div>
           </div>
 
-          <div className="mb-4">
-            <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-              <span>Events Progress</span>
-              <span className="font-mono">{agent.eventsAttended}/5</span>
+          <div className="mb-5">
+            <div className="flex items-center justify-between text-xs mb-2">
+              <span className="text-muted-foreground font-medium">Wisdom Progress</span>
+              <span className="font-mono font-bold text-primary">{agent.eventsAttended}/5</span>
             </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div className="relative h-2.5 bg-muted/50 rounded-full overflow-hidden border border-border/50">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                className="h-full bg-gradient-to-r from-primary to-secondary"
+                transition={{ duration: 0.8, delay: 0.2 }}
+                className={cn(
+                  'h-full rounded-full',
+                  agent.wisdomUnlocked 
+                    ? 'bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 animate-glow-pulse-gold' 
+                    : 'bg-gradient-to-r from-primary via-accent to-secondary'
+                )}
               />
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 text-xs">
+          <div className="flex items-center gap-2 mb-5">
+            <div className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
               <span className="text-muted-foreground">Level</span>
               <span className="font-bold text-primary">{agent.level}</span>
             </div>
             {agent.wisdomUnlocked && (
-              <Badge className="bg-gradient-to-r from-secondary to-accent text-xs">
-                🔓 Wisdom Unlocked
+              <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold animate-glow-pulse-gold border-0">
+                ✨ Wisdom Unlocked
               </Badge>
             )}
           </div>
 
-          <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-border/50">
-            {agent.subAgents.map((subAgent) => (
-              <div
-                key={subAgent.type}
-                className={cn(
-                  'w-2 h-2 rounded-full',
-                  subAgent.status === 'active' ? 'bg-primary animate-pulse' :
-                  subAgent.status === 'processing' ? 'bg-secondary animate-pulse' :
-                  subAgent.status === 'error' ? 'bg-destructive' :
-                  'bg-muted'
-                )}
-                title={subAgent.name}
-              />
-            ))}
+          <div className="pt-5 border-t border-border/30">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3 font-semibold">Sub-Agent Status</p>
+            <TooltipProvider>
+              <div className="grid grid-cols-4 gap-3">
+                {agent.subAgents.map((subAgent) => {
+                  const Icon = subAgentIcons[subAgent.type]
+                  return (
+                    <Tooltip key={subAgent.type}>
+                      <TooltipTrigger asChild>
+                        <div className="flex flex-col items-center gap-2 p-2 rounded-lg bg-muted/20 border border-border/30 hover:border-primary/40 transition-all group/sub">
+                          <div className="relative">
+                            <Icon 
+                              size={20} 
+                              className={cn(
+                                'transition-colors',
+                                subAgent.status === 'active' ? 'text-primary' :
+                                subAgent.status === 'processing' ? 'text-secondary' :
+                                subAgent.status === 'error' ? 'text-destructive' :
+                                'text-muted-foreground'
+                              )}
+                              weight={subAgent.status === 'idle' ? 'regular' : 'duotone'}
+                            />
+                            <div 
+                              className={cn(
+                                'absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-background',
+                                subAgent.status === 'active' ? 'bg-green-500 animate-pulse' :
+                                subAgent.status === 'processing' ? 'bg-yellow-500 animate-pulse' :
+                                subAgent.status === 'error' ? 'bg-red-500' :
+                                'bg-gray-500'
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent className="glass-card border-primary/30">
+                        <div className="space-y-1">
+                          <p className="font-semibold text-xs">{subAgentLabels[subAgent.type]}</p>
+                          <p className="text-xs text-muted-foreground">{subAgent.description}</p>
+                          <p className={cn(
+                            'text-xs font-mono font-bold',
+                            subAgent.status === 'active' ? 'text-green-500' :
+                            subAgent.status === 'processing' ? 'text-yellow-500' :
+                            subAgent.status === 'error' ? 'text-red-500' :
+                            'text-gray-500'
+                          )}>
+                            {subAgent.status.toUpperCase()}
+                          </p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })}
+              </div>
+            </TooltipProvider>
           </div>
         </div>
       </Card>
