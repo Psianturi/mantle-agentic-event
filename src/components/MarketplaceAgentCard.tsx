@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Robot, Brain, TrendUp, Fire, ShoppingCart } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
-import { cn } from '@/lib/utils'
+import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
 
 interface MarketplaceAgentCardProps {
   agent: MarketplaceAgent
@@ -26,8 +26,10 @@ export function MarketplaceAgentCard({ agent, onBuy, isPurchasing }: Marketplace
     'Health/Wellness': '🧘'
   }
 
-  const generation = agent.generation ?? 1
-  const isRare = generation >= 3
+  const rarityTier = calculateRarityTier(agent as any)
+  const rarityStyles = getRarityStyles(rarityTier)
+  const rarityLabel = getRarityLabel(rarityTier)
+  const isSpecialRarity = rarityTier !== 'common'
 
   return (
     <motion.div
@@ -35,18 +37,25 @@ export function MarketplaceAgentCard({ agent, onBuy, isPurchasing }: Marketplace
       transition={{ duration: 0.2 }}
       className="relative"
     >
-      {isRare && (
-        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 animate-pulse blur-lg -z-10" />
+      {isSpecialRarity && (
+        <div className={cn(
+          "absolute inset-0 rounded-xl blur-lg -z-10",
+          rarityStyles.bgClass,
+          rarityStyles.glowClass
+        )} />
       )}
       
       <Card className={cn(
         'glass-card-hover p-6 border-2 relative overflow-hidden group',
         personalityColors[agent.personality],
-        isRare && 'border-amber-500/50 shadow-xl shadow-amber-500/20'
+        isSpecialRarity && rarityStyles.borderClass
       )}>
-        {isRare && (
+        {isSpecialRarity && (
           <>
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent animate-shimmer" />
+            <div className={cn(
+              "absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent to-transparent animate-shimmer",
+              rarityStyles.bgClass
+            )} />
             <div className="absolute top-3 right-3 z-20">
               <motion.div
                 animate={{ 
@@ -54,10 +63,13 @@ export function MarketplaceAgentCard({ agent, onBuy, isPurchasing }: Marketplace
                   scale: [1, 1.1, 1]
                 }}
                 transition={{ duration: 2, repeat: Infinity }}
-                className="px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold shadow-lg shadow-amber-500/50 flex items-center gap-1.5"
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-bold shadow-lg flex items-center gap-1.5",
+                  rarityStyles.badgeClass
+                )}
               >
-                <span>✨</span>
-                <span>GEN-{generation} MYTHIC</span>
+                <span>{rarityLabel}</span>
+                {agent.generation && agent.generation > 1 && <span>GEN-{agent.generation}</span>}
               </motion.div>
             </div>
           </>

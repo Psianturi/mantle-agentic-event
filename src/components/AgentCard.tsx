@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
-import { cn } from '@/lib/utils'
+import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
 
 interface AgentCardProps {
   agent: Agent
@@ -50,7 +50,10 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
-  const isHighGeneration = agent.generation && agent.generation >= 3
+  const rarityTier = calculateRarityTier(agent)
+  const rarityStyles = getRarityStyles(rarityTier)
+  const rarityLabel = getRarityLabel(rarityTier)
+  const isSpecialRarity = rarityTier !== 'common'
 
   return (
     <motion.div
@@ -64,29 +67,15 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
         'glass-card-hover p-6 relative overflow-hidden group transition-all duration-300',
         agent.status === 'active' && 'neon-border-cyan',
         agent.status === 'processing' && 'neon-border-purple',
-        isHighGeneration && 'border-transparent'
+        isSpecialRarity && rarityStyles.borderClass,
+        isSpecialRarity && rarityStyles.glowClass
       )}>
-        {isHighGeneration && (
+        {isSpecialRarity && (
           <>
-            <div className="absolute inset-0 rounded-lg">
-              <motion.div
-                className="absolute inset-0 rounded-lg"
-                animate={{
-                  background: [
-                    'linear-gradient(0deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
-                    'linear-gradient(90deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
-                    'linear-gradient(180deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
-                    'linear-gradient(270deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
-                    'linear-gradient(360deg, rgba(245,158,11,0.4) 0%, rgba(251,146,60,0.4) 50%, rgba(239,68,68,0.4) 100%)',
-                  ]
-                }}
-                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                style={{
-                  filter: 'blur(2px)',
-                  padding: '2px',
-                }}
-              />
-            </div>
+            <div className={cn(
+              "absolute inset-0 rounded-lg opacity-20",
+              rarityStyles.bgClass
+            )} />
             <div className="absolute top-2 right-2 z-20">
               <motion.div
                 animate={{
@@ -95,7 +84,10 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                 }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
               >
-                <Badge className="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 text-white text-[10px] font-bold px-2.5 py-0.5 shadow-2xl shadow-amber-500/50 border-none relative overflow-hidden">
+                <Badge className={cn(
+                  "text-[10px] font-bold px-2.5 py-0.5 shadow-2xl border-none relative overflow-hidden",
+                  rarityStyles.badgeClass
+                )}>
                   <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent"
                     animate={{
@@ -104,7 +96,8 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
                   />
                   <span className="relative z-10 flex items-center gap-1">
-                    ✨ MYTHIC GEN-{agent.generation}
+                    {rarityLabel}
+                    {agent.generation && agent.generation > 1 && ` GEN-${agent.generation}`}
                   </span>
                 </Badge>
               </motion.div>
