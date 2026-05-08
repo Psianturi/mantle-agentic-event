@@ -22,6 +22,7 @@ import { NeuralNetworkBackground } from '@/components/NeuralNetworkBackground'
 import { BackendHealthModal } from '@/components/BackendHealthModal'
 import { ArchitectureFlow } from '@/components/ArchitectureFlow'
 import { SubAgentDelegation } from '@/components/SubAgentDelegation'
+import { ContractDeploymentProgress } from '@/components/ContractDeploymentProgress'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -93,6 +94,7 @@ function App() {
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [healthCheckOpen, setHealthCheckOpen] = useState(true)
   const [backendConnected, setBackendConnected] = useState(false)
+  const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
 
@@ -125,6 +127,8 @@ function App() {
 
   const handleAgentCreated = (newAgent: Agent) => {
     setAgents((current) => [...(current ?? []), newAgent])
+    setDeployingAgentId(newAgent.id)
+    
     toast.success(`Agent "${newAgent.name}" spawned successfully!`, {
       description: `Wallet: ${newAgent.walletAddress.slice(0, 10)}...`
     })
@@ -132,6 +136,10 @@ function App() {
     addLog(newAgent.id, 'secretary', `[${newAgent.name} - secretary] Agent initialization complete`, 'success')
     
     addLog(newAgent.id, 'secretary', `[${newAgent.name} - secretary] Deploying smart contract on Mantle Network...`, 'info')
+    
+    setTimeout(() => {
+      setDeployingAgentId(null)
+    }, 12000)
   }
 
   const addLog = (agentId: string, subAgentType: Agent['subAgents'][0]['type'], message: string, type: TerminalLog['type']) => {
@@ -532,6 +540,14 @@ function App() {
                   isActive={isProcessingEvent}
                   currentTasks={tasks}
                   activeAgentId={activeAgentId}
+                />
+              )}
+
+              {deployingAgentId && agents && (
+                <ContractDeploymentProgress
+                  agent={agents.find(a => a.id === deployingAgentId)!}
+                  isDeploying={true}
+                  onComplete={() => setDeployingAgentId(null)}
                 />
               )}
 
