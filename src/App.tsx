@@ -64,7 +64,7 @@ function App() {
   const [marketplaceFilters, setMarketplaceFilters] = useState<{
     generation: number[]
     niche: Niche[]
-    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc'
+    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc'
   }>({
     generation: [],
     niche: [],
@@ -644,6 +644,8 @@ function App() {
           return b.price - a.price
         case 'level-desc':
           return b.level - a.level
+        case 'wisdom-desc':
+          return b.eventsAttended - a.eventsAttended
         case 'generation-desc':
           return (b.generation ?? 1) - (a.generation ?? 1)
         default:
@@ -758,37 +760,36 @@ function App() {
         </header>
 
         <main className="container mx-auto px-6 py-8 pb-72">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-            {stats.map((stat, i) => (
-              <motion.div
-                key={stat.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-              >
-                <Card className="glass-card-hover p-5 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl group-hover:from-primary/20 transition-all duration-500" />
-                  <div className="relative flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2">{stat.label}</p>
-                      <p className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">{stat.value}</p>
-                    </div>
-                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center group-hover:scale-110 group-hover:border-primary/50 transition-all duration-300">
-                      <stat.icon size={28} className={stat.color} weight="duotone" />
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
+          {mainView === 'dashboard' && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                {stats.map((stat, i) => (
+                  <motion.div
+                    key={stat.label}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.1, duration: 0.5 }}
+                  >
+                    <Card className="glass-card-hover p-5 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl group-hover:from-primary/20 transition-all duration-500" />
+                      <div className="relative flex items-center justify-between">
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2">{stat.label}</p>
+                          <p className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">{stat.value}</p>
+                        </div>
+                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center group-hover:scale-110 group-hover:border-primary/50 transition-all duration-300">
+                          <stat.icon size={28} className={stat.color} weight="duotone" />
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
 
-          <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
+              <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
             <TabsList className="glass-card mb-8 p-2 border border-primary/20 gap-1.5">
               <TabsTrigger value="dashboard" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
                 Dashboard
-              </TabsTrigger>
-              <TabsTrigger value="marketplace" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-secondary/20 data-[state=active]:to-accent/20 data-[state=active]:text-secondary transition-all duration-300 hover:bg-secondary/5 hover:scale-105">
-                Marketplace
               </TabsTrigger>
               <TabsTrigger value="architecture" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
                 How It Works
@@ -941,53 +942,6 @@ function App() {
                   </div>
                 )}
               </div>
-            </TabsContent>
-
-            <TabsContent value="marketplace" className="space-y-6 animate-slide-up">
-              <Card className="glass-card-hover p-10 text-center border-2 border-secondary/30 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 via-transparent to-accent/5" />
-                <div className="relative">
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-secondary/30 to-accent/30 border-2 border-secondary/40 flex items-center justify-center animate-glow-pulse-purple shadow-2xl shadow-secondary/30">
-                    <Storefront size={40} className="text-secondary" weight="fill" />
-                  </div>
-                  <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-secondary via-accent to-primary bg-clip-text text-transparent">Agent Marketplace</h2>
-                  <p className="text-muted-foreground mb-4 max-w-xl mx-auto text-base">
-                    Buy pre-trained AI agents from other users. Identity is wiped, but wisdom is inherited.
-                  </p>
-                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <span className="font-semibold">{marketplaceAgents?.length ?? 0} agents available</span>
-                    <span>•</span>
-                    <span>Prices range from 1.8 - 4.5 MNT</span>
-                  </div>
-                </div>
-              </Card>
-
-              {!marketplaceAgents || marketplaceAgents.length === 0 ? (
-                <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-secondary/30">
-                  <Storefront size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
-                  <h3 className="text-lg font-semibold mb-2">No Agents Available</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    Check back later for agents listed by other users.
-                  </p>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {marketplaceAgents.map((agent, idx) => (
-                    <motion.div
-                      key={agent.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.1 }}
-                    >
-                      <MarketplaceAgentCard 
-                        agent={agent} 
-                        onBuy={handleBuyAgent}
-                        isPurchasing={purchasingAgentId === agent.id}
-                      />
-                    </motion.div>
-                  ))}
-                </div>
-              )}
             </TabsContent>
 
             <TabsContent value="architecture" className="space-y-6 animate-slide-up">
@@ -1188,6 +1142,151 @@ function App() {
               </div>
             </TabsContent>
           </Tabs>
+            </>
+          )}
+
+          {mainView === 'marketplace' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="space-y-6 animate-slide-up"
+            >
+              <Card className="glass-card-hover p-10 text-center border-2 border-secondary/30 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 via-transparent to-accent/5" />
+                <div className="relative">
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-secondary/30 to-accent/30 border-2 border-secondary/40 flex items-center justify-center animate-glow-pulse-purple shadow-2xl shadow-secondary/30">
+                    <Storefront size={40} className="text-secondary" weight="fill" />
+                  </div>
+                  <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-secondary via-accent to-primary bg-clip-text text-transparent">Agent Marketplace</h2>
+                  <p className="text-muted-foreground mb-4 max-w-xl mx-auto text-base">
+                    Buy pre-trained AI agents from other users. Identity is wiped, but wisdom is inherited.
+                  </p>
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <span className="font-semibold">{marketplaceAgents?.length ?? 0} agents available</span>
+                    <span>•</span>
+                    <span>Prices range from 1.8 - 4.5 MNT</span>
+                  </div>
+                </div>
+              </Card>
+
+              <MarketplaceFilters
+                filters={marketplaceFilters}
+                onFiltersChange={setMarketplaceFilters}
+                totalAgents={marketplaceAgents?.length ?? 0}
+              />
+
+              {!marketplaceAgents || marketplaceAgents.length === 0 ? (
+                <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-secondary/30">
+                  <Storefront size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
+                  <h3 className="text-lg font-semibold mb-2">No Agents Available</h3>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Check back later for agents listed by other users.
+                  </p>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredAndSortedMarketplace().map((agent, idx) => (
+                    <motion.div
+                      key={agent.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.1 }}
+                    >
+                      <MarketplaceAgentCard 
+                        agent={agent} 
+                        onBuy={handleBuyAgent}
+                        isPurchasing={purchasingAgentId === agent.id}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {mainView === 'fusion-lab' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="space-y-6 animate-slide-up"
+            >
+              <Card className="glass-card-hover p-10 text-center border-2 border-accent/30 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-secondary/5" />
+                <div className="relative">
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-accent/30 to-secondary/30 border-2 border-accent/40 flex items-center justify-center shadow-2xl shadow-accent/30">
+                    <Dna size={40} className="text-accent animate-pulse" weight="fill" />
+                  </div>
+                  <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-accent via-secondary to-primary bg-clip-text text-transparent">Neural Fusion Laboratory</h2>
+                  <p className="text-muted-foreground mb-8 max-w-xl mx-auto text-base">
+                    Merge two wisdom-unlocked agents to create powerful hybrid offspring. Genetic traits and accumulated knowledge are inherited.
+                  </p>
+                  <div className="flex flex-wrap gap-4 justify-center">
+                    <Button
+                      onClick={() => setBreedingDialogOpen(true)}
+                      disabled={isViewOnly || (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2}
+                      size="lg"
+                      className="bg-gradient-to-r from-accent to-secondary hover:opacity-90 font-semibold px-8 shadow-lg shadow-accent/30"
+                    >
+                      <Dna className="mr-2" weight="duotone" size={20} />
+                      Initiate Neural Fusion
+                    </Button>
+                  </div>
+                  {isViewOnly && (
+                    <p className="text-xs text-amber-500 mt-4">Connect your wallet to breed agents</p>
+                  )}
+                  {!isViewOnly && (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2 && (
+                    <p className="text-xs text-muted-foreground mt-4">You need at least 2 wisdom-unlocked agents to perform fusion</p>
+                  )}
+                </div>
+              </Card>
+
+              <div>
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                  <span>Your Agents</span>
+                  <span className="text-sm text-muted-foreground font-normal">({agents?.length ?? 0} total)</span>
+                </h3>
+                {!agents || agents.length === 0 ? (
+                  <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-accent/30">
+                    <Robot size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
+                    <h3 className="text-lg font-semibold mb-2">No Agents Yet</h3>
+                    <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">Spawn your first AI agent to start the fusion journey</p>
+                    <Button 
+                      onClick={() => {
+                        setMainView('dashboard')
+                        setSpawnDialogOpen(true)
+                      }} 
+                      disabled={isViewOnly}
+                      className="bg-gradient-to-r from-secondary to-accent font-semibold shadow-lg shadow-secondary/30"
+                    >
+                      <Plus className="mr-2" weight="bold" />
+                      Spawn Agent
+                    </Button>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {agents.map((agent, idx) => (
+                      <motion.div
+                        key={agent.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: idx * 0.1 }}
+                      >
+                        <AgentCard 
+                          agent={agent} 
+                          onConfigure={handleConfigureAgent} 
+                          onChat={handleChatWithAgent} 
+                          onViewEvolution={handleViewEvolution}
+                          onToggleAutoReplenish={handleToggleAutoReplenish}
+                        />
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
         </main>
       </div>
 

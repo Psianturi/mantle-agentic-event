@@ -182,7 +182,7 @@ export interface MarketplaceFilters {
   generation?: number[]
   niche?: Niche[]
   priceRange?: { min: number; max: number }
-  sortBy?: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc'
+  sortBy?: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc'
 }
 
 export interface GasPriceInfo {
