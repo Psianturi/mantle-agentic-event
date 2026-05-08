@@ -8,30 +8,30 @@
 }
 
 :root {
-  --background: oklch(0.15 0.02 240);
-  --foreground: oklch(0.98 0 0);
+  --background: oklch(0.12 0.03 250);
+  --foreground: oklch(0.98 0.01 200);
 
-  --card: oklch(0.25 0.01 240);
-  --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.22 0.02 240);
-  --popover-foreground: oklch(0.98 0 0);
+  --card: oklch(0.18 0.02 250);
+  --card-foreground: oklch(0.98 0.01 200);
+  --popover: oklch(0.16 0.02 250);
+  --popover-foreground: oklch(0.98 0.01 200);
 
-  --primary: oklch(0.85 0.15 200);
-  --primary-foreground: oklch(0.15 0.02 240);
-  --secondary: oklch(0.65 0.25 300);
-  --secondary-foreground: oklch(0.98 0 0);
-  --accent: oklch(0.65 0.25 300);
-  --accent-foreground: oklch(0.98 0 0);
-  --destructive: oklch(0.60 0.22 25);
-  --destructive-foreground: oklch(0.98 0 0);
+  --primary: oklch(0.80 0.18 195);
+  --primary-foreground: oklch(0.12 0.03 250);
+  --secondary: oklch(0.65 0.28 305);
+  --secondary-foreground: oklch(0.98 0.01 200);
+  --accent: oklch(0.75 0.25 285);
+  --accent-foreground: oklch(0.98 0.01 200);
+  --destructive: oklch(0.58 0.24 25);
+  --destructive-foreground: oklch(0.98 0.01 200);
 
-  --muted: oklch(0.30 0.01 240);
-  --muted-foreground: oklch(0.65 0.01 240);
-  --border: oklch(0.35 0.02 240);
-  --input: oklch(0.35 0.02 240);
-  --ring: oklch(0.65 0.25 300);
+  --muted: oklch(0.25 0.02 250);
+  --muted-foreground: oklch(0.60 0.02 240);
+  --border: oklch(0.28 0.03 245);
+  --input: oklch(0.28 0.03 245);
+  --ring: oklch(0.80 0.18 195);
 
-  --radius: 0.75rem;
+  --radius: 0.875rem;
 }
 
 @theme {
@@ -78,12 +78,30 @@
   }
 }
 
-@keyframes glow-pulse {
+@keyframes glow-pulse-cyan {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+    box-shadow: 0 0 15px rgba(0, 243, 255, 0.4), 0 0 30px rgba(0, 243, 255, 0.2);
   }
   50% {
-    box-shadow: 0 0 40px rgba(0, 243, 255, 0.6);
+    box-shadow: 0 0 25px rgba(0, 243, 255, 0.6), 0 0 50px rgba(0, 243, 255, 0.3);
+  }
+}
+
+@keyframes glow-pulse-purple {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(157, 0, 255, 0.4), 0 0 30px rgba(157, 0, 255, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(157, 0, 255, 0.6), 0 0 50px rgba(157, 0, 255, 0.3);
+  }
+}
+
+@keyframes glow-pulse-gold {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5), 0 0 40px rgba(255, 215, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 35px rgba(255, 215, 0, 0.7), 0 0 60px rgba(255, 215, 0, 0.4);
   }
 }
 
@@ -98,16 +116,90 @@
   }
 }
 
+@keyframes terminal-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
 .animate-glow-pulse {
-  animation: glow-pulse 2s ease-in-out infinite;
+  animation: glow-pulse-cyan 2s ease-in-out infinite;
+}
+
+.animate-glow-pulse-purple {
+  animation: glow-pulse-purple 2.5s ease-in-out infinite;
+}
+
+.animate-glow-pulse-gold {
+  animation: glow-pulse-gold 2s ease-in-out infinite;
 }
 
 .animate-slide-up {
   animation: slide-up 0.3s ease-out;
 }
 
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-terminal-blink {
+  animation: terminal-blink 1s step-end infinite;
+}
+
 .glass-card {
-  background: rgba(37, 36, 58, 0.6);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(0, 243, 255, 0.2);
+  background: rgba(26, 27, 58, 0.5);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(0, 243, 255, 0.15);
+}
+
+.glass-card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card-hover:hover {
+  background: rgba(26, 27, 58, 0.7);
+  border: 1px solid rgba(0, 243, 255, 0.4);
+  box-shadow: 0 0 25px rgba(0, 243, 255, 0.2), inset 0 0 15px rgba(0, 243, 255, 0.1);
+}
+
+.neon-border-cyan {
+  border: 1px solid rgba(0, 243, 255, 0.5);
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.3), inset 0 0 10px rgba(0, 243, 255, 0.1);
+}
+
+.neon-border-purple {
+  border: 1px solid rgba(157, 0, 255, 0.5);
+  box-shadow: 0 0 15px rgba(157, 0, 255, 0.3), inset 0 0 10px rgba(157, 0, 255, 0.1);
+}
+
+.hologram-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 243, 255, 0.3) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
 }
