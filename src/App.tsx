@@ -514,9 +514,10 @@ function App() {
 
               {agents && agents.length > 0 && (
                 <SubAgentDelegation
-                  agent={agents[0]}
-                  isActive={isProcessingEvent && activeAgentId === agents[0].id}
+                  agents={agents}
+                  isActive={isProcessingEvent}
                   currentTasks={tasks}
+                  activeAgentId={activeAgentId}
                 />
               )}
 
