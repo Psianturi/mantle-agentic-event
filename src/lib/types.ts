@@ -26,6 +26,9 @@ export interface Agent {
   customInstructions?: string
   mantleBalance?: number
   gasSpent?: number
+  isGenesis?: boolean
+  ownershipStatus?: 'original-creator' | 'marketplace-acquired'
+  agentGasBalance?: number
 }
 
 export interface EvolutionLevel {

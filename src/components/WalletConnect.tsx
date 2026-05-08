@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Wallet } from '@phosphor-icons/react'
+import { Wallet, CurrencyCircleDollar } from '@phosphor-icons/react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -9,10 +9,11 @@ interface WalletConnectProps {
   onConnect: (address: string) => void
   isConnected: boolean
   address?: string
+  balance?: number
   onDisconnect: () => void
 }
 
-export function WalletConnect({ onConnect, isConnected, address, onDisconnect }: WalletConnectProps) {
+export function WalletConnect({ onConnect, isConnected, address, balance, onDisconnect }: WalletConnectProps) {
   const [showDialog, setShowDialog] = useState(false)
   const [isConnecting, setIsConnecting] = useState(false)
 
@@ -34,12 +35,18 @@ export function WalletConnect({ onConnect, isConnected, address, onDisconnect }:
 
   if (isConnected && address) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg glass-card border-primary/20">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <p className="text-sm font-mono text-foreground/90">
+      <div className="flex items-center gap-3">
+        <div className="hidden md:flex flex-col items-end px-3 py-2 rounded-lg glass-card border-primary/20">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-0.5">User Wallet</p>
+          <p className="text-xs font-mono text-foreground/90 mb-1">
             {address.slice(0, 6)}...{address.slice(-4)}
           </p>
+          <div className="flex items-center gap-1.5">
+            <CurrencyCircleDollar size={14} className="text-primary" weight="fill" />
+            <p className="text-xs font-mono font-bold text-primary">
+              {(balance ?? 0).toFixed(4)} MNT
+            </p>
+          </div>
         </div>
         <Button
           variant="outline"
