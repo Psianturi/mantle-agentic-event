@@ -12,37 +12,38 @@ interface MarketplaceFiltersProps {
   filters: {
     generation: number[]
     niche: Niche[]
-    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc'
+    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc'
   }
-  onFilterChange: (filters: {
+  onFiltersChange: (filters: {
     generation: number[]
     niche: Niche[]
-    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc'
+    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc'
   }) => void
+  totalAgents: number
 }
 
 const niches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
 const generations = [1, 2, 3, 4, 5]
 
-export function MarketplaceFilters({ filters, onFilterChange }: MarketplaceFiltersProps) {
+export function MarketplaceFilters({ filters, onFiltersChange, totalAgents }: MarketplaceFiltersProps) {
   const [isOpen, setIsOpen] = useState(true)
 
   const handleGenerationToggle = (gen: number) => {
     const newGenerations = filters.generation.includes(gen)
       ? filters.generation.filter(g => g !== gen)
       : [...filters.generation, gen]
-    onFilterChange({ ...filters, generation: newGenerations })
+    onFiltersChange({ ...filters, generation: newGenerations })
   }
 
   const handleNicheToggle = (niche: Niche) => {
     const newNiches = filters.niche.includes(niche)
       ? filters.niche.filter(n => n !== niche)
       : [...filters.niche, niche]
-    onFilterChange({ ...filters, niche: newNiches })
+    onFiltersChange({ ...filters, niche: newNiches })
   }
 
   const handleClearFilters = () => {
-    onFilterChange({
+    onFiltersChange({
       generation: [],
       niche: [],
       sortBy: 'level-desc'
@@ -174,7 +175,7 @@ export function MarketplaceFilters({ filters, onFilterChange }: MarketplaceFilte
                     <Select
                       value={filters.sortBy}
                       onValueChange={(value: typeof filters.sortBy) =>
-                        onFilterChange({ ...filters, sortBy: value })
+                        onFiltersChange({ ...filters, sortBy: value })
                       }
                     >
                       <SelectTrigger className="border-secondary/30 focus:border-secondary bg-background/50">
@@ -182,6 +183,7 @@ export function MarketplaceFilters({ filters, onFilterChange }: MarketplaceFilte
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="level-desc">Highest Level</SelectItem>
+                        <SelectItem value="wisdom-desc">Most Wisdom</SelectItem>
                         <SelectItem value="generation-desc">Highest Generation</SelectItem>
                         <SelectItem value="price-asc">Price: Low to High</SelectItem>
                         <SelectItem value="price-desc">Price: High to Low</SelectItem>
