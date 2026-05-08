@@ -1,11 +1,11 @@
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Switch } from '@/components/ui/switch'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Agent, ScoutedEvent } from '@/lib/types'
-import { Crosshair, CheckCircle, Clock, YoutubeLogo, Calendar } from '@phosphor-icons/react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
+
+  agent: Agent
+  onApproveEvent: (agentId: string, eventId: string) =>
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
@@ -20,54 +20,54 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
   const isScoutEnabled = agent.autoScoutEnabled ?? false
   const scoutedEvents = agent.scoutedOpportunities ?? []
 
-  const handleToggle = () => {
+                "text-primary 
     if (!canScout) {
       toast.error('Agent must be Level 5+ to enable Auto-Scout')
       return
-    }
+     
     onToggleScout(agent.id, !isScoutEnabled)
-  }
+   
 
   const handleApprove = (eventId: string) => {
     onApproveEvent(agent.id, eventId)
     toast.success('Event approved! Agent will register automatically.')
   }
 
-  return (
-    <Card className="glass-card-hover p-6 border-2 border-primary/30 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5" />
+          
+            />
+        </div>
       
-      <div className="relative z-10 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-              <Crosshair size={22} className={cn(
-                "text-primary transition-all duration-300",
-                isScoutEnabled && "animate-pulse"
-              )} weight="duotone" />
-            </div>
-            <div>
-              <h4 className="font-bold text-base flex items-center gap-2">
-                Auto-Scout Events
-                {!canScout && (
-                  <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-500">
-                    Level 5+ Required
+            <motion.div
+              animate={{ opacity: 1, height: 'auto' }}
+              transition={{ duration: 0.3 }}
+            >
+                <h5 className="text-sm font-s
+                  <Badge variant="secondary" className="tex
                   </Badge>
-                )}
-              </h4>
-              <p className="text-xs text-muted-foreground">
-                Agent autonomously discovers relevant events
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Label htmlFor={`scout-${agent.id}`} className="text-sm cursor-pointer">
-              {isScoutEnabled ? 'Active' : 'Inactive'}
-            </Label>
-            <Switch
-              id={`scout-${agent.id}`}
-              checked={isScoutEnabled}
-              onCheckedChange={handleToggle}
+              </div>
+              {sco
+                 
+                    Agent is scanning for events...
+                  <p className="t
+                  </p>
+              ) : (
+                  {scoutedEvents.map(
+                      key=
+                  
+                   
+                        event.approved
+                          : "bg-card/50 border-border/50 hov
+                  
+                  
+                
+                            <h6 className="text-sm 
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                          </p>
+                    
+                   
+                            <Badge var
+                            </Badge>
+                        </div>
               disabled={!canScout}
               className="data-[state=checked]:bg-primary"
             />
@@ -94,7 +94,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
 
               {scoutedEvents.length === 0 ? (
                 <div className="text-center py-8">
-                  <Crosshair size={48} className="mx-auto mb-3 text-muted-foreground opacity-50 animate-pulse" weight="duotone" />
+                  <Radar size={48} className="mx-auto mb-3 text-muted-foreground opacity-50 animate-pulse" weight="duotone" />
                   <p className="text-sm text-muted-foreground">
                     Agent is scanning for events...
                   </p>
@@ -120,7 +120,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-2">
-                            {event.platform === 'YouTube' && <YoutubeLogo size={16} className="text-red-500" weight="duotone" />}
+                            {event.platform === 'YouTube' && <Youtube size={16} className="text-red-500" weight="duotone" />}
                             {event.platform === 'Luma' && <Calendar size={16} className="text-blue-500" weight="duotone" />}
                             <h6 className="text-sm font-semibold line-clamp-1">{event.title}</h6>
                           </div>
@@ -138,29 +138,29 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                           </div>
                         </div>
                         {!event.approved ? (
-                          <Button
-                            size="sm"
-                            onClick={() => handleApprove(event.id)}
-                            className="bg-gradient-to-r from-primary to-accent hover:opacity-90 shadow-lg shadow-primary/30"
-                          >
-                            <CheckCircle size={14} className="mr-1" weight="bold" />
-                            Approve
-                          </Button>
-                        ) : (
-                          <Badge className="bg-green-500/20 text-green-500 border-green-500/40">
-                            <CheckCircle size={14} className="mr-1" weight="bold" />
-                            Approved
-                          </Badge>
-                        )}
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        )}
-      </div>
-    </Card>
-  )
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
