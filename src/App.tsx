@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
-import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent, Niche } from '@/lib/types'
+import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent, Niche, RarityTier } from '@/lib/types'
 import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
 import { cn } from '@/lib/utils'
 import { AgentCard } from '@/components/AgentCard'
@@ -66,10 +66,12 @@ function App() {
   const [marketplaceFilters, setMarketplaceFilters] = useState<{
     generation: number[]
     niche: Niche[]
-    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc'
+    rarityTier: RarityTier[]
+    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc' | 'rarity-desc'
   }>({
     generation: [],
     niche: [],
+    rarityTier: [],
     sortBy: 'level-desc'
   })
   const blockchain = useBlockchain()

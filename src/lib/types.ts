@@ -39,6 +39,21 @@ export interface Agent {
   lastBreedingTime?: number
   breedingCooldownHours?: number
   rarityTier?: RarityTier
+  autoScoutEnabled?: boolean
+  customAgenda?: string
+  scoutedOpportunities?: ScoutedEvent[]
+}
+
+export interface ScoutedEvent {
+  id: string
+  title: string
+  platform: 'YouTube' | 'Luma' | 'Eventbrite' | 'Zoom'
+  url: string
+  date: number
+  description: string
+  relevanceScore: number
+  scoutedAt: number
+  approved?: boolean
 }
 
 export interface EvolutionLevel {
@@ -184,8 +199,9 @@ export interface MarketplaceAgent {
 export interface MarketplaceFilters {
   generation?: number[]
   niche?: Niche[]
+  rarityTier?: RarityTier[]
   priceRange?: { min: number; max: number }
-  sortBy?: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc'
+  sortBy?: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc' | 'rarity-desc'
 }
 
 export interface GasPriceInfo {
