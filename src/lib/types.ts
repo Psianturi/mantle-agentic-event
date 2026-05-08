@@ -134,3 +134,14 @@ export interface IPFSUploadResult {
   size: number
   url: string
 }
+
+export interface SecurityAuditEntry {
+  id: string
+  timestamp: number
+  type: 'transfer' | 'economy' | 'security' | 'governance' | 'system'
+  icon: string
+  message: string
+  agentId?: string
+  agentName?: string
+  severity: 'info' | 'warning' | 'critical'
+}

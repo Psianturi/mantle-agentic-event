@@ -1,4 +1,4 @@
-import { Agent, SubAgent, Event, NFT, Niche, Personality, AgentProposal } from './types'
+import { Agent, SubAgent, Event, NFT, Niche, Personality, AgentProposal, SecurityAuditEntry } from './types'
 
 const niches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
 const personalities: Personality[] = ['Aggressive', 'Analytical', 'Creative']
@@ -80,7 +80,10 @@ export function getMockAgents(): Agent[] {
       subAgents: createSubAgentsWithStatus(['active', 'processing', 'idle', 'idle']),
       wisdomUnlocked: true,
       mantleBalance: 25.487,
-      gasSpent: 0.032
+      gasSpent: 0.032,
+      isGenesis: true,
+      ownershipStatus: 'original-creator',
+      agentGasBalance: 1.2
     },
     {
       id: 'agent-002',
@@ -95,7 +98,10 @@ export function getMockAgents(): Agent[] {
       subAgents: createSubAgentsWithStatus(['idle', 'idle', 'idle', 'idle']),
       wisdomUnlocked: true,
       mantleBalance: 42.156,
-      gasSpent: 0.054
+      gasSpent: 0.054,
+      isGenesis: true,
+      ownershipStatus: 'original-creator',
+      agentGasBalance: 0.45
     },
     {
       id: 'agent-003',
@@ -110,7 +116,10 @@ export function getMockAgents(): Agent[] {
       subAgents: createSubAgentsWithStatus(['idle', 'active', 'idle', 'processing']),
       wisdomUnlocked: false,
       mantleBalance: 18.923,
-      gasSpent: 0.021
+      gasSpent: 0.021,
+      isGenesis: false,
+      ownershipStatus: 'marketplace-acquired',
+      agentGasBalance: 0.32
     },
     {
       id: 'agent-004',
@@ -125,7 +134,10 @@ export function getMockAgents(): Agent[] {
       subAgents: createSubAgentsWithStatus(['idle', 'idle', 'active', 'idle']),
       wisdomUnlocked: false,
       mantleBalance: 33.712,
-      gasSpent: 0.043
+      gasSpent: 0.043,
+      isGenesis: false,
+      ownershipStatus: 'marketplace-acquired',
+      agentGasBalance: 0.78
     },
     {
       id: 'agent-005',
@@ -140,7 +152,10 @@ export function getMockAgents(): Agent[] {
       subAgents: createSubAgentsWithStatus(['idle', 'idle', 'idle', 'idle']),
       wisdomUnlocked: false,
       mantleBalance: 15.234,
-      gasSpent: 0.011
+      gasSpent: 0.011,
+      isGenesis: true,
+      ownershipStatus: 'original-creator',
+      agentGasBalance: 0.15
     }
   ]
 }
@@ -409,6 +424,112 @@ export function getMockNFTs(): NFT[] {
       transactionHash: '0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3',
       tokenId: '1012',
       imageUrl: 'https://placehold.co/400x400/1a1b3a/9d00ff?text=MAEF+NFT'
+    }
+  ]
+}
+
+export function getMockSecurityAuditLog(): SecurityAuditEntry[] {
+  const now = Date.now()
+  const minuteInMs = 60 * 1000
+
+  return [
+    {
+      id: 'audit-001',
+      timestamp: now - 12 * minuteInMs,
+      type: 'transfer',
+      icon: '🔒',
+      message: 'SECURE: Transfer of Agent "Nova Creative" detected. Identity Memory Wiped. Wisdom Retained.',
+      agentId: 'agent-003',
+      agentName: 'Nova Creative',
+      severity: 'info'
+    },
+    {
+      id: 'audit-002',
+      timestamp: now - 28 * minuteInMs,
+      type: 'economy',
+      icon: '💸',
+      message: 'ECONOMY: Agent "Alpha Genesis" auto-replenished gas with 0.1 MNT.',
+      agentId: 'agent-001',
+      agentName: 'Alpha Genesis',
+      severity: 'info'
+    },
+    {
+      id: 'audit-003',
+      timestamp: now - 45 * minuteInMs,
+      type: 'security',
+      icon: '🛡️',
+      message: 'SECURITY: Successful wallet signature verification for proposal execution by Sigma Analyst.',
+      agentId: 'agent-002',
+      agentName: 'Sigma Analyst',
+      severity: 'info'
+    },
+    {
+      id: 'audit-004',
+      timestamp: now - 67 * minuteInMs,
+      type: 'governance',
+      icon: '⚖️',
+      message: 'GOVERNANCE: New proposal submitted by Agent "Sigma Analyst". Awaiting human approval.',
+      agentId: 'agent-002',
+      agentName: 'Sigma Analyst',
+      severity: 'warning'
+    },
+    {
+      id: 'audit-005',
+      timestamp: now - 89 * minuteInMs,
+      type: 'economy',
+      icon: '💸',
+      message: 'ECONOMY: User transferred 2.5 MNT to Agent "Quantum Trader" smart account.',
+      agentId: 'agent-004',
+      agentName: 'Quantum Trader',
+      severity: 'info'
+    },
+    {
+      id: 'audit-006',
+      timestamp: now - 102 * minuteInMs,
+      type: 'system',
+      icon: '🔧',
+      message: 'SYSTEM: Smart contract deployed for new Genesis Agent "Zen Wellness" on Mantle Network.',
+      agentId: 'agent-005',
+      agentName: 'Zen Wellness',
+      severity: 'info'
+    },
+    {
+      id: 'audit-007',
+      timestamp: now - 125 * minuteInMs,
+      type: 'transfer',
+      icon: '🔒',
+      message: 'SECURE: Agent "Quantum Trader" listed on marketplace. Private memory erased, public wisdom preserved.',
+      agentId: 'agent-004',
+      agentName: 'Quantum Trader',
+      severity: 'warning'
+    },
+    {
+      id: 'audit-008',
+      timestamp: now - 143 * minuteInMs,
+      type: 'economy',
+      icon: '💸',
+      message: 'ECONOMY: Genesis mint completed for 1.0 MNT. Agent received 0.5 MNT gas provision.',
+      agentId: 'agent-001',
+      agentName: 'Alpha Genesis',
+      severity: 'info'
+    },
+    {
+      id: 'audit-009',
+      timestamp: now - 167 * minuteInMs,
+      type: 'security',
+      icon: '🛡️',
+      message: 'SECURITY: Anti-prompt injection guardrail triggered. Suspicious command blocked for safety.',
+      severity: 'critical'
+    },
+    {
+      id: 'audit-010',
+      timestamp: now - 189 * minuteInMs,
+      type: 'governance',
+      icon: '⚖️',
+      message: 'GOVERNANCE: Proposal rejected by user. Agent "Alpha Genesis" DeFi action cancelled.',
+      agentId: 'agent-001',
+      agentName: 'Alpha Genesis',
+      severity: 'warning'
     }
   ]
 }
