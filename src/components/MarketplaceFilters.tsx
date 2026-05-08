@@ -4,26 +4,30 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Funnel, X } from '@phosphor-icons/react'
-import { Niche } from '@/lib/types'
+import { Niche, RarityTier } from '@/lib/types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
+import { getRarityLabel } from '@/lib/utils'
 
 interface MarketplaceFiltersProps {
   filters: {
     generation: number[]
     niche: Niche[]
-    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc'
+    rarityTier: RarityTier[]
+    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc' | 'rarity-desc'
   }
   onFiltersChange: (filters: {
     generation: number[]
     niche: Niche[]
-    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc'
+    rarityTier: RarityTier[]
+    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc' | 'rarity-desc'
   }) => void
   totalAgents: number
 }
 
 const niches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
 const generations = [1, 2, 3, 4, 5]
+const rarityTiers: RarityTier[] = ['common', 'rare', 'epic', 'legendary', 'mythic']
 
 export function MarketplaceFilters({ filters, onFiltersChange, totalAgents }: MarketplaceFiltersProps) {
   const [isOpen, setIsOpen] = useState(true)
@@ -42,15 +46,23 @@ export function MarketplaceFilters({ filters, onFiltersChange, totalAgents }: Ma
     onFiltersChange({ ...filters, niche: newNiches })
   }
 
+  const handleRarityToggle = (rarity: RarityTier) => {
+    const newRarities = filters.rarityTier.includes(rarity)
+      ? filters.rarityTier.filter(r => r !== rarity)
+      : [...filters.rarityTier, rarity]
+    onFiltersChange({ ...filters, rarityTier: newRarities })
+  }
+
   const handleClearFilters = () => {
     onFiltersChange({
       generation: [],
       niche: [],
+      rarityTier: [],
       sortBy: 'level-desc'
     })
   }
 
-  const activeFilterCount = filters.generation.length + filters.niche.length
+  const activeFilterCount = filters.generation.length + filters.niche.length + filters.rarityTier.length
 
   return (
     <motion.div
@@ -106,7 +118,36 @@ export function MarketplaceFilters({ filters, onFiltersChange, totalAgents }: Ma
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-border/50">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-4 border-t border-border/50">
+                  <div>
+                    <Label className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <span>Rarity Tier</span>
+                      {filters.rarityTier.length > 0 && (
+                        <span className="text-xs text-accent bg-accent/20 px-2 py-0.5 rounded-full">
+                          {filters.rarityTier.length}
+                        </span>
+                      )}
+                    </Label>
+                    <div className="space-y-2.5">
+                      {rarityTiers.map((rarity) => (
+                        <div key={rarity} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`rarity-${rarity}`}
+                            checked={filters.rarityTier.includes(rarity)}
+                            onCheckedChange={() => handleRarityToggle(rarity)}
+                            className="border-accent/40 data-[state=checked]:bg-accent data-[state=checked]:border-accent"
+                          />
+                          <label
+                            htmlFor={`rarity-${rarity}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          >
+                            {getRarityLabel(rarity)}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div>
                     <Label className="text-sm font-semibold mb-3 flex items-center gap-2">
                       <span>Generation</span>
@@ -182,6 +223,7 @@ export function MarketplaceFilters({ filters, onFiltersChange, totalAgents }: Ma
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="rarity-desc">Highest Rarity</SelectItem>
                         <SelectItem value="level-desc">Highest Level</SelectItem>
                         <SelectItem value="wisdom-desc">Most Wisdom</SelectItem>
                         <SelectItem value="generation-desc">Highest Generation</SelectItem>
