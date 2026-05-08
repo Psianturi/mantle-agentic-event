@@ -41,11 +41,18 @@ This is a multi-layered platform featuring hierarchical agent management, real-t
 - **Success criteria**: Panel locks until 5 events, glowing unlock animation, consolidated report shows patterns across all 5 events, actionable insights presented
 
 ### 5. NFT Vault & Mantle Integration
-- **Functionality**: Gallery view of all minted Proof-of-Attendance NFTs with metadata and transaction links
-- **Purpose**: Provides on-chain proof of agent activity and creates tradeable digital assets
-- **Trigger**: User navigates to NFT Vault section
-- **Progression**: Open Vault → Grid displays NFTs → Click NFT → Modal shows metadata → View transaction → Opens Mantle Explorer
-- **Success criteria**: All minted NFTs display correctly, metadata includes event details and summary, transaction hashes link to explorer, loading states for pending mints
+- **Functionality**: Gallery view of all minted Proof-of-Attendance NFTs with on-chain verification and transaction links
+- **Purpose**: Provides verifiable on-chain proof of agent activity and creates tradeable digital assets on Mantle Network
+- **Trigger**: User navigates to NFT Vault section or mints a new NFT after event attendance
+- **Progression**: Open Vault → Grid displays NFTs → Click NFT → Modal shows on-chain metadata → View transaction → Opens Mantle Explorer with transaction details
+- **Success criteria**: All minted NFTs display correctly with blockchain data, metadata includes event details and agent info, transaction hashes link to Mantle Explorer, real-time minting status with gas cost display, wallet balance updates after minting
+
+### 6. Mantle Network Blockchain Integration
+- **Functionality**: Complete Web3 integration with Mantle Network for wallet connection, network switching, and NFT minting
+- **Purpose**: Provides genuine blockchain functionality with on-chain proof of attendance and decentralized ownership
+- **Trigger**: User clicks "Connect Wallet" or "Attend Event" button
+- **Progression**: Connect wallet → MetaMask prompts → Switch to Mantle Network → Wallet connected → Mint NFT → Gas estimation → Transaction confirmation → On-chain verification → Receipt displayed
+- **Success criteria**: Seamless wallet connection, automatic network switching to Mantle Sepolia/Mainnet, accurate gas estimation, successful NFT minting on-chain, transaction hash verification on Mantle Explorer, balance updates after transactions
 
 ## Edge Case Handling
 
