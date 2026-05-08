@@ -17,6 +17,7 @@ interface AgentConfigDialogProps {
 
 export function AgentConfigDialog({ open, onOpenChange, agent, onSave }: AgentConfigDialogProps) {
   const [instructions, setInstructions] = useState(agent.customInstructions || '')
+  const [customAgenda, setCustomAgenda] = useState(agent.customAgenda || '')
   const [isSaving, setIsSaving] = useState(false)
 
   const handleSave = async () => {
@@ -108,6 +109,27 @@ export function AgentConfigDialog({ open, onOpenChange, agent, onSave }: AgentCo
             />
             <p className="text-xs text-muted-foreground">
               Provide specific instructions to tune the agent's focus, event selection criteria, and summarization style.
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="customAgenda" className="text-sm font-semibold flex items-center gap-2">
+                <span>Autonomous Custom Agenda / Interest</span>
+                <span className="text-[10px] text-primary font-normal px-2 py-0.5 rounded-md bg-primary/10 border border-primary/20">
+                  Proactive Mode
+                </span>
+              </Label>
+            </div>
+            <Textarea
+              id="customAgenda"
+              placeholder="Focus exclusively on Layer 2 scaling solutions and DeFi yield strategies."
+              value={customAgenda}
+              onChange={(e) => setCustomAgenda(e.target.value)}
+              className="min-h-[120px] font-mono text-sm border-accent/30 focus:border-accent bg-background/50"
+            />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              This agenda will guide your agent when autonomously scouting Luma events and asking questions in YouTube Live streams. Be specific about topics of interest.
             </p>
           </div>
 

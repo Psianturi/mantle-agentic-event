@@ -130,7 +130,7 @@ function App() {
   const [verificationData, setVerificationData] = useKV<ContractVerificationData[]>('maef-verifications', [])
   const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())
   const [proposals, setProposals] = useKV<AgentProposal[]>('maef-proposals', getMockProposals())
-  const [userBalance, setUserBalance] = useKV<number>('maef-user-balance', 15.5)
+  const [userBalance, setUserBalance] = useKV<number>('maef-user-balance', 45.50)
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false)
   const [genesisMintDialogOpen, setGenesisMintDialogOpen] = useState(false)
   const [selectedAgentForTopUp, setSelectedAgentForTopUp] = useState<Agent | null>(null)

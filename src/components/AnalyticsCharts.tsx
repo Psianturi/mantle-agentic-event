@@ -1,9 +1,11 @@
 import { useMemo } from 'react'
 import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Agent, Event, NFT } from '@/lib/types'
-import { TrendUp, TrendDown, Coins, ChartLine, Globe, Lightning } from '@phosphor-icons/react'
+import { TrendUp, TrendDown, Coins, ChartLine, Globe, Lightning, Sparkle, Wallet } from '@phosphor-icons/react'
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, Legend } from 'recharts'
 import { motion } from 'framer-motion'
+import { calculateRarityTier, getRarityLabel } from '@/lib/utils'
 
 interface AnalyticsChartsProps {
   agents?: Agent[]
