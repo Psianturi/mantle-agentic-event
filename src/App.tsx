@@ -23,13 +23,16 @@ import { BackendHealthModal } from '@/components/BackendHealthModal'
 import { ArchitectureFlow } from '@/components/ArchitectureFlow'
 import { SubAgentDelegation } from '@/components/SubAgentDelegation'
 import { ContractDeploymentProgress } from '@/components/ContractDeploymentProgress'
-import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow } from '@phosphor-icons/react'
+import { ContractVerificationTracker } from '@/components/ContractVerificationTracker'
+import { VerificationDashboard } from '@/components/VerificationDashboard'
+import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
 import { ipfsService } from '@/lib/ipfs/ipfsService'
 import { useSubAgentTasks } from '@/hooks/useSubAgentTasks'
 import { cloudRunService } from '@/services/cloudRunService'
+import { ContractVerificationData, verificationService } from '@/lib/blockchain/verificationService'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -95,6 +98,8 @@ function App() {
   const [healthCheckOpen, setHealthCheckOpen] = useState(true)
   const [backendConnected, setBackendConnected] = useState(false)
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
+  const [verificationData, setVerificationData] = useKV<ContractVerificationData[]>('maef-verifications', [])
+  const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
 
@@ -136,6 +141,53 @@ function App() {
     addLog(newAgent.id, 'secretary', `[${newAgent.name} - secretary] Agent initialization complete`, 'success')
     
     addLog(newAgent.id, 'secretary', `[${newAgent.name} - secretary] Deploying smart contract on Mantle Network...`, 'info')
+    
+    const mockContractAddress = `0x${Array.from({ length: 40 }, () =>
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('')}`
+    
+    const mockDeploymentTx = `0x${Array.from({ length: 64 }, () =>
+      Math.floor(Math.random() * 16).toString(16)
+    ).join('')}`
+
+    setActiveVerifications((current) => new Set([...current, mockContractAddress]))
+
+    verificationService.trackContractVerification(
+      mockContractAddress,
+      newAgent.id,
+      newAgent.name,
+      mockDeploymentTx,
+      (verificationData) => {
+        setVerificationData((current) => {
+          const existing = (current ?? []).filter(v => v.contractAddress !== mockContractAddress)
+          return [...existing, verificationData]
+        })
+
+        if (verificationData.verificationStatus === 'verified') {
+          toast.success(`Contract verified for ${newAgent.name}!`, {
+            description: 'Contract is now visible on Mantle Explorer',
+            action: {
+              label: 'View Contract',
+              onClick: () => window.open(verificationData.explorerUrl, '_blank')
+            }
+          })
+          setActiveVerifications((current) => {
+            const next = new Set(current)
+            next.delete(mockContractAddress)
+            return next
+          })
+        } else if (verificationData.verificationStatus === 'failed') {
+          toast.error(`Contract verification failed for ${newAgent.name}`, {
+            description: verificationData.errorMessage
+          })
+          setActiveVerifications((current) => {
+            const next = new Set(current)
+            next.delete(mockContractAddress)
+            return next
+          })
+        }
+      }
+    )
     
     setTimeout(() => {
       setDeployingAgentId(null)
@@ -500,6 +552,9 @@ function App() {
               <TabsTrigger value="vault" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
                 NFT Vault
               </TabsTrigger>
+              <TabsTrigger value="verification" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+                Contract Verification
+              </TabsTrigger>
               <TabsTrigger value="community" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
                 Community Insights
               </TabsTrigger>
@@ -550,6 +605,18 @@ function App() {
                   onComplete={() => setDeployingAgentId(null)}
                 />
               )}
+
+              {verificationData && verificationData.filter(v => 
+                v.verificationStatus === 'verifying' || v.verificationStatus === 'pending'
+              ).map((verification) => (
+                <ContractVerificationTracker
+                  key={verification.contractAddress}
+                  contractAddress={verification.contractAddress}
+                  agentId={verification.agentId}
+                  agentName={verification.agentName}
+                  deploymentTxHash={verification.deploymentTxHash}
+                />
+              ))}
 
               <div>
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
@@ -718,6 +785,10 @@ function App() {
                   ))}
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="verification" className="space-y-6 animate-slide-up">
+              <VerificationDashboard verifications={verificationData ?? []} />
             </TabsContent>
 
             <TabsContent value="community" className="space-y-6 animate-slide-up">
