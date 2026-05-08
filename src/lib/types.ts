@@ -49,6 +49,9 @@ export interface NFT {
   transactionHash: string
   tokenId: string
   imageUrl?: string
+  metadataURI?: string
+  imageCID?: string
+  metadataCID?: string
 }
 
 export interface TerminalLog {
@@ -68,4 +71,30 @@ export interface WisdomCard {
   insights: string[]
   strategicTips: string[]
   generatedAt: number
+}
+
+export interface NFTMetadata {
+  name: string
+  description: string
+  image: string
+  external_url: string
+  attributes: {
+    trait_type: string
+    value: string
+  }[]
+  properties: {
+    event_url: string
+    summary: string
+    agent_id: string
+    minted_by: string
+    network: string
+    category: string
+  }
+}
+
+export interface IPFSUploadResult {
+  cid: string
+  path: string
+  size: number
+  url: string
 }

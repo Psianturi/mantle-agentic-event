@@ -20,6 +20,7 @@ export interface MintNFTParams {
   platform: string
   agentName: string
   summary: string
+  metadataURI?: string
 }
 
 export interface NFTMintResult {

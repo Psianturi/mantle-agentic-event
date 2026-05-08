@@ -2,7 +2,7 @@ import { NFT } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Image, Link as LinkIcon, Calendar, Cube } from '@phosphor-icons/react'
+import { Image, Link as LinkIcon, Calendar, Cube, Database } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 
 interface NFTCardProps {
@@ -47,10 +47,16 @@ export function NFTCard({ nft, onClick }: NFTCardProps) {
           <Badge className="absolute top-3 right-3 bg-secondary/90 text-secondary-foreground font-mono font-bold backdrop-blur-sm border border-secondary">
             #{nft.tokenId}
           </Badge>
-          <div className="absolute top-3 left-3">
+          <div className="absolute top-3 left-3 flex flex-col gap-2">
             <div className="px-2 py-1 rounded-md bg-primary/20 backdrop-blur-sm border border-primary/40 text-xs font-mono text-primary font-semibold">
               MANTLE NFT
             </div>
+            {nft.metadataCID && (
+              <div className="px-2 py-1 rounded-md bg-accent/20 backdrop-blur-sm border border-accent/40 text-xs font-mono text-accent font-semibold flex items-center gap-1">
+                <Database size={12} weight="duotone" />
+                IPFS
+              </div>
+            )}
           </div>
         </div>
 
