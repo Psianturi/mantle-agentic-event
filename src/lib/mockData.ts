@@ -1,4 +1,4 @@
-import { Agent, SubAgent, Event, NFT, Niche, Personality } from './types'
+import { Agent, SubAgent, Event, NFT, Niche, Personality, AgentProposal } from './types'
 
 const niches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
 const personalities: Personality[] = ['Aggressive', 'Analytical', 'Creative']
@@ -73,12 +73,12 @@ export function getMockAgents(): Agent[] {
       personality: 'Aggressive',
       niche: 'Blockchain/DeFi',
       walletAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb4',
-      eventsAttended: 3,
-      level: 2,
+      eventsAttended: 8,
+      level: 5,
       status: 'active',
       createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000,
       subAgents: createSubAgentsWithStatus(['active', 'processing', 'idle', 'idle']),
-      wisdomUnlocked: false,
+      wisdomUnlocked: true,
       mantleBalance: 25.487,
       gasSpent: 0.032
     },
@@ -88,8 +88,8 @@ export function getMockAgents(): Agent[] {
       personality: 'Analytical',
       niche: 'Trading/Investment',
       walletAddress: '0x8ba1f109551bd432803012645ac136ddd64dba72',
-      eventsAttended: 5,
-      level: 3,
+      eventsAttended: 9,
+      level: 5,
       status: 'idle',
       createdAt: Date.now() - 14 * 24 * 60 * 60 * 1000,
       subAgents: createSubAgentsWithStatus(['idle', 'idle', 'idle', 'idle']),
@@ -409,6 +409,83 @@ export function getMockNFTs(): NFT[] {
       transactionHash: '0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3',
       tokenId: '1012',
       imageUrl: 'https://placehold.co/400x400/1a1b3a/9d00ff?text=MAEF+NFT'
+    }
+  ]
+}
+
+export function getMockProposals(): AgentProposal[] {
+  const now = Date.now()
+  const hourInMs = 60 * 60 * 1000
+
+  return [
+    {
+      id: 'proposal-001',
+      agentId: 'agent-002',
+      agentName: 'Sigma Analyst',
+      agentLevel: 5,
+      title: 'Swap 100 USDC for MNT on Mantle Network',
+      description: 'Based on cross-event analysis of 5 recent DeFi conferences, MNT shows strong accumulation signals and positive technical indicators. Propose swapping 100 USDC to MNT to capitalize on potential 15-20% upside in Q2 2026.',
+      reasoning: 'After analyzing 5 DeFi events, 4 out of 5 speakers mentioned Mantle Network as a top Layer 2 scaling solution with growing TVL. On-chain metrics show increasing institutional interest. Technical analysis indicates breakout above key resistance at $0.82. Risk-reward ratio is favorable at current entry point.',
+      eventsSources: [
+        'DeFi Summit 2026: Institutional speakers highlighted Mantle L2 adoption',
+        'Algorithmic Trading Strategies: MNT technical breakout pattern identified',
+        'Crypto Investment Strategies 2026: Portfolio managers allocating to L2 tokens',
+        'Cryptocurrency Market Analysis 2026: On-chain metrics showing MNT accumulation',
+        'Quantitative Trading Workshop: Backtests show positive momentum signals'
+      ],
+      estimatedValue: '100 USDC → ~122 MNT (expected 15-20% profit)',
+      riskLevel: 'low',
+      status: 'pending',
+      createdAt: now - 2 * hourInMs,
+      expiresAt: now + 22 * hourInMs
+    },
+    {
+      id: 'proposal-002',
+      agentId: 'agent-001',
+      agentName: 'Alpha Genesis',
+      agentLevel: 5,
+      title: 'Stake 50 MNT in Mantle LSP Protocol',
+      description: 'Strategic proposal to stake 50 MNT tokens in the Mantle Liquid Staking Protocol to earn yield while maintaining liquidity. Current APY is 8.2% with minimal smart contract risk based on audit analysis.',
+      reasoning: 'Analysis of 8 blockchain events reveals strong consensus on liquid staking protocols as optimal yield strategy for 2026. Mantle LSP has been audited by 3 top-tier firms, shows consistent 7-9% APY, and maintains deep liquidity pools. This positions the agent for passive income while preserving capital flexibility.',
+      eventsSources: [
+        'Mantle Network: Building the Future of Layer 2 - LSP launch announcement',
+        'DeFi Summit 2026: Liquid staking identified as top yield strategy',
+        'Scaling Ethereum with L2 Solutions - Security audit highlights for Mantle',
+        'The Rise of Autonomous AI Agents - Smart contract risk assessment frameworks',
+        'Building dApps on Mantle Network - Deep dive into LSP smart contracts',
+        'DeFi strategies workshop discussing optimal staking ratios',
+        'Layer 2 security analysis covering Mantle protocol safety',
+        'Institutional DeFi panel recommending liquid staking positions'
+      ],
+      estimatedValue: '50 MNT → 4.1 MNT annual yield (8.2% APY)',
+      riskLevel: 'low',
+      status: 'pending',
+      createdAt: now - 5 * hourInMs,
+      expiresAt: now + 19 * hourInMs
+    },
+    {
+      id: 'proposal-003',
+      agentId: 'agent-001',
+      agentName: 'Alpha Genesis',
+      agentLevel: 5,
+      title: 'Provide Liquidity to MNT/USDC Pool',
+      description: 'Allocate 25 MNT + 20 USDC to the MNT/USDC liquidity pool on Mantle DEX. Current pool offers 12.5% APR from trading fees plus MANTLE token incentives.',
+      reasoning: 'Cross-analysis of DeFi events shows high trading volume on Mantle DEX with sustainable fee generation. Liquidity provider rewards are attractive, and impermanent loss risk is moderate given MNT price stability. This diversifies yield sources while supporting the Mantle ecosystem.',
+      eventsSources: [
+        'DeFi Summit 2026: AMM liquidity strategies for 2026',
+        'Mantle Network event highlighting DEX volume growth',
+        'Building dApps on Mantle Network: DEX architecture and fee structure',
+        'DeFi strategies panel discussing LP risk management',
+        'Scaling Ethereum with L2 Solutions: DEX liquidity depth analysis',
+        'Quantitative Trading Workshop: Calculating impermanent loss scenarios',
+        'Crypto Investment Strategies: Diversified yield farming approaches',
+        'Market Analysis 2026: DEX trading volume trends on L2s'
+      ],
+      estimatedValue: '25 MNT + 20 USDC → ~5.6 USDC annual yield (12.5% APR)',
+      riskLevel: 'medium',
+      status: 'pending',
+      createdAt: now - 1 * hourInMs,
+      expiresAt: now + 23 * hourInMs
     }
   ]
 }

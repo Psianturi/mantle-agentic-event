@@ -23,6 +23,7 @@ interface PendingProposalsProps {
   agents: Agent[]
   onApprove: (proposalId: string) => void
   onReject: (proposalId: string) => void
+  onOpenSignatureModal?: (proposal: AgentProposal) => void
 }
 
 const getRiskColor = (risk: 'low' | 'medium' | 'high') => {
@@ -51,7 +52,8 @@ export function PendingProposals({
   proposals,
   agents,
   onApprove,
-  onReject
+  onReject,
+  onOpenSignatureModal
 }: PendingProposalsProps) {
   const [expandedProposal, setExpandedProposal] = useState<string | null>(null)
 
@@ -207,16 +209,20 @@ export function PendingProposals({
                       <div className="flex gap-3">
                         <Button
                           onClick={() => {
-                            onApprove(proposal.id)
-                            toast.success('Proposal Approved', {
-                              description: `${proposal.agentName} will execute the action`
-                            })
+                            if (onOpenSignatureModal) {
+                              onOpenSignatureModal(proposal)
+                            } else {
+                              onApprove(proposal.id)
+                              toast.success('Proposal Approved', {
+                                description: `${proposal.agentName} will execute the action`
+                              })
+                            }
                           }}
                           className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold shadow-lg shadow-green-500/30"
                           size="lg"
                         >
                           <CheckCircle size={20} weight="fill" className="mr-2" />
-                          Approve Transaction
+                          Approve & Sign (Secure)
                         </Button>
                         <Button
                           onClick={() => {
