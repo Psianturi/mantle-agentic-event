@@ -1,13 +1,13 @@
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
-import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
-
-  agent: Agent
-  onApproveEvent: (agentId: st
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Agent } from '@/lib/types'
+import { Radar, Youtube, Calendar, Clock, CheckCircle } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
 
 interface ProactiveScoutingPanelProps {
   agent: Agent
@@ -15,23 +15,22 @@ interface ProactiveScoutingPanelProps {
   onApproveEvent: (agentId: string, eventId: string) => void
 }
 
-      toast.info('Proactive Scouting Disabled')
-  }
-  const handleApprove = (eventId: string) => {
-    toast.success('Event approved! Agent will register a
+export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }: ProactiveScoutingPanelProps) {
+  const canScout = agent.level >= 5
+  const isScoutEnabled = agent.autoScoutEnabled && canScout
+  const scoutedEvents = agent.scoutedOpportunities || []
 
-    <Card className="glass-car
-        <div classNa
-            <div className="flex items-center gap-2 mb-2">
-            
-     
-              </Label>
-    
-                ? `Auto-sc
-              }
-            {!canScout && (
-        
-            
+  const handleToggle = (enabled: boolean) => {
+    if (!canScout) {
+      toast.error('Proactive Scouting requires Level 5+')
+      return
+    }
+    onToggleScout(agent.id, enabled)
+    if (enabled) {
+      toast.success('Proactive Scouting Enabled', {
+        description: 'Agent will now scan for relevant events automatically'
+      })
+    } else {
       toast.info('Proactive Scouting Disabled')
     }
   }
@@ -66,7 +65,7 @@ interface ProactiveScoutingPanelProps {
               </Badge>
             )}
           </div>
-                 
+          <Switch
             id={`scout-${agent.id}`}
             checked={isScoutEnabled}
             onCheckedChange={handleToggle}
@@ -75,10 +74,10 @@ interface ProactiveScoutingPanelProps {
           />
         </div>
 
-        {isScoutEnabled && (
-                          :
+        <AnimatePresence>
+          {isScoutEnabled && (
             <motion.div
-                      <div className="flex items-
+              initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
@@ -86,23 +85,21 @@ interface ProactiveScoutingPanelProps {
             >
               <div className="flex items-center gap-2">
                 <h5 className="text-sm font-semibold">Scouted Opportunities</h5>
-                          <div className="flex
-                  <Badge variant="secondary" className="text-xs">
-                    {scoutedEvents.length} new
-                  </Badge>
-                  
+                <Badge variant="secondary" className="text-xs">
+                  {scoutedEvents.length} new
+                </Badge>
               </div>
 
               {scoutedEvents.length === 0 ? (
-                            size="sm"
+                <div className="text-center py-6">
                   <Radar size={48} className="mx-auto mb-3 text-muted-foreground opacity-50 animate-pulse" weight="duotone" />
-                          >
+                  <p className="text-sm text-muted-foreground font-semibold">
                     Agent is scanning for events...
-                      
+                  </p>
                   <p className="text-xs text-muted-foreground/70 mt-1">
                     Based on: {agent.customAgenda || agent.niche}
                   </p>
-                      
+                </div>
               ) : (
                 <div className="space-y-2">
                   {scoutedEvents.map((event) => (
@@ -110,13 +107,13 @@ interface ProactiveScoutingPanelProps {
                       key={event.id}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
-
+                      transition={{ duration: 0.3 }}
                       className={cn(
                         "p-3 rounded-lg border transition-all duration-200",
                         event.approved
-
+                          ? "bg-green-500/10 border-green-500/40"
                           : "bg-card/50 border-border/50 hover:border-primary/40"
-
+                      )}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 space-y-1">
@@ -126,7 +123,7 @@ interface ProactiveScoutingPanelProps {
                             {event.platform === 'Eventbrite' && <Calendar size={16} className="text-orange-500" weight="duotone" />}
                             {event.platform === 'Zoom' && <Calendar size={16} className="text-primary" weight="duotone" />}
                             <h6 className="text-sm font-semibold line-clamp-1">{event.title}</h6>
-
+                          </div>
                           <p className="text-xs text-muted-foreground line-clamp-2">
                             {event.description}
                           </p>
@@ -138,7 +135,7 @@ interface ProactiveScoutingPanelProps {
                             <Badge variant="outline" className="text-xs">
                               Relevance: {event.relevanceScore}%
                             </Badge>
-
+                          </div>
                         </div>
                         {!event.approved ? (
                           <Button
@@ -156,13 +153,13 @@ interface ProactiveScoutingPanelProps {
                         )}
                       </div>
                     </motion.div>
-
+                  ))}
                 </div>
-
+              )}
             </motion.div>
-
-        )}
-
+          )}
+        </AnimatePresence>
+      </div>
     </Card>
-
+  )
 }
