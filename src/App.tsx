@@ -20,11 +20,13 @@ import { NFTMetadataDialog } from '@/components/NFTMetadataDialog'
 import { BatchIPFSUploadDialog } from '@/components/BatchIPFSUploadDialog'
 import { SparkleBackground } from '@/components/SparkleBackground'
 import { ArchitectureFlow } from '@/components/ArchitectureFlow'
+import { SubAgentDelegation } from '@/components/SubAgentDelegation'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
 import { ipfsService } from '@/lib/ipfs/ipfsService'
+import { useSubAgentTasks } from '@/hooks/useSubAgentTasks'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -85,6 +87,10 @@ function App() {
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null)
   const [selectedTab, setSelectedTab] = useState('dashboard')
   const [eventUrl, setEventUrl] = useState('')
+  const [isProcessingEvent, setIsProcessingEvent] = useState(false)
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
+  
+  const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
 
   const handleWalletConnect = async (address: string) => {
     try {
@@ -148,6 +154,10 @@ function App() {
       return
     }
     const agent = agents[0]
+
+    setIsProcessingEvent(true)
+    setActiveAgentId(agent.id)
+    startWorkflow()
 
     toast.info('Initiating event attendance workflow...')
     
@@ -292,6 +302,10 @@ function App() {
       await blockchain.refreshBalance()
 
       setEventUrl('')
+      setIsProcessingEvent(false)
+      setActiveAgentId(null)
+      clearTasks()
+      
       toast.success('Event attendance complete! NFT minted on Mantle.', {
         description: `Transaction: ${newNFT.transactionHash.slice(0, 10)}...`,
         action: {
@@ -314,6 +328,9 @@ function App() {
       toast.error('Failed to mint NFT', {
         description: error instanceof Error ? error.message : 'Please try again'
       })
+      setIsProcessingEvent(false)
+      setActiveAgentId(null)
+      clearTasks()
     }
   }
 
@@ -494,6 +511,14 @@ function App() {
                   <p className="text-xs text-amber-500 mt-3">Connect your wallet to attend events</p>
                 )}
               </Card>
+
+              {agents && agents.length > 0 && (
+                <SubAgentDelegation
+                  agent={agents[0]}
+                  isActive={isProcessingEvent && activeAgentId === agents[0].id}
+                  currentTasks={tasks}
+                />
+              )}
 
               <div>
                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
