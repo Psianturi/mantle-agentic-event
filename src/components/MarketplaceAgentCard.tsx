@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Robot, Brain, TrendUp, Fire, ShoppingCart } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
+import { cn } from '@/lib/utils'
 
 interface MarketplaceAgentCardProps {
   agent: MarketplaceAgent
@@ -25,12 +26,43 @@ export function MarketplaceAgentCard({ agent, onBuy, isPurchasing }: Marketplace
     'Health/Wellness': '🧘'
   }
 
+  const generation = agent.generation ?? 1
+  const isRare = generation >= 3
+
   return (
     <motion.div
       whileHover={{ scale: 1.02, y: -5 }}
       transition={{ duration: 0.2 }}
+      className="relative"
     >
-      <Card className={`glass-card-hover p-6 border-2 ${personalityColors[agent.personality]} relative overflow-hidden group`}>
+      {isRare && (
+        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 animate-pulse blur-lg -z-10" />
+      )}
+      
+      <Card className={cn(
+        'glass-card-hover p-6 border-2 relative overflow-hidden group',
+        personalityColors[agent.personality],
+        isRare && 'border-amber-500/50 shadow-xl shadow-amber-500/20'
+      )}>
+        {isRare && (
+          <>
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent animate-shimmer" />
+            <div className="absolute top-3 right-3 z-20">
+              <motion.div
+                animate={{ 
+                  rotate: [0, 10, -10, 0],
+                  scale: [1, 1.1, 1]
+                }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold shadow-lg shadow-amber-500/50 flex items-center gap-1.5"
+              >
+                <span>✨</span>
+                <span>GEN-{generation} MYTHIC</span>
+              </motion.div>
+            </div>
+          </>
+        )}
+        
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
         
         <div className="relative z-10 space-y-4">

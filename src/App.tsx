@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
-import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent } from '@/lib/types'
+import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent, Niche } from '@/lib/types'
 import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
+import { cn } from '@/lib/utils'
 import { AgentCard } from '@/components/AgentCard'
 import { MarketplaceAgentCard } from '@/components/MarketplaceAgentCard'
+import { MarketplaceFilters } from '@/components/MarketplaceFilters'
 import { GasPriceMonitor } from '@/components/GasPriceMonitor'
 import { NFTCard } from '@/components/NFTCard'
 import { SpawnAgentDialog } from '@/components/SpawnAgentDialog'
@@ -59,6 +61,15 @@ function App() {
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
   const [mainView, setMainView] = useState<'dashboard' | 'marketplace' | 'fusion-lab'>('dashboard')
+  const [marketplaceFilters, setMarketplaceFilters] = useState<{
+    generation: number[]
+    niche: Niche[]
+    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc'
+  }>({
+    generation: [],
+    niche: [],
+    sortBy: 'level-desc'
+  })
   const blockchain = useBlockchain()
   
   useEffect(() => {
@@ -614,6 +625,35 @@ function App() {
     { label: 'Wisdom Unlocked', value: agents?.filter(a => a.wisdomUnlocked).length ?? 0, icon: ChartLine, color: 'text-secondary' }
   ]
 
+  const filteredAndSortedMarketplace = () => {
+    let filtered = [...(marketplaceAgents ?? [])]
+    
+    if (marketplaceFilters.generation.length > 0) {
+      filtered = filtered.filter(a => marketplaceFilters.generation.includes(a.generation ?? 1))
+    }
+    
+    if (marketplaceFilters.niche.length > 0) {
+      filtered = filtered.filter(a => marketplaceFilters.niche.includes(a.niche))
+    }
+    
+    filtered.sort((a, b) => {
+      switch (marketplaceFilters.sortBy) {
+        case 'price-asc':
+          return a.price - b.price
+        case 'price-desc':
+          return b.price - a.price
+        case 'level-desc':
+          return b.level - a.level
+        case 'generation-desc':
+          return (b.generation ?? 1) - (a.generation ?? 1)
+        default:
+          return 0
+      }
+    })
+    
+    return filtered
+  }
+
   const isViewOnly = !walletConnected
 
   return (
@@ -632,7 +672,7 @@ function App() {
       <div className="relative z-10">
         <header className="border-b border-primary/20 backdrop-blur-xl bg-background/70 sticky top-0 z-40 shadow-lg shadow-primary/5">
           <div className="container mx-auto px-6 py-5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-accent to-secondary flex items-center justify-center animate-glow-pulse shadow-lg shadow-primary/50">
@@ -671,6 +711,48 @@ function App() {
                   onDisconnect={handleWalletDisconnect}
                 />
               </div>
+            </div>
+            
+            <div className="flex items-center justify-center gap-2">
+              <Button
+                onClick={() => setMainView('dashboard')}
+                variant={mainView === 'dashboard' ? 'default' : 'ghost'}
+                className={cn(
+                  'px-6 py-2 font-semibold transition-all duration-300',
+                  mainView === 'dashboard' 
+                    ? 'bg-gradient-to-r from-primary/20 to-accent/20 text-primary border-2 border-primary/40 shadow-lg shadow-primary/20' 
+                    : 'hover:bg-primary/10 hover:text-primary hover:scale-105'
+                )}
+              >
+                <Robot className="mr-2" size={18} weight="duotone" />
+                Dashboard
+              </Button>
+              <Button
+                onClick={() => setMainView('marketplace')}
+                variant={mainView === 'marketplace' ? 'default' : 'ghost'}
+                className={cn(
+                  'px-6 py-2 font-semibold transition-all duration-300',
+                  mainView === 'marketplace' 
+                    ? 'bg-gradient-to-r from-secondary/20 to-accent/20 text-secondary border-2 border-secondary/40 shadow-lg shadow-secondary/20' 
+                    : 'hover:bg-secondary/10 hover:text-secondary hover:scale-105'
+                )}
+              >
+                <Storefront className="mr-2" size={18} weight="duotone" />
+                Marketplace
+              </Button>
+              <Button
+                onClick={() => setMainView('fusion-lab')}
+                variant={mainView === 'fusion-lab' ? 'default' : 'ghost'}
+                className={cn(
+                  'px-6 py-2 font-semibold transition-all duration-300',
+                  mainView === 'fusion-lab' 
+                    ? 'bg-gradient-to-r from-accent/20 to-secondary/20 text-accent border-2 border-accent/40 shadow-lg shadow-accent/20' 
+                    : 'hover:bg-accent/10 hover:text-accent hover:scale-105'
+                )}
+              >
+                <Dna className="mr-2" size={18} weight="duotone" />
+                Fusion Lab
+              </Button>
             </div>
           </div>
         </header>
