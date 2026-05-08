@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
 import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal } from '@/lib/types'
-import { getMockAgents, getMockNFTs, getMockEvents } from '@/lib/mockData'
+import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals } from '@/lib/mockData'
 import { AgentCard } from '@/components/AgentCard'
 import { NFTCard } from '@/components/NFTCard'
 import { SpawnAgentDialog } from '@/components/SpawnAgentDialog'
@@ -27,7 +27,8 @@ import { ContractVerificationTracker } from '@/components/ContractVerificationTr
 import { VerificationDashboard } from '@/components/VerificationDashboard'
 import { AgentEvolutionDialog } from '@/components/AgentEvolutionDialog'
 import { PendingProposals } from '@/components/PendingProposals'
-import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck } from '@phosphor-icons/react'
+import { TransactionSignatureModal } from '@/components/TransactionSignatureModal'
+import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
@@ -92,6 +93,8 @@ function App() {
   const [nftMetadataDialogOpen, setNFTMetadataDialogOpen] = useState(false)
   const [batchIPFSDialogOpen, setBatchIPFSDialogOpen] = useState(false)
   const [evolutionDialogOpen, setEvolutionDialogOpen] = useState(false)
+  const [signatureModalOpen, setSignatureModalOpen] = useState(false)
+  const [selectedProposal, setSelectedProposal] = useState<AgentProposal | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null)
   const [selectedTab, setSelectedTab] = useState('dashboard')
@@ -103,7 +106,7 @@ function App() {
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
   const [verificationData, setVerificationData] = useKV<ContractVerificationData[]>('maef-verifications', [])
   const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())
-  const [proposals, setProposals] = useKV<AgentProposal[]>('maef-proposals', [])
+  const [proposals, setProposals] = useKV<AgentProposal[]>('maef-proposals', getMockProposals())
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
 
@@ -463,6 +466,29 @@ function App() {
     setEvolutionDialogOpen(true)
   }
 
+  const handleOpenSignatureModal = (proposal: AgentProposal) => {
+    setSelectedProposal(proposal)
+    setSignatureModalOpen(true)
+  }
+
+  const handleConfirmProposal = (proposalId: string) => {
+    setProposals((current) =>
+      (current ?? []).map((p) =>
+        p.id === proposalId ? { ...p, status: 'approved', executionDetails: {
+          transactionHash: `0x${Array.from({ length: 64 }, () =>
+            Math.floor(Math.random() * 16).toString(16)
+          ).join('')}`,
+          result: 'Transaction executed successfully on Mantle Network',
+          executedAt: Date.now()
+        } } : p
+      )
+    )
+    
+    toast.success('Proposal Executed', {
+      description: 'Transaction has been broadcasted to Mantle Network',
+    })
+  }
+
   const handleApproveProposal = (proposalId: string) => {
     setProposals((current) =>
       (current ?? []).map((p) =>
@@ -644,12 +670,27 @@ function App() {
               ))}
 
               {proposals && proposals.filter(p => p.status === 'pending').length > 0 && (
-                <PendingProposals
-                  proposals={proposals}
-                  agents={agents ?? []}
-                  onApprove={handleApproveProposal}
-                  onReject={handleRejectProposal}
-                />
+                <div className="space-y-4">
+                  <Card className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-2 border-amber-500/30 shadow-lg shadow-amber-500/10">
+                    <div className="flex items-start gap-3">
+                      <ShieldWarning size={28} weight="duotone" className="text-amber-500 flex-shrink-0 mt-0.5 animate-pulse" />
+                      <div className="flex-1">
+                        <h4 className="font-bold text-amber-500 mb-1 text-lg">⚠️ Human-in-the-Loop Active</h4>
+                        <p className="text-sm text-foreground/90">
+                          Your agents <span className="font-semibold">cannot move funds or execute trades without your explicit wallet signature</span>. All proposed actions below require your approval through a secure transaction signing process.
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <PendingProposals
+                    proposals={proposals}
+                    agents={agents ?? []}
+                    onApprove={handleApproveProposal}
+                    onReject={handleRejectProposal}
+                    onOpenSignatureModal={handleOpenSignatureModal}
+                  />
+                </div>
               )}
 
               <div>
@@ -900,6 +941,15 @@ function App() {
         events={events ?? []}
         agents={agents ?? []}
         onBatchComplete={handleBatchIPFSComplete}
+      />
+
+      <TransactionSignatureModal
+        open={signatureModalOpen}
+        onOpenChange={setSignatureModalOpen}
+        proposal={selectedProposal}
+        onConfirm={handleConfirmProposal}
+        onCancel={() => setSignatureModalOpen(false)}
+        walletAddress={walletAddress}
       />
 
       <TerminalConsole logs={logs} />
