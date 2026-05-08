@@ -72,6 +72,8 @@ class IPFSService {
     agentName: string
     date: number
     niche?: string
+    agentLevel?: number
+    evolutionStage?: 'standard' | 'advanced' | 'elite' | 'wisdom'
   }): Promise<Blob> {
     const canvas = document.createElement('canvas')
     canvas.width = 800
@@ -82,14 +84,39 @@ class IPFSService {
       throw new Error('Failed to create canvas context')
     }
 
+    const level = metadata.agentLevel || 1
+    const stage = metadata.evolutionStage || 'standard'
+    
+    let primaryColor = '#00f3ff'
+    let secondaryColor = '#9d00ff'
+    let tertiaryColor = '#1a1b3a'
+    let glowIntensity = 0.3
+    
+    if (stage === 'wisdom') {
+      primaryColor = '#ffd700'
+      secondaryColor = '#ff8c00'
+      tertiaryColor = '#2d1810'
+      glowIntensity = 0.5
+    } else if (stage === 'elite') {
+      primaryColor = '#00f3ff'
+      secondaryColor = '#ff00ff'
+      tertiaryColor = '#1a0d2e'
+      glowIntensity = 0.4
+    } else if (stage === 'advanced') {
+      primaryColor = '#00f3ff'
+      secondaryColor = '#9d00ff'
+      tertiaryColor = '#1a1b3a'
+      glowIntensity = 0.35
+    }
+
     const gradient = ctx.createLinearGradient(0, 0, 800, 800)
     gradient.addColorStop(0, '#0d0d1f')
-    gradient.addColorStop(0.5, '#1a1b3a')
+    gradient.addColorStop(0.5, tertiaryColor)
     gradient.addColorStop(1, '#0d0d1f')
     ctx.fillStyle = gradient
     ctx.fillRect(0, 0, 800, 800)
 
-    ctx.strokeStyle = 'rgba(0, 243, 255, 0.3)'
+    ctx.strokeStyle = `rgba(${stage === 'wisdom' ? '255, 215, 0' : '0, 243, 255'}, ${glowIntensity})`
     ctx.lineWidth = 2
     for (let i = 0; i < 800; i += 60) {
       ctx.beginPath()
@@ -103,27 +130,49 @@ class IPFSService {
     }
 
     const accentGradient = ctx.createRadialGradient(400, 400, 0, 400, 400, 400)
-    accentGradient.addColorStop(0, 'rgba(0, 243, 255, 0.15)')
-    accentGradient.addColorStop(0.5, 'rgba(157, 0, 255, 0.08)')
+    accentGradient.addColorStop(0, `${primaryColor}${Math.floor(glowIntensity * 255).toString(16).padStart(2, '0')}`)
+    accentGradient.addColorStop(0.5, `${secondaryColor}${Math.floor(glowIntensity * 128).toString(16).padStart(2, '0')}`)
     accentGradient.addColorStop(1, 'transparent')
     ctx.fillStyle = accentGradient
     ctx.fillRect(0, 0, 800, 800)
 
-    ctx.shadowColor = 'rgba(0, 243, 255, 0.6)'
-    ctx.shadowBlur = 20
-    ctx.strokeStyle = '#00f3ff'
-    ctx.lineWidth = 3
+    ctx.shadowColor = primaryColor
+    ctx.shadowBlur = stage === 'wisdom' ? 30 : 20
+    ctx.strokeStyle = primaryColor
+    ctx.lineWidth = stage === 'wisdom' ? 4 : 3
     ctx.strokeRect(60, 60, 680, 680)
+    
+    if (stage === 'elite' || stage === 'wisdom') {
+      ctx.strokeRect(70, 70, 660, 660)
+    }
     ctx.shadowBlur = 0
 
-    ctx.fillStyle = '#00f3ff'
+    if (stage === 'wisdom') {
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.1)'
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath()
+        ctx.arc(100 + i * 150, 100, 3, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.beginPath()
+        ctx.arc(150 + i * 150, 700, 3, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    }
+
+    ctx.fillStyle = primaryColor
     ctx.font = 'bold 48px "Space Grotesk", sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('MAEF', 400, 140)
 
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'
     ctx.font = '20px "JetBrains Mono", monospace'
-    ctx.fillText('Proof of Attendance', 400, 180)
+    ctx.fillText(stage === 'wisdom' ? 'Wisdom Attestation' : 'Proof of Attendance', 400, 180)
+
+    if (level > 1) {
+      ctx.fillStyle = secondaryColor
+      ctx.font = 'bold 16px "Space Grotesk", sans-serif'
+      ctx.fillText(`LEVEL ${level}`, 400, 210)
+    }
 
     ctx.fillStyle = '#ffffff'
     ctx.font = 'bold 32px "Space Grotesk", sans-serif'
@@ -145,7 +194,7 @@ class IPFSService {
     }
     ctx.fillText(titleLine, 400, titleY)
 
-    ctx.fillStyle = '#9d00ff'
+    ctx.fillStyle = secondaryColor
     ctx.font = '24px "Space Grotesk", sans-serif'
     ctx.fillText(metadata.agentName, 400, 500)
 
@@ -159,22 +208,30 @@ class IPFSService {
     ctx.fillText(dateStr, 400, 540)
 
     if (metadata.niche) {
-      ctx.fillStyle = 'rgba(0, 243, 255, 0.8)'
+      ctx.fillStyle = `rgba(${stage === 'wisdom' ? '255, 215, 0' : '0, 243, 255'}, 0.8)`
       ctx.font = '16px "JetBrains Mono", monospace'
       ctx.fillText(metadata.niche.toUpperCase(), 400, 580)
     }
 
-    ctx.strokeStyle = 'rgba(0, 243, 255, 0.5)'
+    ctx.strokeStyle = `rgba(${stage === 'wisdom' ? '255, 215, 0' : '0, 243, 255'}, 0.5)`
     ctx.lineWidth = 2
     ctx.beginPath()
     ctx.arc(400, 680, 60, 0, Math.PI * 2)
     ctx.stroke()
     
-    ctx.fillStyle = '#00f3ff'
+    ctx.fillStyle = primaryColor
     ctx.font = 'bold 16px "Space Grotesk", sans-serif'
     ctx.fillText('MANTLE', 400, 675)
     ctx.font = '12px "JetBrains Mono", monospace'
     ctx.fillText('NETWORK', 400, 695)
+
+    if (stage === 'wisdom') {
+      ctx.strokeStyle = '#ffd700'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(400, 680, 75, 0, Math.PI * 2)
+      ctx.stroke()
+    }
 
     return new Promise((resolve, reject) => {
       canvas.toBlob((blob) => {
@@ -197,47 +254,67 @@ class IPFSService {
     date: number
     tokenId: string
     niche?: string
+    agentLevel?: number
+    evolutionStage?: 'standard' | 'advanced' | 'elite' | 'wisdom'
   }): Promise<{ metadata: NFTMetadata; metadataCID: string; imageCID: string }> {
     const imageBlob = await this.generateNFTImage({
       eventTitle: params.eventTitle,
       agentName: params.agentName,
       date: params.date,
-      niche: params.niche
+      niche: params.niche,
+      agentLevel: params.agentLevel,
+      evolutionStage: params.evolutionStage
     })
 
     const imageResult = await this.uploadImage(imageBlob)
 
+    const attributes = [
+      {
+        trait_type: 'Event Title',
+        value: params.eventTitle
+      },
+      {
+        trait_type: 'Agent Name',
+        value: params.agentName
+      },
+      {
+        trait_type: 'Agent ID',
+        value: params.agentId
+      },
+      {
+        trait_type: 'Platform',
+        value: params.platform
+      },
+      {
+        trait_type: 'Attendance Date',
+        value: new Date(params.date).toISOString()
+      },
+      {
+        trait_type: 'Token ID',
+        value: params.tokenId
+      }
+    ]
+
+    if (params.agentLevel) {
+      attributes.push({
+        trait_type: 'Agent Level',
+        value: params.agentLevel.toString()
+      })
+    }
+
+    if (params.evolutionStage) {
+      attributes.push({
+        trait_type: 'Evolution Stage',
+        value: params.evolutionStage.toUpperCase()
+      })
+    }
+
     const metadata: NFTMetadata = {
-      name: `${params.eventTitle} - Proof of Attendance`,
-      description: `This NFT certifies that AI Agent "${params.agentName}" attended and analyzed the event: "${params.eventTitle}". ${params.summary}`,
+      name: `${params.eventTitle} - ${params.evolutionStage === 'wisdom' ? 'Wisdom Attestation' : 'Proof of Attendance'}`,
+      description: `This NFT certifies that AI Agent "${params.agentName}" ${params.evolutionStage === 'wisdom' ? '(Wisdom Unlocked)' : ''} attended and analyzed the event: "${params.eventTitle}". ${params.summary}`,
       image: imageResult.url,
       external_url: params.eventUrl,
-      attributes: [
-        {
-          trait_type: 'Event Title',
-          value: params.eventTitle
-        },
-        {
-          trait_type: 'Agent Name',
-          value: params.agentName
-        },
-        {
-          trait_type: 'Agent ID',
-          value: params.agentId
-        },
-        {
-          trait_type: 'Platform',
-          value: params.platform
-        },
-        {
-          trait_type: 'Attendance Date',
-          value: new Date(params.date).toISOString()
-        },
-        {
-          trait_type: 'Token ID',
-          value: params.tokenId
-        }
-      ],
+      attributes,
       properties: {
         event_url: params.eventUrl,
         summary: params.summary,

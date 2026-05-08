@@ -52,6 +52,9 @@ export interface NFT {
   metadataURI?: string
   imageCID?: string
   metadataCID?: string
+  agentLevel?: number
+  isDynamic?: boolean
+  evolutionStage?: 'standard' | 'advanced' | 'elite' | 'wisdom'
 }
 
 export interface TerminalLog {

@@ -19,7 +19,8 @@ import { AgentChatDialog } from '@/components/AgentChatDialog'
 import { NFTMetadataDialog } from '@/components/NFTMetadataDialog'
 import { BatchIPFSUploadDialog } from '@/components/BatchIPFSUploadDialog'
 import { SparkleBackground } from '@/components/SparkleBackground'
-import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp } from '@phosphor-icons/react'
+import { ArchitectureFlow } from '@/components/ArchitectureFlow'
+import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
@@ -197,6 +198,18 @@ function App() {
       
       try {
         const tokenIdNumber = 1000 + (nfts?.length ?? 0) + 1
+        const newEventsAttended = agent.eventsAttended + 1
+        const newAgentLevel = Math.floor(newEventsAttended / 2) + 1
+        
+        let evolutionStage: 'standard' | 'advanced' | 'elite' | 'wisdom' = 'standard'
+        if (newEventsAttended >= 5) {
+          evolutionStage = 'wisdom'
+        } else if (newAgentLevel >= 5) {
+          evolutionStage = 'elite'
+        } else if (newAgentLevel >= 3) {
+          evolutionStage = 'advanced'
+        }
+        
         const { metadataCID, imageCID, metadata } = await ipfsService.createNFTMetadata({
           eventTitle: newEvent.title,
           eventUrl: newEvent.url,
@@ -206,7 +219,9 @@ function App() {
           platform: newEvent.platform,
           date: newEvent.date,
           tokenId: `${tokenIdNumber}`,
-          niche: agent.niche
+          niche: agent.niche,
+          agentLevel: newAgentLevel,
+          evolutionStage
         })
         
         ipfsMetadataCID = metadataCID
@@ -434,6 +449,9 @@ function App() {
               <TabsTrigger value="dashboard" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
                 Dashboard
               </TabsTrigger>
+              <TabsTrigger value="architecture" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
+                How It Works
+              </TabsTrigger>
               <TabsTrigger value="analytics" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300">
                 Analytics
               </TabsTrigger>
@@ -522,6 +540,10 @@ function App() {
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            <TabsContent value="architecture" className="space-y-6 animate-slide-up">
+              <ArchitectureFlow currentPhase={agents && agents.length > 0 ? (agents[0].eventsAttended >= 5 ? 4 : Math.min(Math.floor(agents[0].eventsAttended / 1.5) + 1, 3)) : 0} />
             </TabsContent>
 
             <TabsContent value="analytics" className="space-y-6 animate-slide-up">
