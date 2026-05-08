@@ -35,6 +35,8 @@ export interface Agent {
   breedingCount?: number
   maxBreedings?: number
   geneticTraits?: string[]
+  lastBreedingTime?: number
+  breedingCooldownHours?: number
 }
 
 export interface EvolutionLevel {
@@ -171,6 +173,16 @@ export interface MarketplaceAgent {
   createdAt: number
   mantleBalance?: number
   gasSpent?: number
+  generation?: number
+  parentIds?: string[]
+  geneticTraits?: string[]
+}
+
+export interface MarketplaceFilters {
+  generation?: number[]
+  niche?: Niche[]
+  priceRange?: { min: number; max: number }
+  sortBy?: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc'
 }
 
 export interface GasPriceInfo {

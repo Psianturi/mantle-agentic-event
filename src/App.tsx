@@ -58,6 +58,7 @@ function App() {
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
+  const [mainView, setMainView] = useState<'dashboard' | 'marketplace' | 'fusion-lab'>('dashboard')
   const blockchain = useBlockchain()
   
   useEffect(() => {
