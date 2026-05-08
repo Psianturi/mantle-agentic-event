@@ -83,7 +83,11 @@ export function getMockAgents(): Agent[] {
       gasSpent: 0.032,
       isGenesis: true,
       ownershipStatus: 'original-creator',
-      agentGasBalance: 1.2
+      agentGasBalance: 1.2,
+      generation: 1,
+      breedingCount: 0,
+      maxBreedings: 3,
+      geneticTraits: []
     },
     {
       id: 'agent-002',
@@ -101,7 +105,11 @@ export function getMockAgents(): Agent[] {
       gasSpent: 0.054,
       isGenesis: true,
       ownershipStatus: 'original-creator',
-      agentGasBalance: 0.45
+      agentGasBalance: 0.45,
+      generation: 1,
+      breedingCount: 0,
+      maxBreedings: 3,
+      geneticTraits: []
     },
     {
       id: 'agent-003',
@@ -119,7 +127,11 @@ export function getMockAgents(): Agent[] {
       gasSpent: 0.021,
       isGenesis: false,
       ownershipStatus: 'marketplace-acquired',
-      agentGasBalance: 0.32
+      agentGasBalance: 0.32,
+      generation: 1,
+      breedingCount: 0,
+      maxBreedings: 3,
+      geneticTraits: []
     },
     {
       id: 'agent-004',
@@ -137,7 +149,11 @@ export function getMockAgents(): Agent[] {
       gasSpent: 0.043,
       isGenesis: false,
       ownershipStatus: 'marketplace-acquired',
-      agentGasBalance: 0.78
+      agentGasBalance: 0.78,
+      generation: 1,
+      breedingCount: 0,
+      maxBreedings: 3,
+      geneticTraits: []
     },
     {
       id: 'agent-005',
@@ -155,7 +171,11 @@ export function getMockAgents(): Agent[] {
       gasSpent: 0.011,
       isGenesis: true,
       ownershipStatus: 'original-creator',
-      agentGasBalance: 0.15
+      agentGasBalance: 0.15,
+      generation: 1,
+      breedingCount: 0,
+      maxBreedings: 3,
+      geneticTraits: []
     }
   ]
 }

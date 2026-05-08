@@ -27,9 +27,14 @@ export interface Agent {
   mantleBalance?: number
   gasSpent?: number
   isGenesis?: boolean
-  ownershipStatus?: 'original-creator' | 'marketplace-acquired'
+  ownershipStatus?: 'original-creator' | 'marketplace-acquired' | 'bred'
   agentGasBalance?: number
   autoReplenishGas?: boolean
+  generation?: number
+  parentIds?: string[]
+  breedingCount?: number
+  maxBreedings?: number
+  geneticTraits?: string[]
 }
 
 export interface EvolutionLevel {
@@ -172,4 +177,23 @@ export interface GasPriceInfo {
   current: number
   status: 'low' | 'medium' | 'high'
   timestamp: number
+}
+
+export interface BreedingPair {
+  parent1: Agent
+  parent2: Agent
+}
+
+export interface BreedingResult {
+  offspring: Agent
+  inheritedTraits: {
+    from: string
+    trait: string
+  }[]
+  wisdomMerge: {
+    parent1Events: number
+    parent2Events: number
+    inheritedWisdom: number
+  }
+  geneticBonus: string[]
 }

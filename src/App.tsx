@@ -34,7 +34,8 @@ import { TopUpGasDialog } from '@/components/TopUpGasDialog'
 import { GenesisMintConfirmation } from '@/components/GenesisMintConfirmation'
 import { SecurityAuditLog } from '@/components/SecurityAuditLog'
 import { GlobalSecurityAuditLog } from '@/components/GlobalSecurityAuditLog'
-import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront } from '@phosphor-icons/react'
+import { AgentBreedingDialog } from '@/components/AgentBreedingDialog'
+import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
@@ -119,6 +120,7 @@ function App() {
   const [selectedAgentForTopUp, setSelectedAgentForTopUp] = useState<Agent | null>(null)
   const [marketplaceAgents, setMarketplaceAgents] = useKV<MarketplaceAgent[]>('maef-marketplace', getMockMarketplaceAgents())
   const [purchasingAgentId, setPurchasingAgentId] = useState<string | null>(null)
+  const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
 
@@ -572,6 +574,38 @@ function App() {
     }
   }
 
+  const handleBreedComplete = (result: import('@/lib/types').BreedingResult, offspringName: string) => {
+    const newAgent = result.offspring
+    const parent1 = agents?.find(a => a.id === (newAgent.parentIds?.[0]))
+    const parent2 = agents?.find(a => a.id === (newAgent.parentIds?.[1]))
+
+    setAgents((current) => {
+      const updated = (current ?? []).map((a) => {
+        if (a.id === parent1?.id || a.id === parent2?.id) {
+          return {
+            ...a,
+            breedingCount: (a.breedingCount ?? 0) + 1
+          }
+        }
+        return a
+      })
+      return [...updated, newAgent]
+    })
+
+    setUserBalance((current) => (current ?? 0) - 2.5)
+
+    toast.success('🧬 Breeding Successful!', {
+      description: `${offspringName} has been created with inherited wisdom from both parents.`,
+      duration: 5000
+    })
+
+    addLog(newAgent.id, 'secretary', `[SYSTEM] Agent "${offspringName}" bred successfully. Inherited ${result.wisdomMerge.inheritedWisdom} events worth of wisdom.`, 'success')
+    
+    if (parent1 && parent2) {
+      addLog(newAgent.id, 'secretary', `[SYSTEM] Parents: "${parent1.name}" + "${parent2.name}" | Generation ${newAgent.generation} | ${result.geneticBonus.length} genetic bonuses applied.`, 'info')
+    }
+  }
+
   const stats = [
     { label: 'Active Agents', value: agents?.length ?? 0, icon: Robot, color: 'text-primary' },
     { label: 'NFTs Minted', value: nfts?.length ?? 0, icon: WalletIcon, color: 'text-secondary' },
@@ -904,15 +938,27 @@ function App() {
                   <p className="text-muted-foreground mb-8 max-w-xl mx-auto text-base">
                     Create autonomous AI agents tailored to your information needs. Each agent comes with 4 specialized sub-agents.
                   </p>
-                  <Button
-                    onClick={() => setSpawnDialogOpen(true)}
-                    disabled={isViewOnly}
-                    size="lg"
-                    className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-8 shadow-lg shadow-secondary/30"
-                  >
-                    <Plus className="mr-2" weight="bold" size={20} />
-                    Spawn New Agent
-                  </Button>
+                  <div className="flex flex-wrap gap-4 justify-center">
+                    <Button
+                      onClick={() => setSpawnDialogOpen(true)}
+                      disabled={isViewOnly}
+                      size="lg"
+                      className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-8 shadow-lg shadow-secondary/30"
+                    >
+                      <Plus className="mr-2" weight="bold" size={20} />
+                      Spawn New Agent
+                    </Button>
+                    <Button
+                      onClick={() => setBreedingDialogOpen(true)}
+                      disabled={isViewOnly || (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2}
+                      size="lg"
+                      variant="outline"
+                      className="border-2 border-secondary/40 hover:bg-secondary/10 font-semibold px-8 shadow-lg"
+                    >
+                      <Dna className="mr-2" weight="duotone" size={20} />
+                      Breed Agents
+                    </Button>
+                  </div>
                   {isViewOnly && (
                     <p className="text-xs text-amber-500 mt-4">Connect your wallet to spawn agents</p>
                   )}
@@ -1115,6 +1161,14 @@ function App() {
         onConfirm={handleConfirmProposal}
         onCancel={() => setSignatureModalOpen(false)}
         walletAddress={walletAddress}
+      />
+
+      <AgentBreedingDialog
+        open={breedingDialogOpen}
+        onOpenChange={setBreedingDialogOpen}
+        agents={agents ?? []}
+        onBreedComplete={handleBreedComplete}
+        userBalance={userBalance ?? 0}
       />
 
       <TerminalConsole logs={logs} />
