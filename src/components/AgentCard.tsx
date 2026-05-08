@@ -11,6 +11,7 @@ interface AgentCardProps {
   agent: Agent
   onClick?: () => void
   onConfigure?: (agent: Agent) => void
+  onChat?: (agent: Agent) => void
 }
 
 const statusColors = {
@@ -40,7 +41,7 @@ const subAgentLabels = {
   'mint-master': 'Mint-Master'
 }
 
-export function AgentCard({ agent, onClick, onConfigure }: AgentCardProps) {
+export function AgentCard({ agent, onClick, onConfigure, onChat }: AgentCardProps) {
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
@@ -201,20 +202,36 @@ export function AgentCard({ agent, onClick, onConfigure }: AgentCardProps) {
             </TooltipProvider>
           </div>
 
-          {onConfigure && (
-            <Button
-              onClick={(e) => {
-                e.stopPropagation()
-                onConfigure(agent)
-              }}
-              variant="outline"
-              size="sm"
-              className="w-full border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all"
-            >
-              <GearSix className="mr-2" weight="duotone" />
-              Configure Agent
-            </Button>
-          )}
+          <div className="grid grid-cols-2 gap-2">
+            {onChat && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onChat(agent)
+                }}
+                variant="outline"
+                size="sm"
+                className="border-accent/30 hover:bg-accent/10 hover:border-accent/50 transition-all"
+              >
+                <ChatCircle className="mr-1.5" weight="duotone" size={16} />
+                Chat
+              </Button>
+            )}
+            {onConfigure && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onConfigure(agent)
+                }}
+                variant="outline"
+                size="sm"
+                className="border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all"
+              >
+                <GearSix className="mr-1.5" weight="duotone" size={16} />
+                Config
+              </Button>
+            )}
+          </div>
         </div>
       </Card>
     </motion.div>

@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Agent, WisdomCard } from '@/lib/types'
+import { Agent, WisdomCard, Event } from '@/lib/types'
 import { Brain, Download, Sparkle, TrendUp, Lightbulb } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
+import { useKV } from '@github/spark/hooks'
 
 interface WisdomReportDialogProps {
   open: boolean
@@ -16,43 +17,88 @@ interface WisdomReportDialogProps {
 export function WisdomReportDialog({ open, onOpenChange, agent, wisdomCard }: WisdomReportDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedReport, setGeneratedReport] = useState<WisdomCard | null>(wisdomCard || null)
+  const [events] = useKV<Event[]>('maef-events', [])
+
+  useEffect(() => {
+    if (wisdomCard) {
+      setGeneratedReport(wisdomCard)
+    }
+  }, [wisdomCard])
 
   const generateReport = async () => {
     setIsGenerating(true)
-    toast.info('Analyzing events and generating wisdom report...')
+    toast.info('Analyzing events with AI...')
     
-    await new Promise(resolve => setTimeout(resolve, 3000))
+    try {
+      const agentEvents = events?.filter(e => e.agentId === agent.id) || []
+      const eventSummaries = agentEvents.map(e => `${e.title}: ${e.summary}`).join('\n\n')
 
-    const mockInsights = [
-      `${agent.niche} sector shows strong momentum with institutional adoption increasing by 43%`,
-      'Cross-analysis reveals emerging patterns in Layer 2 scaling solutions',
-      'Strategic opportunities identified in DeFi protocol integrations',
-      'Market sentiment indicates bullish trend continuation for Q2 2026',
-      'Risk-adjusted return metrics suggest optimal entry points within 14-day window'
-    ]
+      const promptText = `You are an AI analyst specializing in ${agent.niche}. 
 
-    const mockTips = [
-      'Diversify exposure across 3-5 protocols to minimize smart contract risk',
-      'Monitor gas fee optimization strategies for 15-20% cost reduction',
-      'Implement dollar-cost averaging over 30-day periods for volatile assets',
-      'Leverage cross-chain opportunities for arbitrage potential'
-    ]
+Analyze these ${agentEvents.length} event summaries attended by an AI agent:
 
-    const report: WisdomCard = {
-      id: `wisdom-${Date.now()}`,
-      agentId: agent.id,
-      niche: agent.niche,
-      events: ['event-1', 'event-2', 'event-3', 'event-4', 'event-5'],
-      insights: mockInsights,
-      strategicTips: mockTips,
-      generatedAt: Date.now()
+${eventSummaries}
+
+Generate a comprehensive wisdom report with:
+1. Five key insights about trends, patterns, and opportunities in ${agent.niche}
+2. Four strategic recommendations or actionable tips
+
+Return a JSON object with this exact structure:
+{
+  "insights": ["insight 1", "insight 2", "insight 3", "insight 4", "insight 5"],
+  "strategicTips": ["tip 1", "tip 2", "tip 3", "tip 4"]
+}
+
+Make insights data-driven, specific, and forward-looking. Make tips actionable and strategic.`
+
+      const response = await window.spark.llm(promptText, 'gpt-4o', true)
+      const data = JSON.parse(response)
+
+      const report: WisdomCard = {
+        id: `wisdom-${Date.now()}`,
+        agentId: agent.id,
+        niche: agent.niche,
+        events: agentEvents.map(e => e.id),
+        insights: data.insights || [],
+        strategicTips: data.strategicTips || [],
+        generatedAt: Date.now()
+      }
+
+      setGeneratedReport(report)
+      toast.success('Wisdom Report Generated!', {
+        description: 'AI analysis complete'
+      })
+    } catch (error) {
+      console.error('Failed to generate wisdom report:', error)
+      toast.error('Failed to generate report', {
+        description: 'Using fallback analysis'
+      })
+
+      const fallbackReport: WisdomCard = {
+        id: `wisdom-${Date.now()}`,
+        agentId: agent.id,
+        niche: agent.niche,
+        events: ['fallback'],
+        insights: [
+          `${agent.niche} sector shows strong momentum with increased activity`,
+          'Cross-analysis reveals emerging patterns and opportunities',
+          'Strategic opportunities identified across multiple events',
+          'Market sentiment indicates positive trend continuation',
+          'Risk-adjusted metrics suggest favorable conditions ahead'
+        ],
+        strategicTips: [
+          'Diversify exposure across multiple protocols and platforms',
+          'Monitor emerging trends for early positioning opportunities',
+          'Implement strategic timing for optimal entry points',
+          'Leverage cross-platform opportunities for enhanced returns'
+        ],
+        generatedAt: Date.now()
+      }
+
+      setGeneratedReport(fallbackReport)
+    } finally {
+      setIsGenerating(false)
     }
-
-    setGeneratedReport(report)
-    setIsGenerating(false)
-    toast.success('Wisdom Report Generated!', {
-      description: 'Strategic analysis complete'
-    })
   }
 
   const downloadReport = () => {
