@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Agent, SubAgentType } from '@/lib/types'
-import { User, FileText, ChatCircle, Coin, Robot, ArrowRight, Circle, CheckCircle, XCircle, ChartBar } from '@phosphor-icons/react'
+import { User, FileText, ChatCircle, Coin, Robot, ArrowRight, Circle, CheckCircle, XCircle, ChartBar, MagnifyingGlass, Funnel, X } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { SubAgentAnalytics, SubAgentHistoricalData } from './SubAgentAnalytics'
@@ -120,8 +123,46 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
   const [activePulse, setActivePulse] = useState<SubAgentType | null>(null)
   const [taskQueue, setTaskQueue] = useState<SubAgentTask[]>(currentTasks)
   const [historicalData, setHistoricalData] = useKV<Record<string, SubAgentHistoricalData>>('sub-agent-analytics', {})
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | SubAgentTask['status']>('all')
+  const [subAgentFilter, setSubAgentFilter] = useState<'all' | SubAgentType>('all')
+  const [showFilters, setShowFilters] = useState(false)
 
   const selectedAgent = agents.find(a => a.id === selectedAgentId) || agents[0]
+
+  const filteredTasks = useMemo(() => {
+    let filtered = taskQueue
+
+    if (searchQuery) {
+      filtered = filtered.filter(task =>
+        task.taskName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        task.subAgentType.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(task => task.status === statusFilter)
+    }
+
+    if (subAgentFilter !== 'all') {
+      filtered = filtered.filter(task => task.subAgentType === subAgentFilter)
+    }
+
+    return filtered
+  }, [taskQueue, searchQuery, statusFilter, subAgentFilter])
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0
+    if (statusFilter !== 'all') count++
+    if (subAgentFilter !== 'all') count++
+    return count
+  }, [statusFilter, subAgentFilter])
+
+  const clearFilters = () => {
+    setStatusFilter('all')
+    setSubAgentFilter('all')
+    setSearchQuery('')
+  }
 
   useEffect(() => {
     if (agents.length > 0 && !agents.find(a => a.id === selectedAgentId)) {
@@ -462,42 +503,179 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
 
             {taskQueue.length > 0 && (
               <div className="space-y-3 pt-4 border-t border-primary/10">
-                <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
-                  <ArrowRight className="text-primary" size={16} weight="bold" />
-                  Task Queue ({taskQueue.length})
-                </h4>
-                <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
-                  {taskQueue.map((task) => {
-                    const config = subAgentConfig[task.subAgentType]
-                    return (
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                    <ArrowRight className="text-primary" size={16} weight="bold" />
+                    Task Queue ({filteredTasks.length}{filteredTasks.length !== taskQueue.length && ` / ${taskQueue.length}`})
+                  </h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowFilters(!showFilters)}
+                    className="h-7 px-2"
+                  >
+                    <Funnel size={16} weight="duotone" className="text-primary" />
+                    {activeFiltersCount > 0 && (
+                      <Badge variant="default" className="ml-1.5 h-4 min-w-4 px-1 text-[10px] bg-primary">
+                        {activeFiltersCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </div>
+
+                <AnimatePresence>
+                  {showFilters && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-3 overflow-hidden"
+                    >
+                      <div className="relative">
+                        <MagnifyingGlass 
+                          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" 
+                          size={16} 
+                          weight="duotone" 
+                        />
+                        <Input
+                          placeholder="Search tasks..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-9 h-9 glass-card border-primary/30 text-sm"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-muted-foreground font-semibold">Status</label>
+                          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+                            <SelectTrigger className="h-9 glass-card border-primary/30 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Status</SelectItem>
+                              <SelectItem value="queued">
+                                <div className="flex items-center gap-2">
+                                  <Circle size={12} className="text-muted-foreground" weight="duotone" />
+                                  Queued
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="processing">
+                                <div className="flex items-center gap-2">
+                                  <Circle size={12} className="text-primary" weight="bold" />
+                                  Processing
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="completed">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle size={12} className="text-green-500" weight="fill" />
+                                  Completed
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="failed">
+                                <div className="flex items-center gap-2">
+                                  <XCircle size={12} className="text-destructive" weight="fill" />
+                                  Failed
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-xs text-muted-foreground font-semibold">Sub-Agent</label>
+                          <Select value={subAgentFilter} onValueChange={(v) => setSubAgentFilter(v as any)}>
+                            <SelectTrigger className="h-9 glass-card border-primary/30 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Sub-Agents</SelectItem>
+                              {(Object.keys(subAgentConfig) as SubAgentType[]).map((type) => {
+                                const config = subAgentConfig[type]
+                                const Icon = config.icon
+                                return (
+                                  <SelectItem key={type} value={type}>
+                                    <div className="flex items-center gap-2">
+                                      <Icon size={12} className={config.textColor} weight="duotone" />
+                                      <span>{config.name}</span>
+                                    </div>
+                                  </SelectItem>
+                                )
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      {(searchQuery || activeFiltersCount > 0) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearFilters}
+                          className="w-full h-7 text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          <X size={14} className="mr-1" />
+                          Clear Filters
+                        </Button>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                  <AnimatePresence mode="popLayout">
+                    {filteredTasks.length === 0 ? (
                       <motion.div
-                        key={task.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-3 p-2 rounded-lg glass-card border border-primary/10"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="text-center py-8 text-sm text-muted-foreground"
                       >
-                        <div className={cn("w-6 h-6 rounded flex items-center justify-center", config.bgColor)}>
-                          <config.icon className={config.textColor} size={14} weight="duotone" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium truncate">{task.taskName}</div>
-                          {task.status === 'processing' && (
-                            <div className="w-full h-1 bg-muted rounded-full overflow-hidden mt-1">
-                              <motion.div
-                                className={cn("h-full rounded-full bg-gradient-to-r", config.color)}
-                                initial={{ width: 0 }}
-                                animate={{ width: `${task.progress}%` }}
-                                transition={{ duration: 0.3 }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                        <span className={cn("text-xs", getStatusColor(task.status))}>
-                          {getStatusIcon(task.status)}
-                        </span>
+                        {searchQuery || activeFiltersCount > 0 ? (
+                          <>
+                            <MagnifyingGlass size={32} className="mx-auto mb-2 opacity-50" weight="duotone" />
+                            <p>No tasks match your filters</p>
+                          </>
+                        ) : (
+                          <p>No active tasks</p>
+                        )}
                       </motion.div>
-                    )
-                  })}
+                    ) : (
+                      filteredTasks.map((task) => {
+                        const config = subAgentConfig[task.subAgentType]
+                        return (
+                          <motion.div
+                            key={task.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            layout
+                            className="flex items-center gap-3 p-2 rounded-lg glass-card border border-primary/10"
+                          >
+                            <div className={cn("w-6 h-6 rounded flex items-center justify-center flex-shrink-0", config.bgColor)}>
+                              <config.icon className={config.textColor} size={14} weight="duotone" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-medium truncate">{task.taskName}</div>
+                              {task.status === 'processing' && (
+                                <div className="w-full h-1 bg-muted rounded-full overflow-hidden mt-1">
+                                  <motion.div
+                                    className={cn("h-full rounded-full bg-gradient-to-r", config.color)}
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${task.progress}%` }}
+                                    transition={{ duration: 0.3 }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            <span className={cn("text-xs flex-shrink-0", getStatusColor(task.status))}>
+                              {getStatusIcon(task.status)}
+                            </span>
+                          </motion.div>
+                        )
+                      })
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
             )}
