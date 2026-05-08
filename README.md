@@ -1,23 +1,58 @@
-# ✨ Welcome to Your Spark Template!
-You've just launched your brand-new Spark Template Codespace — everything’s fired up and ready for you to explore, build, and create with Spark!
+# MAEF - Mantle Agentic Event Factory
 
-This template is your blank canvas. It comes with a minimal setup to help you get started quickly with Spark development.
+Turn Information Overload into On-Chain Wisdom.
 
-🚀 What's Inside?
-- A clean, minimal Spark environment
-- Pre-configured for local development
-- Ready to scale with your ideas
-  
-🧠 What Can You Do?
+## Overview
 
-Right now, this is just a starting point — the perfect place to begin building and testing your Spark applications.
+MAEF is a cutting-edge SaaS platform built on the Mantle Network that enables users to spawn autonomous AI agents. These agents attend digital events, extract key insights, and mint verifiable Proof-of-Attendance NFTs on-chain.
 
-🧹 Just Exploring?
-No problem! If you were just checking things out and don’t need to keep this code:
+## Features
 
-- Simply delete your Spark.
-- Everything will be cleaned up — no traces left behind.
+- 🤖 **Autonomous AI Agents**: Spawn intelligent agents with specialized sub-agents (Secretary, Scribe, Social-Lite, Mint-Master)
+- 🎯 **Event Attendance**: Agents autonomously attend YouTube videos, Luma events, and online conferences
+- 📝 **AI Summarization**: Extract key insights and generate comprehensive event summaries
+- 🏆 **NFT Minting**: Mint Proof-of-Attendance NFTs on Mantle Network with IPFS metadata storage
+- 🧠 **Wisdom Generation**: After 5 events, unlock AI-powered strategic wisdom reports
+- 📊 **Analytics Dashboard**: Track agent performance, event trends, and platform insights
+- 💬 **Agent Chat**: Interact with your agents using natural language
+- 🔗 **Blockchain Integration**: Full Mantle Network integration with wallet connection and gas optimization
 
-📄 License For Spark Template Resources 
+## Technology Stack
 
-The Spark Template files and resources from GitHub are licensed under the terms of the MIT license, Copyright GitHub, Inc.
+- **Frontend**: React + TypeScript + Tailwind CSS
+- **Blockchain**: Mantle Network (Layer 2)
+- **Smart Contracts**: Solidity (ERC-721 NFTs)
+- **Storage**: IPFS via Kubo RPC Client
+- **AI**: GPT-4o for summarization and analysis
+- **Web3**: ethers.js for blockchain interactions
+
+## Getting Started
+
+1. Connect your wallet (MetaMask) to Mantle Network
+2. Spawn your first AI agent with a custom personality and niche
+3. Paste an event URL (YouTube or Luma) and let your agent attend
+4. Watch the terminal logs as your agent's sub-agents work autonomously
+5. View your minted NFTs in the NFT Vault
+6. After 5 events, generate your Wisdom Report
+
+## Platform Architecture
+
+### Agent System Hierarchy
+- **Parent Agent**: Strategic coordinator with unique Mantle wallet
+- **Sub-Agents**:
+  - **Secretary**: Event registration and platform management
+  - **Scribe**: Content extraction and summarization
+  - **Social-Lite**: Community monitoring and engagement
+  - **Mint-Master**: Gas optimization and NFT minting
+
+## Documentation
+
+- [Product Requirements](./PRD.md)
+- [Blockchain Integration Guide](./BLOCKCHAIN_INTEGRATION.md)
+- [Smart Contract Improvements](./SMART_CONTRACT_IMPROVEMENTS.md)
+- [Platform Analysis](./HACKATHON_ANALYSIS.md)
+- [Security Guidelines](./SECURITY.md)
+
+## License
+
+MIT License - see LICENSE file for details.

@@ -143,6 +143,45 @@
   }
 }
 
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float-sparkle {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) translateX(20px);
+    opacity: 0;
+  }
+}
+
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
 .animate-glow-pulse {
   animation: glow-pulse-cyan 2s ease-in-out infinite;
 }
@@ -165,6 +204,18 @@
 
 .animate-terminal-blink {
   animation: terminal-blink 1s step-end infinite;
+}
+
+.animate-sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+.animate-float-sparkle {
+  animation: float-sparkle 4s ease-in-out infinite;
+}
+
+.animate-twinkle {
+  animation: twinkle 3s ease-in-out infinite;
 }
 
 .glass-card {
@@ -202,4 +253,27 @@
   );
   background-size: 200% 100%;
   animation: shimmer 3s linear infinite;
+}
+
+.sparkle-container {
+  position: relative;
+  overflow: visible;
+}
+
+.sparkle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: radial-gradient(circle, rgba(0, 243, 255, 1) 0%, rgba(0, 243, 255, 0) 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+.sparkle-purple {
+  background: radial-gradient(circle, rgba(157, 0, 255, 1) 0%, rgba(157, 0, 255, 0) 70%);
+}
+
+.sparkle-gold {
+  background: radial-gradient(circle, rgba(255, 215, 0, 1) 0%, rgba(255, 215, 0, 0) 70%);
 }
