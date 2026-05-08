@@ -85,6 +85,30 @@ export function AnalyticsCharts({ agents = [], events = [], nfts = [] }: Analyti
     return ((recent - previous) / previous * 100).toFixed(1)
   }, [eventTrendData])
 
+  const rarityDistribution = useMemo(() => {
+    const rarityCount = agents.reduce((acc, agent) => {
+      const rarity = agent.rarityTier || calculateRarityTier(agent)
+      acc[rarity] = (acc[rarity] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    const rarityOrder: Array<{tier: string, color: string}> = [
+      { tier: 'common', color: '#9ca3af' },
+      { tier: 'rare', color: '#00f3ff' },
+      { tier: 'epic', color: '#9d00ff' },
+      { tier: 'legendary', color: '#ff8800' },
+      { tier: 'mythic', color: '#ffd700' }
+    ]
+
+    return rarityOrder
+      .filter(r => rarityCount[r.tier])
+      .map(r => ({ 
+        name: getRarityLabel(r.tier as any), 
+        value: rarityCount[r.tier],
+        color: r.color
+      }))
+  }, [agents])
+
   const COLORS = ['#00f3ff', '#9d00ff', '#ff006e', '#06ffa5', '#ffd60a']
 
   return (
@@ -377,6 +401,57 @@ export function AnalyticsCharts({ agents = [], events = [], nfts = [] }: Analyti
           </Card>
         </motion.div>
       </div>
+
+      {rarityDistribution.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }}>
+          <Card className="glass-card-hover p-6 border-2 border-accent/20">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Sparkle className="text-accent" weight="duotone" size={22} />
+              <span>Agent Rarity Distribution</span>
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={rarityDistribution}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  paddingAngle={3}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  labelLine={true}
+                >
+                  {rarityDistribution.map((entry, index) => (
+                    <Cell key={`cell-rarity-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(26, 27, 58, 0.95)', 
+                    border: '1px solid rgba(0, 243, 255, 0.3)',
+                    borderRadius: '8px',
+                    backdropFilter: 'blur(10px)'
+                  }}
+                  labelStyle={{ color: '#fff', fontWeight: 'bold' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
+              {rarityDistribution.map((item, index) => (
+                <div key={`legend-${index}`} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-card/50 border border-border/30">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">{item.value} agents</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </motion.div>
+      )}
     </div>
   )
 }

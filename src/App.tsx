@@ -39,6 +39,7 @@ import { GlobalSecurityAuditLog } from '@/components/GlobalSecurityAuditLog'
 import { AgentBreedingDialog } from '@/components/AgentBreedingDialog'
 import { FusionCooldownTimer } from '@/components/FusionCooldownTimer'
 import { BreedingCooldownBoost } from '@/components/BreedingCooldownBoost'
+import { ProactiveScoutingPanel } from '@/components/ProactiveScoutingPanel'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -461,6 +462,74 @@ function App() {
         a.id === agentId ? { ...a, customInstructions: instructions } : a
       )
     )
+  }
+
+  const handleToggleScout = (agentId: string, enabled: boolean) => {
+    setAgents((current) =>
+      (current ?? []).map((a) => {
+        if (a.id === agentId) {
+          const updatedAgent = { ...a, autoScoutEnabled: enabled }
+          
+          if (enabled && a.level >= 5) {
+            const mockScoutedEvents = [
+              {
+                id: `scouted-${Date.now()}-1`,
+                title: 'Web3 Security Summit 2026',
+                platform: 'Luma' as const,
+                url: 'https://lu.ma/web3-security-2026',
+                date: Date.now() + 7 * 24 * 60 * 60 * 1000,
+                description: 'Comprehensive conference covering smart contract auditing, zero-knowledge proofs, and emerging security frameworks for decentralized applications.',
+                relevanceScore: 94,
+                scoutedAt: Date.now(),
+                approved: false
+              },
+              {
+                id: `scouted-${Date.now()}-2`,
+                title: 'Building on Layer 2: Mantle Deep Dive',
+                platform: 'YouTube' as const,
+                url: 'https://youtube.com/watch?v=mantle-deep-dive',
+                date: Date.now() + 3 * 24 * 60 * 60 * 1000,
+                description: 'Technical workshop exploring advanced development patterns on Mantle Network, including gas optimization and cross-chain messaging.',
+                relevanceScore: 89,
+                scoutedAt: Date.now(),
+                approved: false
+              }
+            ]
+            updatedAgent.scoutedOpportunities = mockScoutedEvents
+          }
+          
+          return updatedAgent
+        }
+        return a
+      })
+    )
+  }
+
+  const handleApproveScoutedEvent = (agentId: string, eventId: string) => {
+    setAgents((current) =>
+      (current ?? []).map((a) => {
+        if (a.id === agentId && a.scoutedOpportunities) {
+          return {
+            ...a,
+            scoutedOpportunities: a.scoutedOpportunities.map((evt) =>
+              evt.id === eventId ? { ...evt, approved: true } : evt
+            )
+          }
+        }
+        return a
+      })
+    )
+  }
+
+  const handleSaveCustomAgenda = (agentId: string, agenda: string) => {
+    setAgents((current) =>
+      (current ?? []).map((a) =>
+        a.id === agentId ? { ...a, customAgenda: agenda } : a
+      )
+    )
+    toast.success('Custom Agenda Updated', {
+      description: 'Agent will now scout events based on your custom criteria'
+    })
   }
 
   const handleChatWithAgent = (agent: Agent) => {
@@ -962,6 +1031,13 @@ function App() {
                               <Brain className="mr-2" weight="duotone" />
                               Generate Wisdom Report
                             </Button>
+                          )}
+                          {agent.level >= 5 && (
+                            <ProactiveScoutingPanel
+                              agent={agent}
+                              onToggleScout={handleToggleScout}
+                              onApproveEvent={handleApproveScoutedEvent}
+                            />
                           )}
                         </div>
                       </motion.div>
