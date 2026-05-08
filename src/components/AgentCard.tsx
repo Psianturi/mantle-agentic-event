@@ -1,14 +1,16 @@
 import { Agent } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins } from '@phosphor-icons/react'
+import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 interface AgentCardProps {
   agent: Agent
   onClick?: () => void
+  onConfigure?: (agent: Agent) => void
 }
 
 const statusColors = {
@@ -38,7 +40,7 @@ const subAgentLabels = {
   'mint-master': 'Mint-Master'
 }
 
-export function AgentCard({ agent, onClick }: AgentCardProps) {
+export function AgentCard({ agent, onClick, onConfigure }: AgentCardProps) {
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
@@ -48,7 +50,6 @@ export function AgentCard({ agent, onClick }: AgentCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
       whileHover={{ scale: 1.02 }}
-      onClick={onClick}
       className="cursor-pointer"
     >
       <Card className={cn(
@@ -61,7 +62,7 @@ export function AgentCard({ agent, onClick }: AgentCardProps) {
         
         <div className="relative z-10">
           <div className="flex items-start justify-between mb-5">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3" onClick={onClick}>
               <div className={cn(
                 'w-12 h-12 rounded-xl flex items-center justify-center relative',
                 'bg-gradient-to-br from-primary/30 to-secondary/30 border-2',
@@ -84,7 +85,7 @@ export function AgentCard({ agent, onClick }: AgentCardProps) {
             </Badge>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-5">
+          <div className="grid grid-cols-2 gap-4 mb-5" onClick={onClick}>
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Niche</p>
               <p className="text-sm font-semibold">{agent.niche}</p>
@@ -98,7 +99,21 @@ export function AgentCard({ agent, onClick }: AgentCardProps) {
             </div>
           </div>
 
-          <div className="mb-5">
+          <div className="mb-5 p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20" onClick={onClick}>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <CurrencyCircleDollar size={18} className="text-primary" weight="duotone" />
+                <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Mantle Balance</span>
+              </div>
+              <span className="text-sm font-bold font-mono text-primary">{agent.mantleBalance?.toFixed(3) || '0.000'} MNT</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Gas Spent:</span>
+              <span className="text-xs font-mono text-muted-foreground">{agent.gasSpent?.toFixed(4) || '0.0000'} MNT</span>
+            </div>
+          </div>
+
+          <div className="mb-5" onClick={onClick}>
             <div className="flex items-center justify-between text-xs mb-2">
               <span className="text-muted-foreground font-medium">Wisdom Progress</span>
               <span className="font-mono font-bold text-primary">{agent.eventsAttended}/5</span>
@@ -118,7 +133,7 @@ export function AgentCard({ agent, onClick }: AgentCardProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 mb-5">
+          <div className="flex items-center gap-2 mb-5" onClick={onClick}>
             <div className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/20">
               <span className="text-muted-foreground">Level</span>
               <span className="font-bold text-primary">{agent.level}</span>
@@ -130,7 +145,7 @@ export function AgentCard({ agent, onClick }: AgentCardProps) {
             )}
           </div>
 
-          <div className="pt-5 border-t border-border/30">
+          <div className="pt-5 border-t border-border/30 mb-5" onClick={onClick}>
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3 font-semibold">Sub-Agent Status</p>
             <TooltipProvider>
               <div className="grid grid-cols-4 gap-3">
@@ -185,6 +200,21 @@ export function AgentCard({ agent, onClick }: AgentCardProps) {
               </div>
             </TooltipProvider>
           </div>
+
+          {onConfigure && (
+            <Button
+              onClick={(e) => {
+                e.stopPropagation()
+                onConfigure(agent)
+              }}
+              variant="outline"
+              size="sm"
+              className="w-full border-primary/30 hover:bg-primary/10 hover:border-primary/50 transition-all"
+            >
+              <GearSix className="mr-2" weight="duotone" />
+              Configure Agent
+            </Button>
+          )}
         </div>
       </Card>
     </motion.div>

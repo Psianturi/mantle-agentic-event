@@ -23,6 +23,9 @@ export interface Agent {
   createdAt: number
   subAgents: SubAgent[]
   wisdomUnlocked: boolean
+  customInstructions?: string
+  mantleBalance?: number
+  gasSpent?: number
 }
 
 export interface Event {
