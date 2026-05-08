@@ -15,6 +15,7 @@ import { WalletConnect } from '@/components/WalletConnect'
 import { WisdomReportDialog } from '@/components/WisdomReportDialog'
 import { AgentConfigDialog } from '@/components/AgentConfigDialog'
 import { AnalyticsCharts } from '@/components/AnalyticsCharts'
+import { AgentChatDialog } from '@/components/AgentChatDialog'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -70,6 +71,7 @@ function App() {
   const [spawnDialogOpen, setSpawnDialogOpen] = useState(false)
   const [wisdomDialogOpen, setWisdomDialogOpen] = useState(false)
   const [configDialogOpen, setConfigDialogOpen] = useState(false)
+  const [chatDialogOpen, setChatDialogOpen] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [selectedTab, setSelectedTab] = useState('dashboard')
   const [eventUrl, setEventUrl] = useState('')
@@ -233,6 +235,11 @@ function App() {
     )
   }
 
+  const handleChatWithAgent = (agent: Agent) => {
+    setSelectedAgent(agent)
+    setChatDialogOpen(true)
+  }
+
   const stats = [
     { label: 'Active Agents', value: agents?.length ?? 0, icon: Robot, color: 'text-primary' },
     { label: 'NFTs Minted', value: nfts?.length ?? 0, icon: WalletIcon, color: 'text-secondary' },
@@ -384,7 +391,7 @@ function App() {
                         transition={{ delay: idx * 0.1 }}
                       >
                         <div className="space-y-3">
-                          <AgentCard agent={agent} onClick={() => agent.wisdomUnlocked && handleOpenWisdomReport(agent)} onConfigure={handleConfigureAgent} />
+                          <AgentCard agent={agent} onClick={() => agent.wisdomUnlocked && handleOpenWisdomReport(agent)} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} />
                           {agent.wisdomUnlocked && (
                             <Button
                               onClick={() => handleOpenWisdomReport(agent)}
@@ -457,7 +464,7 @@ function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: idx * 0.1 }}
                     >
-                      <AgentCard agent={agent} onConfigure={handleConfigureAgent} />
+                      <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} />
                     </motion.div>
                   ))}
                 </div>
@@ -543,6 +550,11 @@ function App() {
             onOpenChange={setConfigDialogOpen}
             agent={selectedAgent}
             onSave={handleSaveAgentConfig}
+          />
+          <AgentChatDialog
+            open={chatDialogOpen}
+            onOpenChange={setChatDialogOpen}
+            agent={selectedAgent}
           />
         </>
       )}
