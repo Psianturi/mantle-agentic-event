@@ -29,6 +29,7 @@ export interface Agent {
   isGenesis?: boolean
   ownershipStatus?: 'original-creator' | 'marketplace-acquired'
   agentGasBalance?: number
+  autoReplenishGas?: boolean
 }
 
 export interface EvolutionLevel {
@@ -144,4 +145,31 @@ export interface SecurityAuditEntry {
   agentId?: string
   agentName?: string
   severity: 'info' | 'warning' | 'critical'
+}
+
+export interface MarketplaceAgent {
+  id: string
+  name: string
+  personality: Personality
+  niche: Niche
+  walletAddress: string
+  eventsAttended: number
+  level: number
+  wisdomUnlocked: boolean
+  price: number
+  seller: string
+  sellerAddress: string
+  listedAt: number
+  agentGasBalance?: number
+  status: AgentStatus
+  subAgents: SubAgent[]
+  createdAt: number
+  mantleBalance?: number
+  gasSpent?: number
+}
+
+export interface GasPriceInfo {
+  current: number
+  status: 'low' | 'medium' | 'high'
+  timestamp: number
 }
