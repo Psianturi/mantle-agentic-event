@@ -16,10 +16,12 @@ import { WisdomReportDialog } from '@/components/WisdomReportDialog'
 import { AgentConfigDialog } from '@/components/AgentConfigDialog'
 import { AnalyticsCharts } from '@/components/AnalyticsCharts'
 import { AgentChatDialog } from '@/components/AgentChatDialog'
+import { NFTMetadataDialog } from '@/components/NFTMetadataDialog'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
+import { ipfsService } from '@/lib/ipfs/ipfsService'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -74,7 +76,9 @@ function App() {
   const [wisdomDialogOpen, setWisdomDialogOpen] = useState(false)
   const [configDialogOpen, setConfigDialogOpen] = useState(false)
   const [chatDialogOpen, setChatDialogOpen] = useState(false)
+  const [nftMetadataDialogOpen, setNFTMetadataDialogOpen] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
+  const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null)
   const [selectedTab, setSelectedTab] = useState('dashboard')
   const [eventUrl, setEventUrl] = useState('')
 
@@ -182,6 +186,37 @@ function App() {
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Estimating Mantle gas fees... ${gasEstimate} MNT`, 'info')
       await new Promise(resolve => setTimeout(resolve, 800))
       
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Uploading metadata to IPFS...`, 'info')
+      
+      let ipfsMetadataCID: string | undefined
+      let ipfsImageCID: string | undefined
+      let ipfsMetadataURI: string | undefined
+      
+      try {
+        const tokenIdNumber = 1000 + (nfts?.length ?? 0) + 1
+        const { metadataCID, imageCID, metadata } = await ipfsService.createNFTMetadata({
+          eventTitle: newEvent.title,
+          eventUrl: newEvent.url,
+          summary: newEvent.summary,
+          agentName: agent.name,
+          agentId: agent.id,
+          platform: newEvent.platform,
+          date: newEvent.date,
+          tokenId: `${tokenIdNumber}`,
+          niche: agent.niche
+        })
+        
+        ipfsMetadataCID = metadataCID
+        ipfsImageCID = imageCID
+        ipfsMetadataURI = ipfsService.getGatewayUrl(metadataCID)
+        
+        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Metadata uploaded to IPFS: ${metadataCID}`, 'success')
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } catch (ipfsError) {
+        console.error('IPFS upload failed:', ipfsError)
+        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Warning: IPFS upload failed, continuing with on-chain mint...`, 'warning')
+      }
+      
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Minting NFT on Mantle Network...`, 'info')
       
       const mintResult = await blockchain.mintNFT({
@@ -190,7 +225,8 @@ function App() {
         eventUrl: newEvent.url,
         platform: newEvent.platform,
         agentName: agent.name,
-        summary: newEvent.summary
+        summary: newEvent.summary,
+        metadataURI: ipfsMetadataURI
       })
 
       if (!mintResult.success) {
@@ -210,7 +246,10 @@ function App() {
         date: Date.now(),
         transactionHash: mintResult.transactionHash || `0x${Math.random().toString(16).slice(2)}`,
         tokenId: mintResult.tokenId || `${1000 + (nfts?.length ?? 0) + 1}`,
-        imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT'
+        imageUrl: ipfsImageCID ? ipfsService.getGatewayUrl(ipfsImageCID) : 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT',
+        metadataCID: ipfsMetadataCID,
+        imageCID: ipfsImageCID,
+        metadataURI: ipfsMetadataURI
       }
 
       const newEventsAttended = agent.eventsAttended + 1
@@ -549,7 +588,13 @@ function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: idx * 0.08 }}
                     >
-                      <NFTCard nft={nft} />
+                      <NFTCard 
+                        nft={nft} 
+                        onClick={() => {
+                          setSelectedNFT(nft)
+                          setNFTMetadataDialogOpen(true)
+                        }}
+                      />
                     </motion.div>
                   ))}
                 </div>
@@ -571,7 +616,13 @@ function App() {
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: idx * 0.1 }}
                     >
-                      <NFTCard nft={nft} />
+                      <NFTCard 
+                        nft={nft} 
+                        onClick={() => {
+                          setSelectedNFT(nft)
+                          setNFTMetadataDialogOpen(true)
+                        }}
+                      />
                     </motion.div>
                   ))}
                 </div>
@@ -607,6 +658,12 @@ function App() {
           />
         </>
       )}
+
+      <NFTMetadataDialog
+        open={nftMetadataDialogOpen}
+        onOpenChange={setNFTMetadataDialogOpen}
+        nft={selectedNFT}
+      />
 
       <TerminalConsole logs={logs} />
       <Toaster />
