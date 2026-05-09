@@ -1,38 +1,40 @@
 import os
 
+try:
+    from pydantic_settings import BaseSettings  # pydantic v2
+except ImportError:
+    from pydantic import BaseSettings  # type: ignore[no-redef]
 
-class Settings:
+
+class Settings(BaseSettings):
     # GCP Project
-    gcp_project_id: str = os.environ.get("GCP_PROJECT_ID", "agentic-event-factory")
+    gcp_project_id: str = "agentic-event-factory"
 
     # Mantle Network
-    mantle_rpc_url: str = os.environ.get(
-        "MANTLE_RPC_URL", "https://rpc.sepolia.mantle.xyz"
-    )
-    contract_address: str = os.environ.get("CONTRACT_ADDRESS", "")
-    chain_id: int = int(os.environ.get("CHAIN_ID", "5003"))
+    mantle_rpc_url: str = "https://rpc.sepolia.mantle.xyz"
+    contract_address: str = ""
+    chain_id: int = 5003
 
     # App
-    environment: str = os.environ.get("ENVIRONMENT", "development")
+    environment: str = "development"
+    use_secret_manager: bool = True
 
-    # CORS — comma-separated list of allowed origins, or "*" for all
-    _allowed_origins_raw: str = os.environ.get(
-        "ALLOWED_ORIGINS",
-        # Default: allow GitHub Spark domains + localhost dev
-        "https://*.github.app,http://localhost:5173,http://localhost:5174",
+    # CORS — comma-separated origins or "*"
+    allowed_origins_raw: str = (
+        "https://*.github.app,http://localhost:5173,http://localhost:5174"
     )
 
     @property
     def allowed_origins(self) -> list[str]:
-        raw = self._allowed_origins_raw.strip()
+        raw = self.allowed_origins_raw.strip()
         if raw == "*":
             return ["*"]
         return [o.strip() for o in raw.split(",") if o.strip()]
 
-    # Whether to use GCP Secret Manager (True in Cloud Run, False in local dev)
-    use_secret_manager: bool = (
-        os.environ.get("USE_SECRET_MANAGER", "true").lower() == "true"
-    )
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = False
 
 
 settings = Settings()
