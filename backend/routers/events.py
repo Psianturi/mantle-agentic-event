@@ -36,7 +36,10 @@ _ALLOWED_HOSTS: frozenset[str] = frozenset(
     }
 )
 
-_MANTLE_EXPLORER = "https://explorer.sepolia.mantle.xyz"
+_MANTLE_EXPLORER_BY_CHAIN: dict[int, str] = {
+    5003: "https://explorer.sepolia.mantle.xyz",
+    5000: "https://explorer.mantle.xyz",
+}
 
 
 # ── Request / Response models ─────────────────────────────────────────────────
@@ -139,6 +142,9 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
 
     tx_hash = mint_result.get("tx_hash")
     success = mint_result.get("status") == "success"
+    explorer_base = _MANTLE_EXPLORER_BY_CHAIN.get(
+        settings.chain_id, "https://explorer.sepolia.mantle.xyz"
+    )
 
     return AttendResponse(
         success=success,
@@ -147,6 +153,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
         wisdom_summary=wisdom_summary,
         gas_used=mint_result.get("gas_used"),
         block_number=mint_result.get("block_number"),
-        explorer_url=f"{_MANTLE_EXPLORER}/tx/{tx_hash}" if tx_hash else None,
+        explorer_url=f"{explorer_base}/tx/{tx_hash}" if tx_hash else None,
         level_up=mint_result.get("level_up", False),
     )
