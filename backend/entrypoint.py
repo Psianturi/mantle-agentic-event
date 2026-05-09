@@ -12,6 +12,10 @@ import os
 import sys
 
 
+# Add /app/backend to Python path so we can import backend modules
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend"))
+
+
 def _fail(exc: BaseException) -> None:
     import traceback
 
