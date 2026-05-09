@@ -8,6 +8,9 @@ uvicorn[standard]>=0.29.0,<1.0.0
 # Blockchain / Web3
 web3>=6.15.0,<7.0.0
 eth-account>=0.10.0,<0.13.0
+# eth-abi 6.0.0b1 (beta) has breaking API changes that crash web3 6.20.x at import time.
+# Force a stable 4.x / 5.x release.
+eth-abi>=4.0.0,<6.0.0a0
 
 # GCP Secret Manager
 google-cloud-secret-manager>=2.18.0,<3.0.0

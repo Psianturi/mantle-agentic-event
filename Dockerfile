@@ -8,7 +8,7 @@ ENV PATH="/venv/bin:$PATH"
 
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r requirements.txt
+ && pip install --no-cache-dir --no-pre -r requirements.txt
 
 # ── Stage 2: lean runtime image ────────────────────────────────────────────────
 FROM python:3.11-slim
@@ -25,5 +25,5 @@ COPY backend/ .
 ENV PORT=8080
 EXPOSE 8080
 
-# Use venv's uvicorn directly; shell form so ${PORT} expands at runtime
-CMD ["/bin/sh", "-c", "/venv/bin/uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# Use entrypoint.py: catches ImportErrors and logs them concisely before exiting
+CMD ["/venv/bin/python", "-u", "entrypoint.py"]
