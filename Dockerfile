@@ -8,7 +8,7 @@ ENV PATH="/venv/bin:$PATH"
 
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir --no-pre -r requirements.txt
+ && pip install --no-cache-dir -r requirements.txt
 
 # ── Stage 2: lean runtime image ────────────────────────────────────────────────
 FROM python:3.11-slim
