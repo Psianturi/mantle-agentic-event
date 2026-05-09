@@ -1,6 +1,7 @@
 import { ethers, BrowserProvider, Contract, TransactionReceipt } from 'ethers'
 import { MANTLE_NETWORKS, DEFAULT_NETWORK, CONTRACT_ADDRESSES, GAS_LIMITS } from './config'
 import { MAEF_NFT_ABI } from './abi'
+import { ipfsService } from '@/lib/ipfs/ipfsService'
 
 declare global {
   interface Window {
@@ -113,11 +114,20 @@ export class MantleBlockchainService {
   }
 
   private initializeContract(): void {
-    if (!this.signer) {
+    if (!this.signer || !this.provider) {
       throw new Error('Signer not initialized')
     }
 
-    const contractAddress = CONTRACT_ADDRESSES.sepolia.MAEF_NFT
+    // Dynamically pick contract address based on active network's chainId
+    const chainId = this.currentNetwork.chainId
+    let contractAddress: string
+    if (chainId === MANTLE_NETWORKS.mainnet.chainId) {
+      contractAddress = CONTRACT_ADDRESSES.mainnet.MAEF_NFT
+    } else if (chainId === MANTLE_NETWORKS.sepolia.chainId) {
+      contractAddress = CONTRACT_ADDRESSES.sepolia.MAEF_NFT
+    } else {
+      contractAddress = CONTRACT_ADDRESSES.sepolia.MAEF_NFT
+    }
 
     if (contractAddress === '0x0000000000000000000000000000000000000000') {
       console.warn('Contract not deployed. Using mock mode.')
@@ -203,48 +213,33 @@ export class MantleBlockchainService {
   }
 
   private async uploadMetadataToIPFS(params: MintNFTParams): Promise<string> {
+    if (!ipfsService.isInitialized()) {
+      // Fallback to mock URI if IPFS not configured (dev mode)
+      const mockHash = `Qm${Array.from({ length: 44 }, () =>
+        '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'[
+          Math.floor(Math.random() * 58)
+        ]
+      ).join('')}`
+      console.warn('IPFS not configured — using mock URI for dev mode')
+      return `ipfs://${mockHash}`
+    }
+
     const metadata = {
       name: `${params.eventTitle} - Proof of Attendance`,
-      description: `${params.agentName} attended ${params.eventTitle} on ${params.platform}`,
-      image: this.generateNFTImage(params),
+      description: `${params.agentName} attended ${params.eventTitle} on ${params.platform}. ${params.summary}`,
+      image: `https://placehold.co/600x600/1a1b3a/00f3ff?text=MAEF+POA&font=montserrat`,
       attributes: [
-        {
-          trait_type: 'Agent Name',
-          value: params.agentName
-        },
-        {
-          trait_type: 'Agent Wallet',
-          value: params.agentWallet
-        },
-        {
-          trait_type: 'Event Platform',
-          value: params.platform
-        },
-        {
-          trait_type: 'Event URL',
-          value: params.eventUrl
-        },
-        {
-          trait_type: 'Timestamp',
-          value: Date.now()
-        }
+        { trait_type: 'Agent Name', value: params.agentName },
+        { trait_type: 'Agent Wallet', value: params.agentWallet },
+        { trait_type: 'Event Platform', value: params.platform },
+        { trait_type: 'Event URL', value: params.eventUrl },
+        { trait_type: 'Timestamp', value: Date.now() }
       ],
       summary: params.summary
     }
 
-    const mockIPFSHash = `Qm${Array.from({ length: 44 }, () =>
-      '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'[
-        Math.floor(Math.random() * 58)
-      ]
-    ).join('')}`
-
-    return `ipfs://${mockIPFSHash}`
-  }
-
-  private generateNFTImage(params: MintNFTParams): string {
-    const colors = ['00f3ff', '9d00ff', '6B46C1', '3B82F6']
-    const randomColor = colors[Math.floor(Math.random() * colors.length)]
-    return `https://placehold.co/600x600/1a1b3a/${randomColor}?text=MAEF+POA&font=montserrat`
+    const result = await ipfsService.uploadJSON(metadata)
+    return `ipfs://${result.cid}`
   }
 
   async getBalance(address: string): Promise<string> {

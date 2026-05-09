@@ -50,7 +50,8 @@ class ContractVerificationService {
       const response = await fetch(apiUrl)
       
       if (!response.ok) {
-        console.warn('Explorer API request failed:', response.statusText)
+        const safeStatus = response.statusText.replace(/[\r\n]/g, ' ')
+        console.warn('Explorer API request failed:', safeStatus)
         return {
           isVerified: false,
           status: 'pending',
@@ -120,7 +121,7 @@ class ContractVerificationService {
       formData.append('runs', runs.toString())
       
       if (constructorArgs) {
-        formData.append('constructorArguements', constructorArgs)
+        formData.append('constructorArguments', constructorArgs)
       }
 
       const response = await fetch(apiUrl, {

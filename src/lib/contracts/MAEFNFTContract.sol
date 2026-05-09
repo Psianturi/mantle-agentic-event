@@ -4,16 +4,17 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 
 /**
  * @title MAEF NFT Contract
  * @dev Proof-of-Attendance NFT contract for Mantle Agentic Event Factory
  * Each NFT represents an agent's attendance at a digital event
  */
-contract MAEFNFT is ERC721URIStorage, Ownable {
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
+contract MAEFNFT is ERC721URIStorage, Ownable, AccessControl {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+
+    uint256 private _tokenIdCounter;
 
     struct EventAttendance {
         string eventTitle;
@@ -36,7 +37,34 @@ contract MAEFNFT is ERC721URIStorage, Ownable {
         uint256 timestamp
     );
 
-    constructor() ERC721("MAEF Proof of Attendance", "MAEF-POA") Ownable(msg.sender) {}
+    constructor() ERC721("MAEF Proof of Attendance", "MAEF-POA") Ownable(msg.sender) {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
+    }
+
+    /**
+     * @dev Grant MINTER_ROLE to a backend agent wallet address
+     */
+    function grantMinterRole(address minter) external onlyOwner {
+        _grantRole(MINTER_ROLE, minter);
+    }
+
+    /**
+     * @dev Revoke MINTER_ROLE from an address
+     */
+    function revokeMinterRole(address minter) external onlyOwner {
+        _revokeRole(MINTER_ROLE, minter);
+    }
+
+    /**
+     * @dev Required override for ERC721URIStorage + AccessControl
+     */
+    function supportsInterface(bytes4 interfaceId)
+        public view override(ERC721URIStorage, AccessControl)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
+    }
 
     /**
      * @dev Mints a new Proof-of-Attendance NFT
@@ -57,9 +85,9 @@ contract MAEFNFT is ERC721URIStorage, Ownable {
         string memory agentName,
         string memory summary,
         string memory metadataURI
-    ) public returns (uint256) {
-        _tokenIds.increment();
-        uint256 newTokenId = _tokenIds.current();
+    ) public onlyRole(MINTER_ROLE) returns (uint256) {
+        _tokenIdCounter++;
+        uint256 newTokenId = _tokenIdCounter;
 
         _safeMint(agentWallet, newTokenId);
         _setTokenURI(newTokenId, metadataURI);
@@ -105,7 +133,7 @@ contract MAEFNFT is ERC721URIStorage, Ownable {
      * @return The current token count
      */
     function getTotalMinted() public view returns (uint256) {
-        return _tokenIds.current();
+        return _tokenIdCounter;
     }
 
     /**

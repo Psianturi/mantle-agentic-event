@@ -10,17 +10,6 @@ export const MANTLE_NETWORKS = {
       decimals: 18
     }
   },
-  testnet: {
-    chainId: 5001,
-    name: 'Mantle Testnet',
-    rpcUrl: 'https://rpc.testnet.mantle.xyz',
-    blockExplorer: 'https://explorer.testnet.mantle.xyz',
-    nativeCurrency: {
-      name: 'MNT',
-      symbol: 'MNT',
-      decimals: 18
-    }
-  },
   sepolia: {
     chainId: 5003,
     name: 'Mantle Sepolia Testnet',
