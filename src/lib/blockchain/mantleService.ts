@@ -263,7 +263,6 @@ export class MantleBlockchainService {
     }
 
     try {
-      const metadataURI = 'ipfs://mock'
       const gasEstimate = await this.contract.mintAttendanceNFT.estimateGas(
         params.agentWallet,
         params.eventTitle,
