@@ -4,20 +4,30 @@ import { NFTMetadata, IPFSUploadResult } from '../types'
 
 class IPFSService {
   private client: KuboRPCClient | null = null
-  private gateway: string = 'https://ipfs.io/ipfs/'
+  private gateway: string = import.meta.env.VITE_IPFS_GATEWAY_URL
+    ? `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/`
+    : 'https://ipfs.io/ipfs/'
 
   constructor() {
     this.initializeClient()
   }
 
   private initializeClient() {
+    const projectId = import.meta.env.VITE_IPFS_PROJECT_ID
+    const projectSecret = import.meta.env.VITE_IPFS_PROJECT_SECRET
+
+    if (!projectId || !projectSecret) {
+      console.warn('IPFS credentials not configured. Set VITE_IPFS_PROJECT_ID and VITE_IPFS_PROJECT_SECRET in .env')
+      return
+    }
+
     try {
       this.client = create({
         host: 'ipfs.infura.io',
         port: 5001,
         protocol: 'https',
         headers: {
-          authorization: 'Basic ' + btoa('2VUvBpN5xOZhyLCPFXK7zYCaIqc' + ':' + '4bb8e5c91e82a27c1dbb1d82a4d29fc6')
+          authorization: 'Basic ' + btoa(`${projectId}:${projectSecret}`)
         }
       })
     } catch (error) {
@@ -352,8 +362,15 @@ class IPFSService {
         chunks.push(chunk)
       }
       
+      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+      const combined = new Uint8Array(totalLength)
+      let offset = 0
+      for (const chunk of chunks) {
+        combined.set(chunk, offset)
+        offset += chunk.length
+      }
       const decoder = new TextDecoder()
-      const jsonString = decoder.decode(Buffer.concat(chunks))
+      const jsonString = decoder.decode(combined)
       return JSON.parse(jsonString)
     } catch (error) {
       console.error('Failed to retrieve metadata from IPFS:', error)
