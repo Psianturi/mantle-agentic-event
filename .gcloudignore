@@ -1,0 +1,18 @@
+# Files excluded from Cloud Build context (speeds up build, avoids leaking secrets)
+# Frontend & tooling
+node_modules/
+dist/
+.vite/
+.git/
+
+# Contracts (not needed for backend image)
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
+contracts/.env
+
+# Dev files
+*.local
+.env
+.env.*
+!.env.example
