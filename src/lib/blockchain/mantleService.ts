@@ -21,7 +21,7 @@ export interface MintNFTParams {
   platform: string
   agentName: string
   summary: string
-  metadataURI?: string
+  niche?: string
 }
 
 export interface NFTMintResult {
@@ -144,6 +144,8 @@ export class MantleBlockchainService {
 
     try {
       const metadataURI = await this.uploadMetadataToIPFS(params)
+      // Store metadataURI via setBaseMetadataURI after deploy, or pass via backend
+      // ERC721A contract uses dynamic tokenURI based on agent level
 
       const tx = await this.contract.mintAttendanceNFT(
         params.agentWallet,
@@ -152,10 +154,8 @@ export class MantleBlockchainService {
         params.platform,
         params.agentName,
         params.summary,
-        metadataURI,
-        {
-          gasLimit: GAS_LIMITS.MINT_NFT
-        }
+        params.niche || 'General',
+        { gasLimit: GAS_LIMITS.MINT_NFT }
       )
 
       const receipt: TransactionReceipt = await tx.wait()
@@ -271,7 +271,7 @@ export class MantleBlockchainService {
         params.platform,
         params.agentName,
         params.summary,
-        metadataURI
+        params.niche || 'General'
       )
 
       const gasPrice = await this.provider?.getFeeData()
