@@ -1,18 +1,18 @@
-import { create } from 'kubo-rpc-client'
-import type { KuboRPCClient } from 'kubo-rpc-client'
-import { NFTMetadata, IPFSUploadResult } from '../types'
+﻿import { NFTMetadata, IPFSUploadResult } from '../types'
+
+const INFURA_API_BASE = 'https://ipfs.infura.io:5001/api/v0'
 
 class IPFSService {
-  private client: KuboRPCClient | null = null
-  private gateway: string = import.meta.env.VITE_IPFS_GATEWAY_URL
-    ? `${import.meta.env.VITE_IPFS_GATEWAY_URL}/ipfs/`
-    : 'https://ipfs.io/ipfs/'
+  private gateway: string
+  private authHeader: string | null = null
 
   constructor() {
-    this.initializeClient()
+    const gatewayEnv = import.meta.env.VITE_IPFS_GATEWAY_URL
+    this.gateway = gatewayEnv ? `${gatewayEnv}/ipfs/` : 'https://ipfs.io/ipfs/'
+    this.initializeAuth()
   }
 
-  private initializeClient() {
+  private initializeAuth() {
     const projectId = import.meta.env.VITE_IPFS_PROJECT_ID
     const projectSecret = import.meta.env.VITE_IPFS_PROJECT_SECRET
 
@@ -21,59 +21,74 @@ class IPFSService {
       return
     }
 
-    try {
-      this.client = create({
-        host: 'ipfs.infura.io',
-        port: 5001,
-        protocol: 'https',
-        headers: {
-          authorization: 'Basic ' + btoa(`${projectId}:${projectSecret}`)
-        }
-      })
-    } catch (error) {
-      console.error('Failed to initialize IPFS client:', error)
-    }
+    this.authHeader = 'Basic ' + btoa(`${projectId}:${projectSecret}`)
   }
 
-  async uploadJSON(data: any): Promise<IPFSUploadResult> {
-    if (!this.client) {
-      throw new Error('IPFS client not initialized')
+  private buildHeaders(): HeadersInit {
+    const headers: HeadersInit = {}
+    if (this.authHeader) {
+      headers['Authorization'] = this.authHeader
+    }
+    return headers
+  }
+
+  async uploadJSON(data: unknown): Promise<IPFSUploadResult> {
+    if (!this.authHeader) {
+      throw new Error('IPFS credentials not configured')
     }
 
-    try {
-      const jsonString = JSON.stringify(data, null, 2)
-      const result = await this.client.add(jsonString)
-      
-      return {
-        cid: result.cid.toString(),
-        path: result.path,
-        size: result.size,
-        url: `${this.gateway}${result.cid.toString()}`
-      }
-    } catch (error) {
-      console.error('Failed to upload JSON to IPFS:', error)
-      throw new Error(`IPFS upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    const jsonString = JSON.stringify(data, null, 2)
+    const blob = new Blob([jsonString], { type: 'application/json' })
+    const formData = new FormData()
+    formData.append('file', blob)
+
+    const response = await fetch(`${INFURA_API_BASE}/add`, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: formData,
+    })
+
+    if (!response.ok) {
+      throw new Error(`IPFS upload failed: ${response.status} ${response.statusText}`)
+    }
+
+    const result = await response.json() as { Hash: string; Name: string; Size: string }
+    const cid = result.Hash
+
+    return {
+      cid,
+      path: result.Name,
+      size: parseInt(result.Size, 10),
+      url: `${this.gateway}${cid}`,
     }
   }
 
   async uploadImage(imageBlob: Blob): Promise<IPFSUploadResult> {
-    if (!this.client) {
-      throw new Error('IPFS client not initialized')
+    if (!this.authHeader) {
+      throw new Error('IPFS credentials not configured')
     }
 
-    try {
-      const buffer = await imageBlob.arrayBuffer()
-      const result = await this.client.add(new Uint8Array(buffer))
-      
-      return {
-        cid: result.cid.toString(),
-        path: result.path,
-        size: result.size,
-        url: `${this.gateway}${result.cid.toString()}`
-      }
-    } catch (error) {
-      console.error('Failed to upload image to IPFS:', error)
-      throw new Error(`IPFS image upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    const formData = new FormData()
+    formData.append('file', imageBlob, 'nft-image.png')
+
+    const response = await fetch(`${INFURA_API_BASE}/add`, {
+      method: 'POST',
+      headers: this.buildHeaders(),
+      body: formData,
+    })
+
+    if (!response.ok) {
+      throw new Error(`IPFS image upload failed: ${response.status} ${response.statusText}`)
+    }
+
+    const result = await response.json() as { Hash: string; Name: string; Size: string }
+    const cid = result.Hash
+
+    return {
+      cid,
+      path: result.Name,
+      size: parseInt(result.Size, 10),
+      url: `${this.gateway}${cid}`,
     }
   }
 
@@ -96,12 +111,12 @@ class IPFSService {
 
     const level = metadata.agentLevel || 1
     const stage = metadata.evolutionStage || 'standard'
-    
+
     let primaryColor = '#00f3ff'
     let secondaryColor = '#9d00ff'
     let tertiaryColor = '#1a1b3a'
     let glowIntensity = 0.3
-    
+
     if (stage === 'wisdom') {
       primaryColor = '#ffd700'
       secondaryColor = '#ff8c00'
@@ -151,7 +166,6 @@ class IPFSService {
     ctx.strokeStyle = primaryColor
     ctx.lineWidth = stage === 'wisdom' ? 4 : 3
     ctx.strokeRect(60, 60, 680, 680)
-    
     if (stage === 'elite' || stage === 'wisdom') {
       ctx.strokeRect(70, 70, 660, 660)
     }
@@ -190,7 +204,7 @@ class IPFSService {
     const titleWords = metadata.eventTitle.split(' ')
     let titleLine = ''
     let titleY = 320
-    
+
     for (const word of titleWords) {
       const testLine = titleLine + word + ' '
       const metrics = ctx.measureText(testLine)
@@ -211,7 +225,7 @@ class IPFSService {
     const dateStr = new Date(metadata.date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric'
+      day: 'numeric',
     })
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'
     ctx.font = '18px "Inter", sans-serif'
@@ -228,7 +242,7 @@ class IPFSService {
     ctx.beginPath()
     ctx.arc(400, 680, 60, 0, Math.PI * 2)
     ctx.stroke()
-    
+
     ctx.fillStyle = primaryColor
     ctx.font = 'bold 16px "Space Grotesk", sans-serif'
     ctx.fillText('MANTLE', 400, 675)
@@ -273,50 +287,28 @@ class IPFSService {
       date: params.date,
       niche: params.niche,
       agentLevel: params.agentLevel,
-      evolutionStage: params.evolutionStage
+      evolutionStage: params.evolutionStage,
     })
 
     const imageResult = await this.uploadImage(imageBlob)
 
-    const attributes = [
-      {
-        trait_type: 'Event Title',
-        value: params.eventTitle
-      },
-      {
-        trait_type: 'Agent Name',
-        value: params.agentName
-      },
-      {
-        trait_type: 'Agent ID',
-        value: params.agentId
-      },
-      {
-        trait_type: 'Platform',
-        value: params.platform
-      },
-      {
-        trait_type: 'Attendance Date',
-        value: new Date(params.date).toISOString()
-      },
-      {
-        trait_type: 'Token ID',
-        value: params.tokenId
-      }
+    const attributes: NFTMetadata['attributes'] = [
+      { trait_type: 'Event Title', value: params.eventTitle },
+      { trait_type: 'Agent Name', value: params.agentName },
+      { trait_type: 'Agent ID', value: params.agentId },
+      { trait_type: 'Platform', value: params.platform },
+      { trait_type: 'Attendance Date', value: new Date(params.date).toISOString() },
+      { trait_type: 'Token ID', value: params.tokenId },
     ]
 
     if (params.agentLevel) {
-      attributes.push({
-        trait_type: 'Agent Level',
-        value: params.agentLevel.toString()
-      })
+      attributes.push({ trait_type: 'Agent Level', value: params.agentLevel.toString() })
     }
-
     if (params.evolutionStage) {
-      attributes.push({
-        trait_type: 'Evolution Stage',
-        value: params.evolutionStage.toUpperCase()
-      })
+      attributes.push({ trait_type: 'Evolution Stage', value: params.evolutionStage.toUpperCase() })
+    }
+    if (params.niche) {
+      attributes.push({ trait_type: 'Niche', value: params.niche })
     }
 
     const metadata: NFTMetadata = {
@@ -331,15 +323,8 @@ class IPFSService {
         agent_id: params.agentId,
         minted_by: 'MAEF',
         network: 'Mantle',
-        category: params.niche || 'General'
-      }
-    }
-
-    if (params.niche) {
-      metadata.attributes.push({
-        trait_type: 'Niche',
-        value: params.niche
-      })
+        category: params.niche || 'General',
+      },
     }
 
     const metadataResult = await this.uploadJSON(metadata)
@@ -347,35 +332,16 @@ class IPFSService {
     return {
       metadata,
       metadataCID: metadataResult.cid,
-      imageCID: imageResult.cid
+      imageCID: imageResult.cid,
     }
   }
 
-  async retrieveMetadata(cid: string): Promise<any> {
-    if (!this.client) {
-      throw new Error('IPFS client not initialized')
+  async retrieveMetadata(cid: string): Promise<unknown> {
+    const response = await fetch(`${this.gateway}${cid}`)
+    if (!response.ok) {
+      throw new Error(`IPFS retrieval failed: ${response.status} ${response.statusText}`)
     }
-
-    try {
-      const chunks = []
-      for await (const chunk of this.client.cat(cid)) {
-        chunks.push(chunk)
-      }
-      
-      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
-      const combined = new Uint8Array(totalLength)
-      let offset = 0
-      for (const chunk of chunks) {
-        combined.set(chunk, offset)
-        offset += chunk.length
-      }
-      const decoder = new TextDecoder()
-      const jsonString = decoder.decode(combined)
-      return JSON.parse(jsonString)
-    } catch (error) {
-      console.error('Failed to retrieve metadata from IPFS:', error)
-      throw new Error(`IPFS retrieval failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+    return response.json()
   }
 
   async batchCreateNFTMetadata(
@@ -397,19 +363,11 @@ class IPFSService {
 
     for (let i = 0; i < batchParams.length; i++) {
       const params = batchParams[i]
-      
-      if (onProgress) {
-        onProgress(i + 1, total, params.eventTitle)
-      }
-
+      onProgress?.(i + 1, total, params.eventTitle)
       try {
         const result = await this.createNFTMetadata(params)
-        results.push({
-          ...result,
-          index: i
-        })
+        results.push({ ...result, index: i })
       } catch (error) {
-        console.error(`Failed to create metadata for item ${i + 1}:`, error)
         throw new Error(`Batch upload failed at item ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     }
@@ -418,24 +376,17 @@ class IPFSService {
   }
 
   async batchUploadImages(
-    imageBlobs: Array<{ blob: Blob; metadata: any }>,
+    imageBlobs: Array<{ blob: Blob; metadata: unknown }>,
     onProgress?: (current: number, total: number) => void
   ): Promise<Array<IPFSUploadResult>> {
     const results: Array<IPFSUploadResult> = []
     const total = imageBlobs.length
 
     for (let i = 0; i < imageBlobs.length; i++) {
-      const { blob } = imageBlobs[i]
-      
-      if (onProgress) {
-        onProgress(i + 1, total)
-      }
-
+      onProgress?.(i + 1, total)
       try {
-        const result = await this.uploadImage(blob)
-        results.push(result)
+        results.push(await this.uploadImage(imageBlobs[i].blob))
       } catch (error) {
-        console.error(`Failed to upload image ${i + 1}:`, error)
         throw new Error(`Batch image upload failed at item ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     }
@@ -444,24 +395,17 @@ class IPFSService {
   }
 
   async batchUploadJSON(
-    jsonData: Array<any>,
+    jsonData: Array<unknown>,
     onProgress?: (current: number, total: number) => void
   ): Promise<Array<IPFSUploadResult>> {
     const results: Array<IPFSUploadResult> = []
     const total = jsonData.length
 
     for (let i = 0; i < jsonData.length; i++) {
-      const data = jsonData[i]
-      
-      if (onProgress) {
-        onProgress(i + 1, total)
-      }
-
+      onProgress?.(i + 1, total)
       try {
-        const result = await this.uploadJSON(data)
-        results.push(result)
+        results.push(await this.uploadJSON(jsonData[i]))
       } catch (error) {
-        console.error(`Failed to upload JSON ${i + 1}:`, error)
         throw new Error(`Batch JSON upload failed at item ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }
     }
@@ -474,7 +418,7 @@ class IPFSService {
   }
 
   isInitialized(): boolean {
-    return this.client !== null
+    return this.authHeader !== null
   }
 }
 

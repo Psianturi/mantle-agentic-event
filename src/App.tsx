@@ -46,7 +46,7 @@ import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
 import { ipfsService } from '@/lib/ipfs/ipfsService'
 import { useSubAgentTasks } from '@/hooks/useSubAgentTasks'
-import { cloudRunService } from '@/services/cloudRunService'
+import { cloudRunService, validateEventUrl } from '@/services/cloudRunService'
 import { ContractVerificationData, verificationService } from '@/lib/blockchain/verificationService'
 
 const simulationMessages = [
@@ -252,6 +252,12 @@ function App() {
 
     if (!eventUrl.trim()) {
       toast.error('Please enter an event URL')
+      return
+    }
+
+    const urlValidation = validateEventUrl(eventUrl.trim())
+    if (!urlValidation.valid) {
+      toast.error(urlValidation.error || 'URL tidak valid')
       return
     }
 

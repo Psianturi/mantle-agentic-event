@@ -3,6 +3,37 @@ import { Agent, Event, Niche, Personality, SubAgentType } from '@/lib/types'
 const GCP_BACKEND_URL = import.meta.env.VITE_GCP_BACKEND_URL || 'https://agentic-event-factory.run.app'
 const REQUEST_TIMEOUT = 55000
 
+const ALLOWED_EVENT_DOMAINS = [
+  'youtube.com',
+  'www.youtube.com',
+  'youtu.be',
+  'lu.ma',
+  'eventbrite.com',
+  'www.eventbrite.com',
+  'zoom.us',
+]
+
+export function validateEventUrl(url: string): { valid: boolean; error?: string } {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return { valid: false, error: 'URL tidak valid. Pastikan format URL lengkap (contoh: https://...)' }
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return { valid: false, error: 'Hanya URL HTTPS yang diizinkan.' }
+  }
+
+  const hostname = parsed.hostname.toLowerCase()
+  const isAllowed = ALLOWED_EVENT_DOMAINS.some(domain => hostname === domain || hostname.endsWith(`.${domain}`))
+  if (!isAllowed) {
+    return { valid: false, error: `Domain tidak diizinkan. Platform yang didukung: YouTube, Luma, Eventbrite, Zoom.` }
+  }
+
+  return { valid: true }
+}
+
 export interface SpawnAgentRequest {
   name: string
   niche: Niche
@@ -111,10 +142,18 @@ class CloudRunAPIError extends Error {
 }
 
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = REQUEST_TIMEOUT): Promise<Response> {
+  // Guard: only allow calls to our own GCP backend domain
+  const parsedUrl = new URL(url)
+  const backendHost = new URL(GCP_BACKEND_URL).hostname
+  if (parsedUrl.hostname !== backendHost) {
+    throw new CloudRunAPIError(`Requests to external host "${parsedUrl.hostname}" are not permitted.`, 403)
+  }
+
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeout)
 
   try {
+    // SECURITY: URL is validated against GCP_BACKEND_URL hostname above — SSRF is mitigated
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
@@ -188,6 +227,11 @@ export const cloudRunService = {
   },
 
   async assignEvent(request: AssignEventRequest): Promise<AssignEventResponse> {
+    const urlCheck = validateEventUrl(request.eventUrl)
+    if (!urlCheck.valid) {
+      throw new CloudRunAPIError(urlCheck.error || 'Invalid event URL', 400)
+    }
+
     try {
       const response = await fetchWithTimeout(
         `${GCP_BACKEND_URL}/api/events/assign`,
