@@ -63,7 +63,7 @@ function App() {
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
-  const [mainView, setMainView] = useState<'dashboard' | 'marketplace' | 'fusion-lab'>('dashboard')
+  const [mainView, setMainView] = useState<'dashboard' | 'analytics' | 'vault' | 'marketplace' | 'fusion-lab'>('dashboard')
   const [marketplaceFilters, setMarketplaceFilters] = useState<{
     generation: number[]
     niche: Niche[]
@@ -121,7 +121,6 @@ function App() {
   const [selectedProposal, setSelectedProposal] = useState<AgentProposal | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null)
-  const [selectedTab, setSelectedTab] = useState('dashboard')
   const [eventUrl, setEventUrl] = useState('')
   const [isProcessingEvent, setIsProcessingEvent] = useState(false)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
@@ -782,87 +781,51 @@ function App() {
               </div>
 
               {/* Nav — center */}
-              <div className="flex items-center gap-1 flex-1 justify-center">
-                <Button
-                  onClick={() => setMainView('dashboard')}
-                  variant={mainView === 'dashboard' ? 'default' : 'ghost'}
-                  size="sm"
-                  className={cn(
-                    'px-4 h-8 text-sm font-semibold transition-all duration-300',
-                    mainView === 'dashboard'
-                      ? 'bg-gradient-to-r from-primary/20 to-accent/20 text-primary border border-primary/40 shadow shadow-primary/20'
-                      : 'hover:bg-primary/10 hover:text-primary'
-                  )}
-                >
-                  <Robot className="mr-1.5" size={15} weight="duotone" />
-                  Dashboard
-                </Button>
-                <Button
-                  onClick={() => setMainView('marketplace')}
-                  variant={mainView === 'marketplace' ? 'default' : 'ghost'}
-                  size="sm"
-                  className={cn(
-                    'px-4 h-8 text-sm font-semibold transition-all duration-300',
-                    mainView === 'marketplace'
-                      ? 'bg-gradient-to-r from-secondary/20 to-accent/20 text-secondary border border-secondary/40 shadow shadow-secondary/20'
-                      : 'hover:bg-secondary/10 hover:text-secondary'
-                  )}
-                >
-                  <Storefront className="mr-1.5" size={15} weight="duotone" />
-                  Marketplace
-                </Button>
-                <Button
-                  onClick={() => setMainView('fusion-lab')}
-                  variant={mainView === 'fusion-lab' ? 'default' : 'ghost'}
-                  size="sm"
-                  className={cn(
-                    'px-4 h-8 text-sm font-semibold transition-all duration-300',
-                    mainView === 'fusion-lab'
-                      ? 'bg-gradient-to-r from-accent/20 to-secondary/20 text-accent border border-accent/40 shadow shadow-accent/20'
-                      : 'hover:bg-accent/10 hover:text-accent'
-                  )}
-                >
-                  <Dna className="mr-1.5" size={15} weight="duotone" />
-                  Fusion Lab
-                </Button>
-              </div>
+              <nav className="flex items-center gap-0.5 flex-1 justify-center">
+                {([
+                  { view: 'dashboard', label: 'Dashboard', icon: Robot, color: 'primary' },
+                  { view: 'analytics', label: 'Analytics', icon: ChartLine, color: 'primary' },
+                  { view: 'vault', label: 'NFT Vault', icon: WalletIcon, color: 'primary' },
+                  { view: 'marketplace', label: 'Marketplace', icon: Storefront, color: 'secondary' },
+                  { view: 'fusion-lab', label: 'Fusion Lab', icon: Dna, color: 'accent' },
+                ] as const).map(({ view, label, icon: Icon, color }) => (
+                  <Button
+                    key={view}
+                    onClick={() => setMainView(view)}
+                    variant={mainView === view ? 'default' : 'ghost'}
+                    size="sm"
+                    className={cn(
+                      'px-3 h-8 text-sm font-medium transition-all duration-200',
+                      mainView === view
+                        ? `bg-${color}/10 text-${color} border border-${color}/40`
+                        : `text-muted-foreground hover:text-foreground hover:bg-white/5`
+                    )}
+                  >
+                    <Icon className="mr-1.5 hidden sm:inline" size={14} weight="duotone" />
+                    {label}
+                  </Button>
+                ))}
+              </nav>
 
               {/* Right — status + wallet */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Backend status indicator + mock/live toggle */}
-                <div className="hidden sm:flex items-center rounded-md overflow-hidden border border-primary/20">
-                  <button
-                    onClick={() => { if (backendStatus === 'error' && !useMockData) setHealthCheckOpen(true) }}
-                    title={
-                      useMockData ? 'Using mock data' :
-                      backendStatus === 'live' ? 'Connected to Cloud Run backend' :
-                      backendStatus === 'checking' ? 'Connecting to backend...' :
-                      'Backend offline — click to retry'
-                    }
-                    className={cn(
-                      'flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono transition-all',
-                      useMockData && 'bg-muted/30 text-muted-foreground',
-                      !useMockData && backendStatus === 'live' && 'bg-emerald-500/10 text-emerald-400',
-                      !useMockData && backendStatus === 'checking' && 'bg-yellow-500/10 text-yellow-400',
-                      !useMockData && backendStatus === 'error' && 'bg-red-500/10 text-red-400 cursor-pointer hover:bg-red-500/20',
-                    )}
-                  >
-                    <span className={cn(
-                      'w-1.5 h-1.5 rounded-full',
-                      useMockData && 'bg-muted-foreground/50',
-                      !useMockData && backendStatus === 'live' && 'bg-emerald-400 animate-pulse',
-                      !useMockData && backendStatus === 'checking' && 'bg-yellow-400 animate-pulse',
-                      !useMockData && backendStatus === 'error' && 'bg-red-400',
-                    )} />
-                    {useMockData ? 'Mock' : backendStatus === 'live' ? 'Live' : backendStatus === 'checking' ? '...' : 'Offline'}
-                  </button>
-                  <button
-                    onClick={() => setUseMockData(m => !m)}
-                    title={useMockData ? 'Switch to live backend' : 'Switch to mock data'}
-                    className="px-2 py-1 text-xs border-l border-primary/20 bg-background/40 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all font-mono"
-                  >
-                    ⇄
-                  </button>
+                {/* Backend status pill — status only, no public toggle */}
+                <div
+                  className={cn(
+                    'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono',
+                    backendStatus === 'live' && 'bg-emerald-500/10 text-emerald-400',
+                    backendStatus === 'checking' && 'bg-yellow-500/10 text-yellow-400',
+                    backendStatus === 'error' && 'bg-red-500/10 text-red-400',
+                  )}
+                  title={backendStatus === 'live' ? 'Cloud Run backend connected' : backendStatus === 'checking' ? 'Connecting...' : 'Backend offline'}
+                >
+                  <span className={cn(
+                    'w-1.5 h-1.5 rounded-full',
+                    backendStatus === 'live' && 'bg-emerald-400 animate-pulse',
+                    backendStatus === 'checking' && 'bg-yellow-400 animate-pulse',
+                    backendStatus === 'error' && 'bg-red-400',
+                  )} />
+                  {backendStatus === 'live' ? 'Live' : backendStatus === 'checking' ? '...' : 'Offline'}
                 </div>
                 {isViewOnly && (
                   <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30">
@@ -917,29 +880,7 @@ function App() {
                 ))}
               </div>
 
-              <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-            <TabsList className="glass-card mb-6 p-1.5 border border-primary/20 gap-1">
-              <TabsTrigger value="dashboard" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
-                Dashboard
-              </TabsTrigger>
-              <TabsTrigger value="architecture" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
-                How It Works
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
-                Analytics
-              </TabsTrigger>
-              <TabsTrigger value="factory" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
-                Factory
-              </TabsTrigger>
-              <TabsTrigger value="vault" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
-                NFT Vault
-              </TabsTrigger>
-              <TabsTrigger value="community" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
-                Community Insights
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="dashboard" className="space-y-6 animate-slide-up">
+              <div className="space-y-5">
               <Card className="glass-card-hover p-6 border-2 border-primary/20">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
@@ -1022,23 +963,43 @@ function App() {
               )}
 
               <div>
-                <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                  <span>Your Agents</span>
-                  <span className="text-sm text-muted-foreground font-normal">({agents?.length ?? 0} active)</span>
-                </h2>
-                {!agents || agents.length === 0 ? (
-                  <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-primary/30">
-                    <Robot size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
-                    <h3 className="text-lg font-semibold mb-2">No Agents Yet</h3>
-                    <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">Spawn your first AI agent to start attending events and minting NFTs</p>
-                    <Button 
-                      onClick={() => setSpawnDialogOpen(true)} 
-                      disabled={isViewOnly}
-                      className="bg-gradient-to-r from-secondary to-accent font-semibold shadow-lg shadow-secondary/30"
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <span>Your Agents</span>
+                    <span className="text-sm text-muted-foreground font-normal">({agents?.length ?? 0} active)</span>
+                  </h2>
+                  {walletConnected && (
+                    <Button
+                      onClick={() => setSpawnDialogOpen(true)}
+                      size="sm"
+                      className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold shadow-lg shadow-secondary/20"
                     >
-                      <Plus className="mr-2" weight="bold" />
+                      <Plus className="mr-1.5" weight="bold" size={15} />
                       Spawn Agent
                     </Button>
+                  )}
+                </div>
+                {!agents || agents.length === 0 ? (
+                  <Card className="glass-card-hover p-10 text-center border border-dashed border-primary/30">
+                    <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center">
+                      <Robot size={36} className="text-primary animate-float" weight="duotone" />
+                    </div>
+                    <h3 className="text-lg font-bold mb-2">Spawn Your First AI Agent</h3>
+                    <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
+                      Each agent autonomously attends events, generates AI wisdom, and mints Proof-of-Attendance NFTs on Mantle.
+                    </p>
+                    <Button
+                      onClick={() => setSpawnDialogOpen(true)}
+                      disabled={isViewOnly}
+                      size="lg"
+                      className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-bold px-8 shadow-xl shadow-secondary/30"
+                    >
+                      <Plus className="mr-2" weight="bold" />
+                      Spawn Agent to Start
+                    </Button>
+                    {isViewOnly && (
+                      <p className="text-xs text-amber-500 mt-3">Connect your wallet first</p>
+                    )}
                   </Card>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1080,207 +1041,101 @@ function App() {
                   </div>
                 )}
               </div>
-            </TabsContent>
+              </div>
+            </>
+          )}
 
-            <TabsContent value="architecture" className="space-y-6 animate-slide-up">
-              <ArchitectureFlow currentPhase={agents && agents.length > 0 ? (agents[0].eventsAttended >= 5 ? 4 : Math.min(Math.floor(agents[0].eventsAttended / 1.5) + 1, 3)) : 0} />
-            </TabsContent>
-
-            <TabsContent value="analytics" className="space-y-6 animate-slide-up">
-              <div className="flex items-center justify-between mb-6">
+          {/* ── Analytics ─────────────────────────────── */}
+          {mainView === 'analytics' && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+                  <ChartLine className="text-primary" weight="duotone" size={22} />
+                </div>
                 <div>
-                  <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/30 to-accent/30 border border-primary/40 flex items-center justify-center">
-                      <ChartLine className="text-primary" weight="duotone" size={26} />
-                    </div>
-                    <span>Event Analytics Dashboard</span>
-                  </h2>
-                  <p className="text-muted-foreground">Track agent performance, event trends, and platform insights</p>
+                  <h2 className="text-xl font-bold">Event Analytics</h2>
+                  <p className="text-sm text-muted-foreground">Agent performance, event trends, platform insights</p>
                 </div>
               </div>
-              
               <AnalyticsCharts agents={agents} events={events} nfts={nfts} />
-            </TabsContent>
+            </motion.div>
+          )}
 
-            <TabsContent value="factory" className="space-y-6 animate-slide-up">
-              <Card className="glass-card-hover p-10 text-center border-2 border-primary/30 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5" />
-                <div className="relative">
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-primary/30 to-secondary/30 border-2 border-primary/40 flex items-center justify-center animate-glow-pulse shadow-2xl shadow-primary/30">
-                    <Sparkle size={40} className="text-primary" weight="fill" />
-                  </div>
-                  <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">Agent Factory</h2>
-                  <p className="text-muted-foreground mb-8 max-w-xl mx-auto text-base">
-                    Create autonomous AI agents tailored to your information needs. Each agent comes with 4 specialized sub-agents.
-                  </p>
-                  <div className="flex flex-wrap gap-4 justify-center">
-                    <Button
-                      onClick={() => setSpawnDialogOpen(true)}
-                      disabled={isViewOnly}
-                      size="lg"
-                      className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-8 shadow-lg shadow-secondary/30"
-                    >
-                      <Plus className="mr-2" weight="bold" size={20} />
-                      Spawn New Agent
-                    </Button>
-                    <Button
-                      onClick={() => setBreedingDialogOpen(true)}
-                      disabled={isViewOnly || (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2}
-                      size="lg"
-                      variant="outline"
-                      className="border-2 border-secondary/40 hover:bg-secondary/10 font-semibold px-8 shadow-lg"
-                    >
-                      <Dna className="mr-2" weight="duotone" size={20} />
-                      Breed Agents
-                    </Button>
-                  </div>
-                  {isViewOnly && (
-                    <p className="text-xs text-amber-500 mt-4">Connect your wallet to spawn agents</p>
-                  )}
-                </div>
-              </Card>
-
-              <div>
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                  <span>All Agents</span>
-                  <span className="text-sm text-muted-foreground font-normal">({agents?.length ?? 0} total)</span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {agents?.map((agent, idx) => (
-                    <motion.div
-                      key={agent.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: idx * 0.1 }}
-                    >
-                      <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} />
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-12 space-y-6">
+          {/* ── NFT Vault ─────────────────────────────── */}
+          {mainView === 'vault' && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                    <ShieldCheck className="text-primary" weight="duotone" size={22} />
+                    <WalletIcon className="text-primary" weight="duotone" size={22} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold">Contract Verification Status</h3>
-                    <p className="text-sm text-muted-foreground">Track smart contract deployments and verification on Mantle Explorer</p>
+                    <h2 className="text-xl font-bold flex items-center gap-2">
+                      NFT Vault
+                      <span className="text-sm text-muted-foreground font-normal">({nfts?.length ?? 0} NFTs)</span>
+                    </h2>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                      <p className="text-xs text-muted-foreground font-mono">Mantle Sepolia</p>
+                    </div>
                   </div>
                 </div>
-                {verificationData && verificationData.length > 0 ? (
-                  <VerificationDashboard verifications={verificationData} />
-                ) : (
-                  <Card className="glass-card-hover p-8 text-center border-2 border-dashed border-primary/30">
-                    <ShieldCheck size={48} className="mx-auto mb-3 text-muted-foreground opacity-50" weight="duotone" />
-                    <h4 className="text-base font-semibold mb-2 text-muted-foreground">No Contract Verifications Yet</h4>
-                    <p className="text-sm text-muted-foreground/80 max-w-md mx-auto">
-                      Smart contracts will appear here after spawning new agents. Each agent deployment is automatically verified on Mantle Explorer.
-                    </p>
-                  </Card>
+                {events && events.filter(e => e.status === 'completed').length > 0 && (
+                  <Button
+                    onClick={() => setBatchIPFSDialogOpen(true)}
+                    disabled={isViewOnly}
+                    size="sm"
+                    className="bg-gradient-to-r from-primary to-accent hover:opacity-90 font-semibold shadow-lg shadow-primary/30"
+                  >
+                    <CloudArrowUp className="mr-2" weight="duotone" size={16} />
+                    Batch Upload to IPFS
+                  </Button>
                 )}
               </div>
-            </TabsContent>
 
-            <TabsContent value="vault" className="space-y-6 animate-slide-up">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold flex items-center gap-2">
-                    <span>NFT Vault</span>
-                    <span className="text-sm text-muted-foreground font-normal">({nfts?.length ?? 0} NFTs)</span>
-                  </h2>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass-card border-primary/20">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                    <p className="text-sm text-muted-foreground font-mono">Mantle Network</p>
-                  </div>
-                  {events && events.filter(e => e.status === 'completed').length > 0 && (
-                    <Button
-                      onClick={() => setBatchIPFSDialogOpen(true)}
-                      disabled={isViewOnly}
-                      className="bg-gradient-to-r from-primary to-accent hover:opacity-90 font-semibold shadow-lg shadow-primary/30"
-                    >
-                      <CloudArrowUp className="mr-2" weight="duotone" />
-                      Batch Upload to IPFS
-                    </Button>
-                  )}
-                </div>
-              </div>
-              
               {!nfts || nfts.length === 0 ? (
                 <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-primary/30">
-                  <WalletIcon size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
+                  <WalletIcon size={56} className="mx-auto mb-4 text-muted-foreground opacity-50 animate-float" weight="duotone" />
                   <h3 className="text-lg font-semibold mb-2">No NFTs Yet</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    Attend events with your agents to mint Proof-of-Attendance NFTs on Mantle Network
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
+                    Attend events with your agents to mint Proof-of-Attendance NFTs on Mantle Sepolia
                   </p>
+                  <Button
+                    onClick={() => setMainView('dashboard')}
+                    className="bg-gradient-to-r from-secondary to-accent font-semibold shadow-lg shadow-secondary/30"
+                  >
+                    <Globe className="mr-2" weight="duotone" />
+                    Go to Dashboard
+                  </Button>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {nfts?.map((nft, idx) => (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {nfts.map((nft, idx) => (
                     <motion.div
                       key={nft.id}
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: idx * 0.08 }}
+                      transition={{ delay: idx * 0.06 }}
                     >
-                      <NFTCard 
-                        nft={nft} 
-                        onClick={() => {
-                          setSelectedNFT(nft)
-                          setNFTMetadataDialogOpen(true)
-                        }}
+                      <NFTCard
+                        nft={nft}
+                        onClick={() => { setSelectedNFT(nft); setNFTMetadataDialogOpen(true) }}
                       />
                     </motion.div>
                   ))}
                 </div>
               )}
-            </TabsContent>
-
-            <TabsContent value="community" className="space-y-6 animate-slide-up">
-              <Card className="glass-card-hover p-10 text-center border-2 border-primary/30">
-                <Globe size={64} className="mx-auto mb-4 text-primary animate-float" weight="duotone" />
-                <h3 className="text-2xl font-bold mb-3">Community Insights</h3>
-                <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                  Explore the latest NFTs minted by agents across the MAEF ecosystem. See what events the community is attending.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-                  {nfts?.slice(0, 6).map((nft, idx) => (
-                    <motion.div
-                      key={nft.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: idx * 0.1 }}
-                    >
-                      <NFTCard 
-                        nft={nft} 
-                        onClick={() => {
-                          setSelectedNFT(nft)
-                          setNFTMetadataDialogOpen(true)
-                        }}
-                      />
-                    </motion.div>
-                  ))}
-                </div>
-              </Card>
-
-              <div className="space-y-6 mt-12">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                    <ShieldCheck className="text-primary" weight="duotone" size={22} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold">Global Security Audit Log</h3>
-                    <p className="text-sm text-muted-foreground">Real-time ecosystem activity and security events</p>
-                  </div>
-                </div>
-                <GlobalSecurityAuditLog agents={agents ?? []} />
-              </div>
-            </TabsContent>
-          </Tabs>
-            </>
+            </motion.div>
           )}
 
           {mainView === 'marketplace' && (
