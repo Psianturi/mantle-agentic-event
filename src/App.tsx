@@ -159,6 +159,30 @@ function App() {
       })
   }, [])
 
+  // Secret hotkey: press M three times within 1s to toggle mock mode
+  useEffect(() => {
+    let presses = 0
+    let timer: ReturnType<typeof setTimeout>
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'M' && e.shiftKey && !e.ctrlKey && !e.altKey) {
+        presses++
+        clearTimeout(timer)
+        if (presses >= 3) {
+          presses = 0
+          setUseMockData(m => {
+            const next = !m
+            toast(next ? '🔧 Mock mode ON' : '🌐 Live mode ON', { duration: 2000 })
+            return next
+          })
+        } else {
+          timer = setTimeout(() => { presses = 0 }, 1000)
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => { window.removeEventListener('keydown', handler); clearTimeout(timer) }
+  }, [])
+
   const handleWalletConnect = async (address: string) => {
     try {
       const connectedAddress = await blockchain.connectWallet()
