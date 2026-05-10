@@ -1199,6 +1199,22 @@ function App() {
                   ))}
                 </div>
               )}
+
+              {/* ── Contract Verification History ─────── */}
+              {verificationData && verificationData.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                      <ShieldCheck className="text-emerald-500" weight="duotone" size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold">Contract Verification</h3>
+                      <p className="text-xs text-muted-foreground">On-chain smart contract verification status per agent</p>
+                    </div>
+                  </div>
+                  <VerificationDashboard verifications={verificationData} />
+                </div>
+              )}
             </motion.div>
           )}
 
