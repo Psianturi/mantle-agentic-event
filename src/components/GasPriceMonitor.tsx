@@ -68,8 +68,8 @@ export function GasPriceMonitor() {
       <Tooltip>
         <TooltipTrigger asChild>
           <motion.div
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg ${colors.bg} border ${colors.border} ${colors.glow} shadow-lg cursor-pointer hover:scale-105 transition-all duration-300`}
-            whileHover={{ y: -2 }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${colors.bg} border ${colors.border} shadow-sm cursor-pointer hover:scale-105 transition-all duration-300`}
+            whileHover={{ y: -1 }}
           >
             <AnimatePresence mode="wait">
               <motion.div
@@ -79,32 +79,17 @@ export function GasPriceMonitor() {
                 exit={{ scale: 0, rotate: 180 }}
                 transition={{ duration: 0.3 }}
               >
-                <Fire size={18} weight="fill" className={colors.fireColor} />
+                <Fire size={14} weight="fill" className={colors.fireColor} />
               </motion.div>
             </AnimatePresence>
-            <div className="flex flex-col">
-              <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Gas Price</span>
-              <motion.span
-                key={gasPrice.current}
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`text-sm font-bold font-mono ${colors.text}`}
-              >
-                ~{gasPrice.current.toFixed(5)} MNT
-              </motion.span>
-            </div>
-            <motion.div
-              className={`w-2 h-2 rounded-full ${colors.bg} ${colors.border} border-2`}
-              animate={{
-                scale: [1, 1.3, 1],
-                opacity: [1, 0.5, 1]
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-            />
+            <motion.span
+              key={gasPrice.current}
+              initial={{ opacity: 0, y: 3 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`text-xs font-bold font-mono ${colors.text}`}
+            >
+              ~{gasPrice.current.toFixed(5)}
+            </motion.span>
           </motion.div>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="bg-card border-primary/30">

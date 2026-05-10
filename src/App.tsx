@@ -851,15 +851,7 @@ function App() {
                   {backendStatus === 'live' ? 'Live' : backendStatus === 'checking' ? '...' : 'Offline'}
                 </div>
 
-                {walletConnected && (
-                  <>
-                    <GasPriceMonitor />
-                    <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-card border-primary/30">
-                      <WalletIcon size={14} className="text-primary" weight="duotone" />
-                      <span className="text-sm font-bold font-mono text-primary">{(userBalance ?? 0).toFixed(2)} MNT</span>
-                    </div>
-                  </>
-                )}
+                {walletConnected && <GasPriceMonitor />}
                 <WalletConnect
                   onConnect={handleWalletConnect}
                   isConnected={walletConnected}
