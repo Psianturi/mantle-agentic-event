@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
 import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent, Niche, RarityTier } from '@/lib/types'
-import { getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
+import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
 import { cn } from '@/lib/utils'
 import { AgentCard } from '@/components/AgentCard'
 import { MarketplaceAgentCard } from '@/components/MarketplaceAgentCard'
@@ -61,6 +61,10 @@ function App() {
   const [agents, setAgents] = useKV<Agent[]>('maef-agents', [])
   const [nfts, setNFTs] = useKV<NFT[]>('maef-nfts', [])
   const [events, setEvents] = useKV<Event[]>('maef-events', [])
+  const [mockAgents, setMockAgents] = useState<Agent[]>(() => getMockAgents())
+  const [mockNFTs, setMockNFTs] = useState<NFT[]>(() => getMockNFTs())
+  const [mockEvents, setMockEvents] = useState<Event[]>(() => getMockEvents())
+  const [mockProposals, setMockProposals] = useState<AgentProposal[]>(() => getMockProposals())
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
@@ -78,12 +82,6 @@ function App() {
   })
   const blockchain = useBlockchain()
 
-  useEffect(() => {
-    setAgents((current) => (current ?? []).filter(agent => !/^agent-00\d$/.test(agent.id)))
-    setNFTs((current) => (current ?? []).filter(nft => !/^nft-00\d$/.test(nft.id)))
-    setEvents((current) => (current ?? []).filter(event => !/^event-0\d\d$/.test(event.id)))
-  }, [setAgents, setNFTs, setEvents])
-  
   useEffect(() => {
     const interval = setInterval(() => {
       if (agents && agents.length > 0) {
@@ -138,7 +136,7 @@ function App() {
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
   const [verificationData, setVerificationData] = useKV<ContractVerificationData[]>('maef-verifications', [])
   const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())
-  const [proposals, setProposals] = useKV<AgentProposal[]>('maef-proposals', getMockProposals())
+  const [proposals, setProposals] = useKV<AgentProposal[]>('maef-proposals', [])
   const [userBalance, setUserBalance] = useKV<number>('maef-user-balance', 45.50)
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false)
   const [genesisMintDialogOpen, setGenesisMintDialogOpen] = useState(false)
@@ -148,6 +146,10 @@ function App() {
   const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
+  const displayedAgents = useMockData ? mockAgents : (agents ?? [])
+  const displayedNFTs = useMockData ? mockNFTs : (nfts ?? [])
+  const displayedEvents = useMockData ? mockEvents : (events ?? [])
+  const displayedProposals = useMockData ? mockProposals : (proposals ?? [])
 
   const handleHealthConfirmed = () => {
     setBackendConnected(true)
@@ -332,7 +334,7 @@ function App() {
       return
     }
 
-    const agent = selectedAgent ?? (agents && agents.length > 0 ? agents[0] : null)
+    const agent = selectedAgent ?? (displayedAgents.length > 0 ? displayedAgents[0] : null)
     if (!agent) {
       toast.error('No agents available. Spawn an agent first!')
       return
@@ -356,12 +358,12 @@ function App() {
 
       const mockTx = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
       const newEvent: Event = { id: `event-${Date.now()}`, agentId: agent.id, url: eventUrl.trim(), title: eventTitle, platform, date: Date.now(), summary: '[MOCK] AI summary placeholder.', status: 'completed' }
-      const newNFT: NFT = { id: `nft-${Date.now()}`, agentId: agent.id, eventId: newEvent.id, eventTitle, summary: newEvent.summary, date: Date.now(), transactionHash: mockTx, tokenId: `${1000 + (nfts?.length ?? 0) + 1}`, imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT' }
+      const newNFT: NFT = { id: `nft-${Date.now()}`, agentId: agent.id, eventId: newEvent.id, eventTitle, summary: newEvent.summary, date: Date.now(), transactionHash: mockTx, tokenId: `${1000 + displayedNFTs.length + 1}`, imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT' }
       const newEventsAttended = agent.eventsAttended + 1
 
-      setEvents(c => [...(c ?? []), newEvent])
-      setNFTs(c => [...(c ?? []), newNFT])
-      setAgents(c => (c ?? []).map(a => a.id === agent.id ? { ...a, eventsAttended: newEventsAttended, level: Math.floor(newEventsAttended / 2) + 1, wisdomUnlocked: newEventsAttended >= 5 } : a))
+      setMockEvents(c => [...c, newEvent])
+      setMockNFTs(c => [...c, newNFT])
+      setMockAgents(c => c.map(a => a.id === agent.id ? { ...a, eventsAttended: newEventsAttended, level: Math.floor(newEventsAttended / 2) + 1, wisdomUnlocked: newEventsAttended >= 5 } : a))
       setEventUrl('')
       setIsProcessingEvent(false)
       setActiveAgentId(null)
@@ -377,6 +379,7 @@ function App() {
       await new Promise(resolve => setTimeout(resolve, 400))
 
       addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Sending event to Gemini AI for analysis...`, 'info')
+  addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Preparing on-chain mint. NFT recipient: ${agent.walletAddress.slice(0, 10)}...${agent.walletAddress.slice(-4)}`, 'info')
       toast.info('Processing event...', { description: 'Gemini AI is analyzing. This takes 15-40s.' })
 
       const result = await cloudRunService.attendEvent({
@@ -390,8 +393,9 @@ function App() {
       })
 
       addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Wisdom generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
+  addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] MAEF minter signed and broadcasted tx to Mantle Sepolia. Agent wallet receives NFT: ${agent.walletAddress.slice(0, 10)}...${agent.walletAddress.slice(-4)}`, 'info')
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on Mantle! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
-      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${result.gasUsed} | TX: ${result.txHash.slice(0, 18)}...`, 'info')
+  addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units | TX: ${result.txHash.slice(0, 18)}...`, 'info')
 
       const newEvent: Event = {
         id: `event-${Date.now()}`,
@@ -428,7 +432,7 @@ function App() {
               eventsAttended: newEventsAttended,
               level: newLevel,
               wisdomUnlocked: newEventsAttended >= 5,
-              gasSpent: (a.gasSpent || 0) + parseFloat(result.gasUsed || '0') * 1e-9,
+              gasSpent: (a.gasSpent || 0) + Number(result.gasUsed || 0),
             }
           : a
       ))
@@ -439,9 +443,9 @@ function App() {
       clearTasks()
 
       toast.success(`NFT #${result.tokenId} minted on Mantle Sepolia!`, {
-        description: `TX: ${result.txHash.slice(0, 18)}... | Gas: ${result.gasUsed}`,
+        description: `Token ID: ${result.tokenId} | Gas: ${Number(result.gasUsed || 0).toLocaleString()} units`,
         action: {
-          label: 'View on Explorer',
+          label: 'View Agent Wisdom on MantleScan',
           onClick: () => window.open(result.explorerUrl, '_blank'),
         },
         duration: 10000,
@@ -596,7 +600,8 @@ function App() {
   }
 
   const handleConfirmProposal = (proposalId: string) => {
-    setProposals((current) =>
+    const updateProposals = useMockData ? setMockProposals : setProposals
+    updateProposals((current) =>
       (current ?? []).map((p) =>
         p.id === proposalId ? { ...p, status: 'approved', executionDetails: {
           transactionHash: `0x${Array.from({ length: 64 }, () =>
@@ -614,7 +619,8 @@ function App() {
   }
 
   const handleApproveProposal = (proposalId: string) => {
-    setProposals((current) =>
+    const updateProposals = useMockData ? setMockProposals : setProposals
+    updateProposals((current) =>
       (current ?? []).map((p) =>
         p.id === proposalId ? { ...p, status: 'approved' } : p
       )
@@ -622,7 +628,8 @@ function App() {
   }
 
   const handleRejectProposal = (proposalId: string) => {
-    setProposals((current) =>
+    const updateProposals = useMockData ? setMockProposals : setProposals
+    updateProposals((current) =>
       (current ?? []).map((p) =>
         p.id === proposalId ? { ...p, status: 'rejected' } : p
       )
@@ -740,10 +747,10 @@ function App() {
   }
 
   const stats = [
-    { label: 'Active Agents', value: agents?.length ?? 0, icon: Robot, color: 'text-primary' },
-    { label: 'NFTs Minted', value: nfts?.length ?? 0, icon: WalletIcon, color: 'text-secondary' },
-    { label: 'Events Attended', value: events?.length ?? 0, icon: Globe, color: 'text-primary' },
-    { label: 'Wisdom Unlocked', value: agents?.filter(a => a.wisdomUnlocked).length ?? 0, icon: ChartLine, color: 'text-secondary' }
+    { label: 'Active Agents', value: displayedAgents.length, icon: Robot, color: 'text-primary' },
+    { label: 'NFTs Minted', value: displayedNFTs.length, icon: WalletIcon, color: 'text-secondary' },
+    { label: 'Events Attended', value: displayedEvents.length, icon: Globe, color: 'text-primary' },
+    { label: 'Wisdom Unlocked', value: displayedAgents.filter(a => a.wisdomUnlocked).length, icon: ChartLine, color: 'text-secondary' }
   ]
 
   const filteredAndSortedMarketplace = () => {
@@ -778,6 +785,9 @@ function App() {
   }
 
   const isViewOnly = !walletConnected
+  const visiblePendingProposals = displayedProposals.filter((proposal) =>
+    proposal.status === 'pending' && displayedAgents.some((agent) => agent.id === proposal.agentId)
+  )
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -921,9 +931,9 @@ function App() {
                 </div>
               </Card>
 
-              {agents && agents.length > 0 && (
+              {displayedAgents.length > 0 && (
                 <SubAgentDelegation
-                  agents={agents}
+                  agents={displayedAgents}
                   isActive={isProcessingEvent}
                   currentTasks={tasks}
                   activeAgentId={activeAgentId}
@@ -950,7 +960,7 @@ function App() {
                 />
               ))}
 
-              {proposals && proposals.filter(p => p.status === 'pending').length > 0 && (
+              {visiblePendingProposals.length > 0 && (
                 <div className="space-y-4">
                   <Card className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-2 border-amber-500/30 shadow-lg shadow-amber-500/10">
                     <div className="flex items-start gap-3">
@@ -965,8 +975,8 @@ function App() {
                   </Card>
 
                   <PendingProposals
-                    proposals={proposals}
-                    agents={agents ?? []}
+                    proposals={visiblePendingProposals}
+                    agents={displayedAgents}
                     onApprove={handleApproveProposal}
                     onReject={handleRejectProposal}
                     onOpenSignatureModal={handleOpenSignatureModal}
@@ -978,7 +988,7 @@ function App() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <span>Your Agents</span>
-                    <span className="text-sm text-muted-foreground font-normal">({agents?.length ?? 0} active)</span>
+                    <span className="text-sm text-muted-foreground font-normal">({displayedAgents.length} active)</span>
                   </h2>
                   <Button
                     onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => handleWalletConnect('')}
@@ -989,7 +999,7 @@ function App() {
                     {walletConnected ? 'Spawn Agent' : 'Connect Wallet'}
                   </Button>
                 </div>
-                {!agents || agents.length === 0 ? (
+                {displayedAgents.length === 0 ? (
                   <Card className="glass-card-hover p-10 text-center border border-dashed border-primary/30">
                     <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center">
                       <Robot size={36} className="text-primary animate-float" weight="duotone" />
@@ -1009,7 +1019,7 @@ function App() {
                   </Card>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {agents.map((agent, idx) => (
+                    {displayedAgents.map((agent, idx) => (
                       <motion.div
                         key={agent.id}
                         initial={{ opacity: 0, y: 20 }}
@@ -1049,7 +1059,7 @@ function App() {
               </div>
 
               {/* ── Fusion Lab (inline, only when ≥ 2 agents) ─── */}
-              {agents && agents.length >= 2 && (
+              {displayedAgents.length >= 2 && (
                 <Card className="glass-card-hover p-5 border border-accent/30">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -1063,7 +1073,7 @@ function App() {
                     </div>
                     <Button
                       onClick={!walletConnected ? () => handleWalletConnect('') : () => setBreedingDialogOpen(true)}
-                      disabled={walletConnected && (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2}
+                      disabled={walletConnected && displayedAgents.filter(a => a.wisdomUnlocked).length < 2}
                       size="sm"
                       className="bg-gradient-to-r from-accent to-secondary hover:opacity-90 font-semibold shadow-lg shadow-accent/20"
                     >
@@ -1071,13 +1081,13 @@ function App() {
                       {!walletConnected ? 'Connect to Fuse' : 'Initiate Fusion'}
                     </Button>
                   </div>
-                  {walletConnected && (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2 && (
+                  {walletConnected && displayedAgents.filter(a => a.wisdomUnlocked).length < 2 && (
                     <p className="text-xs text-muted-foreground">
-                      Need {Math.max(0, 2 - (agents?.filter(a => a.wisdomUnlocked).length ?? 0))} more wisdom-unlocked agent(s) — attend more events to unlock
+                      Need {Math.max(0, 2 - displayedAgents.filter(a => a.wisdomUnlocked).length)} more wisdom-unlocked agent(s) — attend more events to unlock
                     </p>
                   )}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                    {agents.map((agent, idx) => {
+                    {displayedAgents.map((agent, idx) => {
                       const isOnCooldown = agent.lastBreedingTime && agent.breedingCooldownHours &&
                         (Date.now() - agent.lastBreedingTime) < (agent.breedingCooldownHours * 60 * 60 * 1000)
                       return (
@@ -1108,7 +1118,7 @@ function App() {
                   </div>
                 </div>
                 <div className="p-5">
-                  <ArchitectureFlow currentPhase={agents && agents.length > 0 ? (agents[0].eventsAttended >= 5 ? 4 : Math.min(Math.floor(agents[0].eventsAttended / 1.5) + 1, 3)) : 0} />
+                  <ArchitectureFlow currentPhase={displayedAgents.length > 0 ? (displayedAgents[0].eventsAttended >= 5 ? 4 : Math.min(Math.floor(displayedAgents[0].eventsAttended / 1.5) + 1, 3)) : 0} />
                 </div>
               </Card>
               </div>
@@ -1132,7 +1142,7 @@ function App() {
                   <p className="text-sm text-muted-foreground">Agent performance, event trends, platform insights</p>
                 </div>
               </div>
-              <AnalyticsCharts agents={agents} events={events} nfts={nfts} />
+              <AnalyticsCharts agents={displayedAgents} events={displayedEvents} nfts={displayedNFTs} />
             </motion.div>
           )}
 
@@ -1152,7 +1162,7 @@ function App() {
                   <div>
                     <h2 className="text-xl font-bold flex items-center gap-2">
                       NFT Vault
-                      <span className="text-sm text-muted-foreground font-normal">({nfts?.length ?? 0} NFTs)</span>
+                      <span className="text-sm text-muted-foreground font-normal">({displayedNFTs.length} NFTs)</span>
                     </h2>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
@@ -1160,7 +1170,7 @@ function App() {
                     </div>
                   </div>
                 </div>
-                {events && events.filter(e => e.status === 'completed').length > 0 && (
+                {displayedEvents.filter(e => e.status === 'completed').length > 0 && (
                   <Button
                     onClick={() => setBatchIPFSDialogOpen(true)}
                     disabled={isViewOnly}
@@ -1173,7 +1183,7 @@ function App() {
                 )}
               </div>
 
-              {!nfts || nfts.length === 0 ? (
+              {displayedNFTs.length === 0 ? (
                 <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-primary/30">
                   <WalletIcon size={56} className="mx-auto mb-4 text-muted-foreground opacity-50 animate-float" weight="duotone" />
                   <h3 className="text-lg font-semibold mb-2">No NFTs Yet</h3>
@@ -1190,7 +1200,7 @@ function App() {
                 </Card>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {nfts.map((nft, idx) => (
+                  {displayedNFTs.map((nft, idx) => (
                     <motion.div
                       key={nft.id}
                       initial={{ opacity: 0, scale: 0.9 }}

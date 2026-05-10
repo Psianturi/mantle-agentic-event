@@ -39,11 +39,9 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
     setErrorMessage('')
     
     const steps = [
-      { step: 'Generating Mantle wallet address', status: 'pending' as const },
-      { step: 'Registering agent on MAEF smart contract', status: 'pending' as const },
-      { step: 'Initializing sub-agent squad', status: 'pending' as const },
-      { step: 'Establishing neural pathways', status: 'pending' as const },
-      { step: 'Funding wallet with initial MNT', status: 'pending' as const },
+      { step: 'Generating deterministic wallet...', status: 'pending' as const },
+      { step: 'Provisioning gas reserves (0.5 MNT)...', status: 'pending' as const },
+      { step: 'Finalizing agent identity...', status: 'pending' as const },
     ]
     setDeploymentSteps(steps)
 
@@ -189,7 +187,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
             Spawn New Agent
           </DialogTitle>
           <DialogDescription>
-            Create an autonomous AI agent with deployed smart contract on Mantle
+            Create an autonomous AI agent with an on-chain wallet identity on Mantle
           </DialogDescription>
         </DialogHeader>
 
@@ -252,7 +250,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
                 className="w-full bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity"
               >
                 <Lightning className="mr-2" weight="fill" />
-                Deploy Agent & Smart Contract
+                Register Agent On-chain
               </Button>
             </motion.div>
           ) : (phase === 'spawning' || phase === 'deploying') ? (
@@ -278,8 +276,8 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
                 >
                   <Sparkle size={32} className="text-background" weight="fill" />
                 </motion.div>
-                <h3 className="text-xl font-bold mb-2">Deploying to Mantle Network</h3>
-                <p className="text-sm text-muted-foreground">Smart contract deployment in progress...</p>
+                <h3 className="text-xl font-bold mb-2">Registering Agent on Mantle Network</h3>
+                <p className="text-sm text-muted-foreground">Initializing agentic wallet and gas reserves...</p>
               </div>
 
               <div className="space-y-3">
@@ -330,10 +328,10 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
               >
                 <CheckCircle size={40} className="text-white" weight="fill" />
               </motion.div>
-              <h3 className="text-2xl font-bold mb-2 text-green-500">Deployment Successful!</h3>
+              <h3 className="text-2xl font-bold mb-2 text-green-500">Registration Successful!</h3>
               {deployedAgent && (
                 <div className="text-center space-y-2 mt-4">
-                  <p className="text-sm text-muted-foreground">Agent deployed to Mantle Network</p>
+                  <p className="text-sm text-muted-foreground">Agent registered and funded on Mantle Network</p>
                   <p className="text-xs font-mono bg-card px-3 py-2 rounded border border-border">
                     {deployedAgent.walletAddress}
                   </p>

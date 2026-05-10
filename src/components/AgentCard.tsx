@@ -177,7 +177,10 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
           </div>
 
           <div className="mb-5 space-y-3">
-            <div className="p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 cursor-help">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <CurrencyCircleDollar size={18} className="text-primary" weight="duotone" />
@@ -186,10 +189,18 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                 <span className="text-sm font-bold font-mono text-primary">{agent.mantleBalance?.toFixed(3) || '0.000'} MNT</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">Gas Spent:</span>
-                <span className="text-xs font-mono text-muted-foreground">{agent.gasSpent?.toFixed(4) || '0.0000'} MNT</span>
+                <span className="text-xs text-muted-foreground">Gas Used:</span>
+                <span className="text-xs font-mono text-muted-foreground">{agent.gasSpent?.toLocaleString() || '0'} units</span>
               </div>
-            </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs bg-card border-primary/30">
+                  <p className="text-xs text-muted-foreground">
+                    Self-funded via gas provisioning. Each agent starts with <span className="font-bold text-primary">0.5 MNT</span> reserved for autonomous operations.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
 
             <div className="p-3 rounded-lg bg-gradient-to-r from-secondary/10 to-accent/10 border border-secondary/30">
               <div className="flex items-center justify-between mb-2">
@@ -200,7 +211,16 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               </div>
               <div className="flex items-center justify-between mb-3">
                 <span className="text-xs text-muted-foreground">Agent Gas Balance:</span>
-                <span className="text-sm font-bold font-mono text-secondary">{(agent.agentGasBalance ?? 0).toFixed(4)} MNT</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-sm font-bold font-mono text-secondary cursor-help">{(agent.agentGasBalance ?? 0).toFixed(4)} MNT</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs bg-card border-primary/30">
+                      <p className="text-xs text-muted-foreground">Self-funded via Gas Provisioning</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
               
               {onToggleAutoReplenish && (
