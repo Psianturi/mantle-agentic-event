@@ -63,7 +63,7 @@ function App() {
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
-  const [mainView, setMainView] = useState<'dashboard' | 'how-it-works' | 'analytics' | 'vault' | 'marketplace' | 'fusion-lab'>('dashboard')
+  const [mainView, setMainView] = useState<'dashboard' | 'analytics' | 'vault' | 'marketplace'>('dashboard')
   const [marketplaceFilters, setMarketplaceFilters] = useState<{
     generation: number[]
     niche: Niche[]
@@ -808,11 +808,9 @@ function App() {
               <nav className="flex items-center gap-0.5 flex-1 justify-center">
                 {([
                   { view: 'dashboard', label: 'Dashboard', icon: Robot, color: 'primary' },
-                  { view: 'how-it-works', label: 'How It Works', icon: FlowArrow, color: 'primary' },
                   { view: 'analytics', label: 'Analytics', icon: ChartLine, color: 'primary' },
                   { view: 'vault', label: 'NFT Vault', icon: WalletIcon, color: 'primary' },
                   { view: 'marketplace', label: 'Marketplace', icon: Storefront, color: 'secondary' },
-                  { view: 'fusion-lab', label: 'Fusion Lab', icon: Dna, color: 'accent' },
                 ] as const).map(({ view, label, icon: Icon, color }) => (
                   <Button
                     key={view}
@@ -913,20 +911,16 @@ function App() {
                     placeholder="Enter YouTube or Luma event URL..."
                     value={eventUrl}
                     onChange={(e) => setEventUrl(e.target.value)}
-                    disabled={isViewOnly}
                     className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
                   />
                   <Button
-                    onClick={handleAttendEvent}
-                    disabled={!eventUrl.trim() || isViewOnly}
+                    onClick={!walletConnected ? () => handleWalletConnect('') : handleAttendEvent}
+                    disabled={walletConnected && !eventUrl.trim()}
                     className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
                   >
-                    Attend Event
+                    {!walletConnected ? 'Connect & Attend' : 'Attend Event'}
                   </Button>
                 </div>
-                {isViewOnly && (
-                  <p className="text-xs text-amber-500 mt-3">Connect your wallet to attend events</p>
-                )}
               </Card>
 
               {agents && agents.length > 0 && (
@@ -988,16 +982,14 @@ function App() {
                     <span>Your Agents</span>
                     <span className="text-sm text-muted-foreground font-normal">({agents?.length ?? 0} active)</span>
                   </h2>
-                  {walletConnected && (
-                    <Button
-                      onClick={() => setSpawnDialogOpen(true)}
-                      size="sm"
-                      className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold shadow-lg shadow-secondary/20"
-                    >
-                      <Plus className="mr-1.5" weight="bold" size={15} />
-                      Spawn Agent
-                    </Button>
-                  )}
+                  <Button
+                    onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => handleWalletConnect('')}
+                    size="sm"
+                    className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold shadow-lg shadow-secondary/20"
+                  >
+                    <Plus className="mr-1.5" weight="bold" size={15} />
+                    {walletConnected ? 'Spawn Agent' : 'Connect Wallet'}
+                  </Button>
                 </div>
                 {!agents || agents.length === 0 ? (
                   <Card className="glass-card-hover p-10 text-center border border-dashed border-primary/30">
@@ -1009,17 +1001,13 @@ function App() {
                       Each agent autonomously attends events, generates AI wisdom, and mints Proof-of-Attendance NFTs on Mantle.
                     </p>
                     <Button
-                      onClick={() => setSpawnDialogOpen(true)}
-                      disabled={isViewOnly}
+                      onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => handleWalletConnect('')}
                       size="lg"
                       className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-bold px-8 shadow-xl shadow-secondary/30"
                     >
                       <Plus className="mr-2" weight="bold" />
-                      Spawn Agent to Start
+                      {walletConnected ? 'Spawn Agent to Start' : 'Connect Wallet to Start'}
                     </Button>
-                    {isViewOnly && (
-                      <p className="text-xs text-amber-500 mt-3">Connect your wallet first</p>
-                    )}
                   </Card>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1061,29 +1049,72 @@ function App() {
                   </div>
                 )}
               </div>
+
+              {/* ── Fusion Lab (inline, only when ≥ 2 agents) ─── */}
+              {agents && agents.length >= 2 && (
+                <Card className="glass-card-hover p-5 border border-accent/30">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
+                        <Dna className="text-accent" weight="duotone" size={20} />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold">Neural Fusion Lab</h3>
+                        <p className="text-xs text-muted-foreground">Merge wisdom-unlocked agents to breed powerful hybrids</p>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={!walletConnected ? () => handleWalletConnect('') : () => setBreedingDialogOpen(true)}
+                      disabled={walletConnected && (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2}
+                      size="sm"
+                      className="bg-gradient-to-r from-accent to-secondary hover:opacity-90 font-semibold shadow-lg shadow-accent/20"
+                    >
+                      <Dna className="mr-1.5" weight="duotone" size={14} />
+                      {!walletConnected ? 'Connect to Fuse' : 'Initiate Fusion'}
+                    </Button>
+                  </div>
+                  {walletConnected && (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2 && (
+                    <p className="text-xs text-muted-foreground">
+                      Need {Math.max(0, 2 - (agents?.filter(a => a.wisdomUnlocked).length ?? 0))} more wisdom-unlocked agent(s) — attend more events to unlock
+                    </p>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                    {agents.map((agent, idx) => {
+                      const isOnCooldown = agent.lastBreedingTime && agent.breedingCooldownHours &&
+                        (Date.now() - agent.lastBreedingTime) < (agent.breedingCooldownHours * 60 * 60 * 1000)
+                      return (
+                        <motion.div key={agent.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.08 }} className="space-y-2">
+                          <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} onToggleAutoReplenish={handleToggleAutoReplenish} />
+                          {isOnCooldown && (
+                            <div className="space-y-2">
+                              <FusionCooldownTimer agent={agent} />
+                              <BreedingCooldownBoost agent={agent} userBalance={userBalance ?? 0} onBoost={handleCooldownBoost} />
+                            </div>
+                          )}
+                        </motion.div>
+                      )
+                    })}
+                  </div>
+                </Card>
+              )}
+
+              {/* ── How the Agentic Economy Works ─────────── */}
+              <Card className="glass-card-hover border border-primary/20 overflow-hidden">
+                <div className="p-5 flex items-center gap-3 border-b border-primary/10">
+                  <div className="w-9 h-9 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+                    <FlowArrow className="text-primary" weight="duotone" size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold">How the Agentic Economy Works</h3>
+                    <p className="text-xs text-muted-foreground">System architecture — from event to on-chain NFT</p>
+                  </div>
+                </div>
+                <div className="p-5">
+                  <ArchitectureFlow currentPhase={agents && agents.length > 0 ? (agents[0].eventsAttended >= 5 ? 4 : Math.min(Math.floor(agents[0].eventsAttended / 1.5) + 1, 3)) : 0} />
+                </div>
+              </Card>
               </div>
             </>
-          )}
-
-          {/* ── How It Works ──────────────────────────── */}
-          {mainView === 'how-it-works' && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-6"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                  <FlowArrow className="text-primary" weight="duotone" size={22} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold">How It Works</h2>
-                  <p className="text-sm text-muted-foreground">MAEF system architecture and data flow</p>
-                </div>
-              </div>
-              <ArchitectureFlow currentPhase={agents && agents.length > 0 ? (agents[0].eventsAttended >= 5 ? 4 : Math.min(Math.floor(agents[0].eventsAttended / 1.5) + 1, 3)) : 0} />
-            </motion.div>
           )}
 
           {/* ── Analytics ─────────────────────────────── */}
@@ -1236,102 +1267,7 @@ function App() {
             </motion.div>
           )}
 
-          {mainView === 'fusion-lab' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="space-y-6 animate-slide-up"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
-                    <Dna className="text-accent" weight="duotone" size={22} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold">Neural Fusion Lab</h2>
-                    <p className="text-sm text-muted-foreground">Merge wisdom-unlocked agents to breed powerful hybrid offspring</p>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => setBreedingDialogOpen(true)}
-                  disabled={isViewOnly || (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2}
-                  size="sm"
-                  className="bg-gradient-to-r from-accent to-secondary hover:opacity-90 font-semibold shadow-lg shadow-accent/20"
-                >
-                  <Dna className="mr-1.5" weight="duotone" size={15} />
-                  Initiate Fusion
-                </Button>
-              </div>
-              {(agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2 && (
-                <p className="text-xs text-muted-foreground">
-                  {walletConnected
-                    ? `Need ${2 - (agents?.filter(a => a.wisdomUnlocked).length ?? 0)} more wisdom-unlocked agent(s) to fuse`
-                    : 'Connect your wallet to access Fusion Lab'}
-                </p>
-              )}
 
-              <div>
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                  <span>Your Agents</span>
-                  <span className="text-sm text-muted-foreground font-normal">({agents?.length ?? 0} total)</span>
-                </h3>
-                {!agents || agents.length === 0 ? (
-                  <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-accent/30">
-                    <Robot size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
-                    <h3 className="text-lg font-semibold mb-2">No Agents Yet</h3>
-                    <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">Spawn your first AI agent to start the fusion journey</p>
-                    <Button 
-                      onClick={() => {
-                        setMainView('dashboard')
-                        setSpawnDialogOpen(true)
-                      }} 
-                      disabled={isViewOnly}
-                      className="bg-gradient-to-r from-secondary to-accent font-semibold shadow-lg shadow-secondary/30"
-                    >
-                      <Plus className="mr-2" weight="bold" />
-                      Spawn Agent
-                    </Button>
-                  </Card>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {agents.map((agent, idx) => {
-                      const isOnCooldown = agent.lastBreedingTime && agent.breedingCooldownHours && 
-                        (Date.now() - agent.lastBreedingTime) < (agent.breedingCooldownHours * 60 * 60 * 1000)
-                      
-                      return (
-                        <motion.div
-                          key={agent.id}
-                          initial={{ opacity: 0, scale: 0.9 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: idx * 0.1 }}
-                          className="space-y-3"
-                        >
-                          <AgentCard 
-                            agent={agent} 
-                            onConfigure={handleConfigureAgent} 
-                            onChat={handleChatWithAgent} 
-                            onViewEvolution={handleViewEvolution}
-                            onToggleAutoReplenish={handleToggleAutoReplenish}
-                          />
-                          {isOnCooldown && (
-                            <div className="space-y-2">
-                              <FusionCooldownTimer agent={agent} />
-                              <BreedingCooldownBoost 
-                                agent={agent} 
-                                userBalance={userBalance ?? 0}
-                                onBoost={handleCooldownBoost}
-                              />
-                            </div>
-                          )}
-                        </motion.div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          )}
         </main>
       </div>
 
