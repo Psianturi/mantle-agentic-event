@@ -6,6 +6,7 @@ fastapi>=0.110.0,<1.0.0
 uvicorn[standard]>=0.29.0,<1.0.0
 
 # Blockchain / Web3
+# Pin web3 to 6.15+ to ensure ExtraDataToPOAMiddleware is available
 web3>=6.15.0,<7.0.0
 eth-account>=0.10.0,<0.13.0
 # eth-abi 6.0.0b1 (beta) has breaking API changes that crash web3 6.20.x at import time.

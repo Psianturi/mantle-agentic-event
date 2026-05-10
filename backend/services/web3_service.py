@@ -12,7 +12,12 @@ from typing import Any
 
 from eth_account import Account
 from web3 import Web3
-from web3.middleware import ExtraDataToPOAMiddleware
+
+# Backwards-compatible import for PoA middleware (web3.py v5 vs v6+)
+try:
+    from web3.middleware import ExtraDataToPOAMiddleware
+except ImportError:
+    from web3.middleware import geth_poa_middleware as ExtraDataToPOAMiddleware
 
 from core.config import settings
 from core.secrets import get_agent_private_key, get_mantle_rpc_url
@@ -82,8 +87,7 @@ class Web3Service:
 
         rpc_url = get_mantle_rpc_url()
         w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 30}))
-        # PoA middleware required for Mantle (extra data field in block headers)
-        w3.middleware_onion.inject(ExtraDataToPOAMiddleware, layer=0)
+        # Mantle is OP Stack — does not require PoA middleware
 
         if not w3.is_connected():
             raise ConnectionError(f"Cannot connect to Mantle RPC: {rpc_url}")
