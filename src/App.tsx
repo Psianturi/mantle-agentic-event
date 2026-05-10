@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useKV } from '@github/spark/hooks'
+import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -58,9 +58,9 @@ const simulationMessages = [
 ]
 
 function App() {
-  const [agents, setAgents] = useKV<Agent[]>('maef-agents', [])
-  const [nfts, setNFTs] = useKV<NFT[]>('maef-nfts', [])
-  const [events, setEvents] = useKV<Event[]>('maef-events', [])
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [nfts, setNFTs] = useLocalStorage<NFT[]>('maef-nfts', [])
+  const [events, setEvents] = useLocalStorage<Event[]>('maef-events', [])
   const [mockAgents, setMockAgents] = useState<Agent[]>(() => getMockAgents())
   const [mockNFTs, setMockNFTs] = useState<NFT[]>(() => getMockNFTs())
   const [mockEvents, setMockEvents] = useState<Event[]>(() => getMockEvents())
@@ -134,14 +134,14 @@ function App() {
   const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'error'>('checking')
   const [useMockData, setUseMockData] = useState(false)
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
-  const [verificationData, setVerificationData] = useKV<ContractVerificationData[]>('maef-verifications', [])
+  const [verificationData, setVerificationData] = useLocalStorage<ContractVerificationData[]>('maef-verifications', [])
   const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())
-  const [proposals, setProposals] = useKV<AgentProposal[]>('maef-proposals', [])
-  const [userBalance, setUserBalance] = useKV<number>('maef-user-balance', 45.50)
+  const [proposals, setProposals] = useLocalStorage<AgentProposal[]>('maef-proposals', [])
+  const [userBalance, setUserBalance] = useLocalStorage<number>('maef-user-balance', 45.50)
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false)
   const [genesisMintDialogOpen, setGenesisMintDialogOpen] = useState(false)
   const [selectedAgentForTopUp, setSelectedAgentForTopUp] = useState<Agent | null>(null)
-  const [marketplaceAgents, setMarketplaceAgents] = useKV<MarketplaceAgent[]>('maef-marketplace', getMockMarketplaceAgents())
+  const [marketplaceAgents, setMarketplaceAgents] = useLocalStorage<MarketplaceAgent[]>('maef-marketplace', getMockMarketplaceAgents())
   const [purchasingAgentId, setPurchasingAgentId] = useState<string | null>(null)
   const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
   
@@ -200,6 +200,14 @@ function App() {
       toast.success('Wallet connected successfully!', {
         description: `Connected to Mantle Network`
       })
+      // Load agents persisted in Firestore for this wallet
+      const cloudAgents = await cloudRunService.getAgentsByWallet(connectedAddress)
+      if (cloudAgents.length > 0) {
+        setAgents(cloudAgents)
+        toast.info(`Loaded ${cloudAgents.length} agent${cloudAgents.length > 1 ? 's' : ''} from cloud`, {
+          description: 'Your agents are ready'
+        })
+      }
     } catch (error) {
       console.error('Wallet connection failed:', error)
       toast.error('Failed to connect wallet', {
@@ -212,6 +220,7 @@ function App() {
     blockchain.disconnectWallet()
     setWalletConnected(false)
     setWalletAddress(undefined)
+    setAgents([])
     toast.info('Wallet disconnected')
   }
 

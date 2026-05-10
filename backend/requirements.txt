@@ -12,8 +12,9 @@ eth-account>=0.10.0,<0.13.0
 # Force a stable 4.x / 5.x release.
 eth-abi>=4.0.0,<6.0.0a0
 
-# GCP Secret Manager
+# GCP
 google-cloud-secret-manager>=2.18.0,<3.0.0
+google-cloud-firestore>=2.16.0,<3.0.0
 
 # HTTP client (async, used by llm_service)
 httpx>=0.26.0,<0.30.0

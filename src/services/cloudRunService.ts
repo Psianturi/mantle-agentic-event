@@ -281,6 +281,47 @@ export const cloudRunService = {
     }
   },
 
+  async getAgentsByWallet(wallet: string): Promise<Agent[]> {
+    try {
+      const response = await fetchWithTimeout(
+        `${GCP_BACKEND_URL}/api/v1/agent/list?wallet=${encodeURIComponent(wallet)}`
+      )
+
+      const raw = await handleAPIResponse<Array<{
+        agent_id: string
+        agent_wallet: string
+        agent_name: string
+        niche: string
+        user_wallet: string
+        level: number
+        total_events: number
+        created_at: number
+        needs_funding: boolean
+      }>>(response)
+
+      const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
+
+      return raw.map(r => ({
+        id: r.agent_id,
+        name: r.agent_name,
+        personality: 'Analytical' as const,
+        niche: (validNiches.includes(r.niche as Niche) ? r.niche : 'Blockchain/DeFi') as Niche,
+        walletAddress: r.agent_wallet,
+        eventsAttended: r.total_events,
+        level: r.level,
+        status: 'idle' as const,
+        createdAt: r.created_at ? r.created_at * 1000 : Date.now(),
+        subAgents: [],
+        wisdomUnlocked: r.level >= 3,
+        needsFunding: r.needs_funding,
+      }))
+    } catch (error) {
+      // Non-fatal: return empty list if backend is unreachable
+      console.warn('[cloudRunService] getAgentsByWallet failed:', error)
+      return []
+    }
+  },
+
   async markAgentFunded(agentId: string): Promise<MarkAgentFundedResponse> {
     const response = await fetchWithTimeout(
       `${GCP_BACKEND_URL}/api/v1/agent/${agentId}/mark-funded`,
