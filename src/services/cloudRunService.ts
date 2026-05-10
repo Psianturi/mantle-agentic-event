@@ -95,6 +95,27 @@ export interface MissionStatusResponse {
   error?: string
 }
 
+export interface AttendEventRequest {
+  agentId: string
+  agentWallet: string
+  agentName: string
+  eventUrl: string
+  eventTitle: string
+  platform: string
+  niche: string
+}
+
+export interface AttendEventResponse {
+  success: boolean
+  txHash: string
+  tokenId: string
+  wisdomSummary: string
+  gasUsed: string
+  blockNumber: number
+  explorerUrl: string
+  levelUp: boolean
+}
+
 export interface GenerateWisdomRequest {
   agentId: string
 }
@@ -312,6 +333,65 @@ export const cloudRunService = {
       console.error('Error polling mission status:', error)
       throw new CloudRunAPIError(
         'Failed to retrieve mission status',
+        undefined,
+        error
+      )
+    }
+  },
+
+  // ── Real backend: AI summary + Mantle NFT mint (Mode A) ──────────────────
+  async attendEvent(request: AttendEventRequest): Promise<AttendEventResponse> {
+    const urlCheck = validateEventUrl(request.eventUrl)
+    if (!urlCheck.valid) {
+      throw new CloudRunAPIError(urlCheck.error || 'Invalid event URL', 400)
+    }
+
+    try {
+      const backendPayload = {
+        agent_id: request.agentId,
+        agent_wallet: request.agentWallet,
+        agent_name: request.agentName,
+        event_url: request.eventUrl,
+        event_title: request.eventTitle,
+        platform: request.platform,
+        niche: request.niche,
+      }
+
+      const response = await fetchWithTimeout(
+        `${GCP_BACKEND_URL}/api/v1/event/attend`,
+        { method: 'POST', body: JSON.stringify(backendPayload) },
+        90000  // 90s — Gemini + Mantle tx
+      )
+
+      const raw = await handleAPIResponse<{
+        success: boolean
+        tx_hash: string | null
+        token_id: string | null
+        wisdom_summary: string
+        gas_used: string | null
+        block_number: number | null
+        explorer_url: string | null
+        level_up: boolean
+      }>(response)
+
+      if (!raw.success) {
+        throw new CloudRunAPIError('Backend returned success=false', 500)
+      }
+
+      return {
+        success: true,
+        txHash: raw.tx_hash ?? '',
+        tokenId: raw.token_id ?? '?',
+        wisdomSummary: raw.wisdom_summary,
+        gasUsed: raw.gas_used ?? '0',
+        blockNumber: raw.block_number ?? 0,
+        explorerUrl: raw.explorer_url ?? `https://explorer.sepolia.mantle.xyz`,
+        levelUp: raw.level_up,
+      }
+    } catch (error) {
+      if (error instanceof CloudRunAPIError) throw error
+      throw new CloudRunAPIError(
+        'Failed to process event attendance',
         undefined,
         error
       )
