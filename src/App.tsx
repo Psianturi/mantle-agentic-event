@@ -125,8 +125,10 @@ function App() {
   const [eventUrl, setEventUrl] = useState('')
   const [isProcessingEvent, setIsProcessingEvent] = useState(false)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
-  const [healthCheckOpen, setHealthCheckOpen] = useState(true)
+  const [healthCheckOpen, setHealthCheckOpen] = useState(false) // no auto-popup
   const [backendConnected, setBackendConnected] = useState(false)
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'error'>('checking')
+  const [useMockData, setUseMockData] = useState(false)
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
   const [verificationData, setVerificationData] = useKV<ContractVerificationData[]>('maef-verifications', [])
   const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())
@@ -143,7 +145,20 @@ function App() {
 
   const handleHealthConfirmed = () => {
     setBackendConnected(true)
+    setBackendStatus('live')
   }
+
+  // Silent background health check on mount — no blocking popup
+  useEffect(() => {
+    cloudRunService.healthCheck()
+      .then(() => {
+        setBackendConnected(true)
+        setBackendStatus('live')
+      })
+      .catch(() => {
+        setBackendStatus('error')
+      })
+  }, [])
 
   const handleWalletConnect = async (address: string) => {
     try {
@@ -790,6 +805,41 @@ function App() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                {/* Backend status indicator + mock/live toggle */}
+                <div className="hidden sm:flex items-center rounded-md overflow-hidden border border-primary/20">
+                  <button
+                    onClick={() => { if (backendStatus === 'error' && !useMockData) setHealthCheckOpen(true) }}
+                    title={
+                      useMockData ? 'Using mock data' :
+                      backendStatus === 'live' ? 'Connected to Cloud Run backend' :
+                      backendStatus === 'checking' ? 'Connecting to backend...' :
+                      'Backend offline — click to retry'
+                    }
+                    className={cn(
+                      'flex items-center gap-1.5 px-2.5 py-1 text-xs font-mono transition-all',
+                      useMockData && 'bg-muted/30 text-muted-foreground',
+                      !useMockData && backendStatus === 'live' && 'bg-emerald-500/10 text-emerald-400',
+                      !useMockData && backendStatus === 'checking' && 'bg-yellow-500/10 text-yellow-400',
+                      !useMockData && backendStatus === 'error' && 'bg-red-500/10 text-red-400 cursor-pointer hover:bg-red-500/20',
+                    )}
+                  >
+                    <span className={cn(
+                      'w-1.5 h-1.5 rounded-full',
+                      useMockData && 'bg-muted-foreground/50',
+                      !useMockData && backendStatus === 'live' && 'bg-emerald-400 animate-pulse',
+                      !useMockData && backendStatus === 'checking' && 'bg-yellow-400 animate-pulse',
+                      !useMockData && backendStatus === 'error' && 'bg-red-400',
+                    )} />
+                    {useMockData ? 'Mock' : backendStatus === 'live' ? 'Live' : backendStatus === 'checking' ? '...' : 'Offline'}
+                  </button>
+                  <button
+                    onClick={() => setUseMockData(m => !m)}
+                    title={useMockData ? 'Switch to live backend' : 'Switch to mock data'}
+                    className="px-2 py-1 text-xs border-l border-primary/20 bg-background/40 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all font-mono"
+                  >
+                    ⇄
+                  </button>
+                </div>
                 {isViewOnly && (
                   <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
                     <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
