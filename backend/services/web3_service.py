@@ -118,16 +118,21 @@ class Web3Service:
         agent_name: str,
         summary: str,
         niche: str = "General",
+        agent_private_key: str | None = None,  # Agent's own key for autonomy
     ) -> dict[str, Any]:
         """
         Signs and broadcasts mintAttendanceNFT to Mantle.
+        
+        If agent_private_key is provided, the agent signs its own transaction
+        (true agentic autonomy). Otherwise, falls back to backend master key.
+        
         Runs the blocking web3 call in a thread executor so FastAPI stays non-blocking.
         """
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,
             self._sync_mint,
-            agent_wallet, event_title, event_url, platform, agent_name, summary, niche,
+            agent_wallet, event_title, event_url, platform, agent_name, summary, niche, agent_private_key,
         )
 
     async def get_total_minted(self) -> int:
@@ -145,10 +150,20 @@ class Web3Service:
         agent_name: str,
         summary: str,
         niche: str,
+        agent_private_key: str | None = None,
     ) -> dict[str, Any]:
         w3 = self._init_w3()
         contract = self._init_contract()
-        private_key = get_agent_private_key()  # "0x..." from Secret Manager
+        
+        # Use agent's own key if provided (agentic autonomy)
+        # Otherwise fall back to backend master key (MINTER_ROLE)
+        if agent_private_key:
+            private_key = agent_private_key
+            logger.info("Agent signing its own transaction (autonomous mode)")
+        else:
+            private_key = get_agent_private_key()  # Backend master key
+            logger.info("Backend signing transaction (MINTER_ROLE mode)")
+        
         signer = Account.from_key(private_key)
         signer_address = signer.address
 

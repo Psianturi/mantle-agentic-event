@@ -16,6 +16,13 @@ contract MAEFDynamicNFT is ERC721A, Ownable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     using Strings for uint256;
 
+    // Gas provisioning constants
+    uint256 public constant SPAWN_FEE = 1 ether;  // 1 MNT to spawn agent
+    uint256 public constant AGENT_PROVISION = 0.5 ether;  // 0.5 MNT given to agent
+    uint256 public constant PLATFORM_FEE = 0.5 ether;  // 0.5 MNT to platform
+
+    mapping(address => bool) public isAgentSpawned;
+
     struct EventAttendance {
         string eventTitle;
         string eventUrl;
@@ -63,10 +70,58 @@ contract MAEFDynamicNFT is ERC721A, Ownable, AccessControl {
         uint256 timestamp
     );
 
+    event AgentSpawned(
+        address indexed agentWallet,
+        address indexed spawner,
+        uint256 provisionAmount,
+        uint256 timestamp
+    );
+
     constructor() ERC721A("MAEF Dynamic Proof of Attendance", "MAEF-DPOA") Ownable(msg.sender) {
         baseMetadataURI = "https://ipfs.io/ipfs/";
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(MINTER_ROLE, msg.sender);
+    }
+
+    /**
+     * @dev Spawns a new agent with gas provisioning
+     * User pays 1 MNT: 0.5 MNT goes to agent wallet, 0.5 MNT to platform
+     * This gives the agent economic autonomy to pay its own gas fees
+     */
+    function spawnAgent(address agentWallet) external payable {
+        require(msg.value >= SPAWN_FEE, "Insufficient spawn fee: 1 MNT required");
+        require(agentWallet != address(0), "Invalid agent wallet address");
+        require(!isAgentSpawned[agentWallet], "Agent already spawned");
+
+        // Mark agent as spawned
+        isAgentSpawned[agentWallet] = true;
+
+        // Transfer 0.5 MNT to agent's wallet (gas provision)
+        (bool success, ) = agentWallet.call{value: AGENT_PROVISION}("");
+        require(success, "Gas provision transfer failed");
+
+        // Remaining 0.5 MNT stays in contract (platform fee)
+        // Owner can withdraw via withdrawPlatformFees()
+
+        emit AgentSpawned(agentWallet, msg.sender, AGENT_PROVISION, block.timestamp);
+    }
+
+    /**
+     * @dev Allows owner to withdraw accumulated platform fees
+     */
+    function withdrawPlatformFees() external onlyOwner {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "No fees to withdraw");
+        
+        (bool success, ) = owner().call{value: balance}("");
+        require(success, "Withdrawal failed");
+    }
+
+    /**
+     * @dev Check if agent has been spawned and funded
+     */
+    function isAgentActive(address agentWallet) external view returns (bool) {
+        return isAgentSpawned[agentWallet] && agentWallet.balance > 0;
     }
 
     function grantMinterRole(address minter) external onlyOwner {

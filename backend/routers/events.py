@@ -16,6 +16,7 @@ from pydantic import BaseModel, field_validator
 from web3 import Web3
 
 from core.config import settings
+from routers.agents import get_agent_private_key
 from services.llm_service import summarize_event
 from services.web3_service import web3_service
 
@@ -116,8 +117,11 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 
-    # ── Steps B + C: Mint on Mantle ────────────────────────────────────────
+    # ── Steps B + C: Mint on Mantle (Agent signs with its own wallet) ─────
     try:
+        # Get agent's private key for autonomous signing
+        agent_private_key = get_agent_private_key(req.agent_id)
+        
         mint_result = await web3_service.mint_attendance_nft(
             agent_wallet=req.agent_wallet,
             event_title=req.event_title,
@@ -126,6 +130,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             agent_name=req.agent_name,
             summary=wisdom_summary,
             niche=req.niche,
+            agent_private_key=agent_private_key,  # Agent signs its own tx!
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
