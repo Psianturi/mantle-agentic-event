@@ -765,21 +765,70 @@ function App() {
 
       <div className="relative z-10">
         <header className="border-b border-primary/20 backdrop-blur-xl bg-background/70 sticky top-0 z-40 shadow-lg shadow-primary/5">
-          <div className="container mx-auto px-6 py-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
+          <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3">
+            <div className="flex items-center gap-3">
+              {/* Logo — left */}
+              <div className="flex items-center gap-2.5 flex-shrink-0">
                 <div className="relative">
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary via-accent to-secondary flex items-center justify-center animate-glow-pulse shadow-lg shadow-primary/50">
-                    <Sparkle size={26} className="text-background" weight="fill" />
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary via-accent to-secondary flex items-center justify-center animate-glow-pulse shadow-lg shadow-primary/50">
+                    <Sparkle size={20} className="text-background" weight="fill" />
                   </div>
                   <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-secondary blur-xl opacity-50 -z-10" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">MAEF</h1>
-                  <p className="text-xs text-muted-foreground font-mono">Mantle Agentic Event Factory</p>
+                  <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent leading-none">MAEF</h1>
+                  <p className="text-[10px] text-muted-foreground font-mono hidden sm:block leading-none mt-0.5">Mantle Agentic Event Factory</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+
+              {/* Nav — center */}
+              <div className="flex items-center gap-1 flex-1 justify-center">
+                <Button
+                  onClick={() => setMainView('dashboard')}
+                  variant={mainView === 'dashboard' ? 'default' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'px-4 h-8 text-sm font-semibold transition-all duration-300',
+                    mainView === 'dashboard'
+                      ? 'bg-gradient-to-r from-primary/20 to-accent/20 text-primary border border-primary/40 shadow shadow-primary/20'
+                      : 'hover:bg-primary/10 hover:text-primary'
+                  )}
+                >
+                  <Robot className="mr-1.5" size={15} weight="duotone" />
+                  Dashboard
+                </Button>
+                <Button
+                  onClick={() => setMainView('marketplace')}
+                  variant={mainView === 'marketplace' ? 'default' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'px-4 h-8 text-sm font-semibold transition-all duration-300',
+                    mainView === 'marketplace'
+                      ? 'bg-gradient-to-r from-secondary/20 to-accent/20 text-secondary border border-secondary/40 shadow shadow-secondary/20'
+                      : 'hover:bg-secondary/10 hover:text-secondary'
+                  )}
+                >
+                  <Storefront className="mr-1.5" size={15} weight="duotone" />
+                  Marketplace
+                </Button>
+                <Button
+                  onClick={() => setMainView('fusion-lab')}
+                  variant={mainView === 'fusion-lab' ? 'default' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'px-4 h-8 text-sm font-semibold transition-all duration-300',
+                    mainView === 'fusion-lab'
+                      ? 'bg-gradient-to-r from-accent/20 to-secondary/20 text-accent border border-accent/40 shadow shadow-accent/20'
+                      : 'hover:bg-accent/10 hover:text-accent'
+                  )}
+                >
+                  <Dna className="mr-1.5" size={15} weight="duotone" />
+                  Fusion Lab
+                </Button>
+              </div>
+
+              {/* Right — status + wallet */}
+              <div className="flex items-center gap-2 flex-shrink-0">
                 {/* Backend status indicator + mock/live toggle */}
                 <div className="hidden sm:flex items-center rounded-md overflow-hidden border border-primary/20">
                   <button
@@ -816,20 +865,17 @@ function App() {
                   </button>
                 </div>
                 {isViewOnly && (
-                  <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                    <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-                    <p className="text-sm text-amber-500 font-semibold">View Only Mode</p>
+                  <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                    <p className="text-xs text-amber-500 font-semibold">View Only</p>
                   </div>
                 )}
                 {walletConnected && (
                   <>
                     <GasPriceMonitor />
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass-card border-primary/30 shadow-lg">
-                      <WalletIcon size={18} className="text-primary" weight="duotone" />
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Balance</span>
-                        <span className="text-sm font-bold font-mono text-primary">{(userBalance ?? 0).toFixed(2)} MNT</span>
-                      </div>
+                    <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass-card border-primary/30">
+                      <WalletIcon size={14} className="text-primary" weight="duotone" />
+                      <span className="text-sm font-bold font-mono text-primary">{(userBalance ?? 0).toFixed(2)} MNT</span>
                     </div>
                   </>
                 )}
@@ -841,55 +887,13 @@ function App() {
                 />
               </div>
             </div>
-            
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                onClick={() => setMainView('dashboard')}
-                variant={mainView === 'dashboard' ? 'default' : 'ghost'}
-                className={cn(
-                  'px-6 py-2 font-semibold transition-all duration-300',
-                  mainView === 'dashboard' 
-                    ? 'bg-gradient-to-r from-primary/20 to-accent/20 text-primary border-2 border-primary/40 shadow-lg shadow-primary/20' 
-                    : 'hover:bg-primary/10 hover:text-primary hover:scale-105'
-                )}
-              >
-                <Robot className="mr-2" size={18} weight="duotone" />
-                Dashboard
-              </Button>
-              <Button
-                onClick={() => setMainView('marketplace')}
-                variant={mainView === 'marketplace' ? 'default' : 'ghost'}
-                className={cn(
-                  'px-6 py-2 font-semibold transition-all duration-300',
-                  mainView === 'marketplace' 
-                    ? 'bg-gradient-to-r from-secondary/20 to-accent/20 text-secondary border-2 border-secondary/40 shadow-lg shadow-secondary/20' 
-                    : 'hover:bg-secondary/10 hover:text-secondary hover:scale-105'
-                )}
-              >
-                <Storefront className="mr-2" size={18} weight="duotone" />
-                Marketplace
-              </Button>
-              <Button
-                onClick={() => setMainView('fusion-lab')}
-                variant={mainView === 'fusion-lab' ? 'default' : 'ghost'}
-                className={cn(
-                  'px-6 py-2 font-semibold transition-all duration-300',
-                  mainView === 'fusion-lab' 
-                    ? 'bg-gradient-to-r from-accent/20 to-secondary/20 text-accent border-2 border-accent/40 shadow-lg shadow-accent/20' 
-                    : 'hover:bg-accent/10 hover:text-accent hover:scale-105'
-                )}
-              >
-                <Dna className="mr-2" size={18} weight="duotone" />
-                Fusion Lab
-              </Button>
-            </div>
           </div>
         </header>
 
-        <main className="container mx-auto px-6 py-8 pb-72">
+        <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 pb-24">
           {mainView === 'dashboard' && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                 {stats.map((stat, i) => (
                   <motion.div
                     key={stat.label}
@@ -897,15 +901,15 @@ function App() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.1, duration: 0.5 }}
                   >
-                    <Card className="glass-card-hover p-5 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl group-hover:from-primary/20 transition-all duration-500" />
+                    <Card className="glass-card-hover p-4 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-20 h-20 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl group-hover:from-primary/20 transition-all duration-500" />
                       <div className="relative flex items-center justify-between">
                         <div>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2">{stat.label}</p>
-                          <p className="text-3xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">{stat.value}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">{stat.label}</p>
+                          <p className="text-2xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">{stat.value}</p>
                         </div>
-                        <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center group-hover:scale-110 group-hover:border-primary/50 transition-all duration-300">
-                          <stat.icon size={28} className={stat.color} weight="duotone" />
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center group-hover:scale-110 group-hover:border-primary/50 transition-all duration-300">
+                          <stat.icon size={22} className={stat.color} weight="duotone" />
                         </div>
                       </div>
                     </Card>
@@ -914,7 +918,7 @@ function App() {
               </div>
 
               <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-            <TabsList className="glass-card mb-8 p-2 border border-primary/20 gap-1.5">
+            <TabsList className="glass-card mb-6 p-1.5 border border-primary/20 gap-1">
               <TabsTrigger value="dashboard" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary/20 data-[state=active]:to-accent/20 data-[state=active]:text-primary transition-all duration-300 hover:bg-primary/5 hover:scale-105">
                 Dashboard
               </TabsTrigger>
