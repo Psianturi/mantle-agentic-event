@@ -39,6 +39,7 @@ export interface SpawnAgentRequest {
   niche: Niche
   personality: Personality
   customInstructions?: string
+  userWallet?: string  // Connected MetaMask address (optional, used as owner ref)
 }
 
 export interface SpawnAgentResponse {
@@ -203,15 +204,40 @@ async function handleAPIResponse<T>(response: Response): Promise<T> {
 export const cloudRunService = {
   async spawnAgent(request: SpawnAgentRequest): Promise<SpawnAgentResponse> {
     try {
+      // Backend field names differ from frontend: name→agent_name, userWallet→user_wallet
+      const backendPayload = {
+        agent_name: request.name,
+        niche: request.niche,
+        user_wallet: request.userWallet || '0x0000000000000000000000000000000000000001',
+      }
+
       const response = await fetchWithTimeout(
-        `${GCP_BACKEND_URL}/api/agents/spawn`,
+        `${GCP_BACKEND_URL}/api/v1/agent/spawn`,
         {
           method: 'POST',
-          body: JSON.stringify(request),
+          body: JSON.stringify(backendPayload),
         }
       )
 
-      return handleAPIResponse<SpawnAgentResponse>(response)
+      const raw = await handleAPIResponse<{
+        agent_id: string
+        agent_wallet: string
+        agent_name: string
+        niche: string
+        user_wallet: string
+        level: number
+        total_events: number
+        needs_funding: boolean
+      }>(response)
+
+      // Map backend snake_case → frontend camelCase
+      return {
+        success: true,
+        agentId: raw.agent_id,
+        mantleAddress: raw.agent_wallet,
+        initialBalance: 0,
+        message: `Agent ${raw.agent_name} spawned on Mantle Network`,
+      }
     } catch (error) {
       if (error instanceof CloudRunAPIError) {
         throw error
@@ -233,11 +259,21 @@ export const cloudRunService = {
     }
 
     try {
+      // Backend endpoint: /api/v1/event/attend — full agentic flow (AI + mint)
+      // Note: backend needs more fields; caller should use attendEvent() instead for full flow
       const response = await fetchWithTimeout(
-        `${GCP_BACKEND_URL}/api/events/assign`,
+        `${GCP_BACKEND_URL}/api/v1/event/attend`,
         {
           method: 'POST',
-          body: JSON.stringify(request),
+          body: JSON.stringify({
+            agent_id: request.agentId,
+            agent_wallet: '0x0000000000000000000000000000000000000001', // placeholder
+            agent_name: 'Agent',
+            event_url: request.eventUrl,
+            event_title: 'Event',
+            platform: 'YouTube',
+            niche: 'General',
+          }),
         },
         120000
       )

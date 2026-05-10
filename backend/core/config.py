@@ -15,9 +15,8 @@ class Settings(BaseSettings):
     use_secret_manager: bool = True
 
     # CORS — comma-separated origins or "*"
-    allowed_origins_raw: str = (
-        "https://*.github.app,http://localhost:5173,http://localhost:5174"
-    )
+    # "*" is safe here because allow_credentials=False (no cookies/sessions)
+    allowed_origins_raw: str = "*"
 
     @property
     def allowed_origins(self) -> list[str]:

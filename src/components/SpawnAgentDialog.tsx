@@ -15,6 +15,7 @@ interface SpawnAgentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onAgentCreated: (agent: Agent) => void
+  userWallet?: string  // Connected MetaMask address, forwarded to backend
 }
 
 const niches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -22,7 +23,7 @@ const personalities: Personality[] = ['Aggressive', 'Analytical', 'Creative']
 
 type SpawnPhase = 'form' | 'spawning' | 'deploying' | 'success' | 'error'
 
-export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated }: SpawnAgentDialogProps) {
+export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWallet }: SpawnAgentDialogProps) {
   const [name, setName] = useState('')
   const [personality, setPersonality] = useState<Personality>('Analytical')
   const [niche, setNiche] = useState<Niche>('Blockchain/DeFi')
@@ -60,6 +61,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated }: SpawnAg
         name: name.trim(),
         niche,
         personality,
+        userWallet,
       })
 
       if (response.success) {

@@ -1419,6 +1419,7 @@ function App() {
         open={spawnDialogOpen}
         onOpenChange={setSpawnDialogOpen}
         onAgentCreated={handleAgentCreated}
+        userWallet={walletAddress}
       />
 
       {selectedAgent && (
