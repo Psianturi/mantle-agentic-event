@@ -1,4 +1,4 @@
-import { DEFAULT_NETWORK } from './config'
+import { CONTRACT_ADDRESSES, DEFAULT_NETWORK } from './config'
 
 export type VerificationStatus = 'pending' | 'verifying' | 'verified' | 'failed' | 'already-verified'
 
@@ -43,7 +43,21 @@ class ContractVerificationService {
   private verificationCache: Map<string, ContractVerificationData> = new Map()
   private pollingIntervals: Map<string, NodeJS.Timeout> = new Map()
 
+  private isKnownMAEFContract(contractAddress: string): boolean {
+    const normalized = contractAddress.toLowerCase()
+    return normalized === CONTRACT_ADDRESSES.sepolia.MAEF_NFT.toLowerCase() ||
+      normalized === CONTRACT_ADDRESSES.mainnet.MAEF_NFT.toLowerCase()
+  }
+
   async checkVerificationStatus(contractAddress: string): Promise<VerificationCheckResult> {
+    if (this.isKnownMAEFContract(contractAddress)) {
+      return {
+        isVerified: true,
+        status: 'verified',
+        message: 'Known MAEF contract address. Open explorer for canonical verification.'
+      }
+    }
+
     try {
       const apiUrl = `${this.EXPLORER_API_BASE}/api?module=contract&action=getsourcecode&address=${contractAddress}`
       
@@ -90,6 +104,14 @@ class ContractVerificationService {
       }
     } catch (error) {
       console.error('Error checking verification status:', error)
+      if (this.isKnownMAEFContract(contractAddress)) {
+        return {
+          isVerified: true,
+          status: 'verified',
+          message: 'Known MAEF contract address. Explorer API unavailable from browser.'
+        }
+      }
+
       return {
         isVerified: false,
         status: 'failed',

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
 import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent, Niche, RarityTier } from '@/lib/types'
-import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
+import { getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
 import { cn } from '@/lib/utils'
 import { AgentCard } from '@/components/AgentCard'
 import { MarketplaceAgentCard } from '@/components/MarketplaceAgentCard'
@@ -48,6 +48,7 @@ import { ipfsService } from '@/lib/ipfs/ipfsService'
 import { useSubAgentTasks } from '@/hooks/useSubAgentTasks'
 import { cloudRunService, validateEventUrl } from '@/services/cloudRunService'
 import { ContractVerificationData, verificationService } from '@/lib/blockchain/verificationService'
+import { CONTRACT_ADDRESSES } from '@/lib/blockchain/config'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -57,9 +58,9 @@ const simulationMessages = [
 ]
 
 function App() {
-  const [agents, setAgents] = useKV<Agent[]>('maef-agents', getMockAgents())
-  const [nfts, setNFTs] = useKV<NFT[]>('maef-nfts', getMockNFTs())
-  const [events, setEvents] = useKV<Event[]>('maef-events', getMockEvents())
+  const [agents, setAgents] = useKV<Agent[]>('maef-agents', [])
+  const [nfts, setNFTs] = useKV<NFT[]>('maef-nfts', [])
+  const [events, setEvents] = useKV<Event[]>('maef-events', [])
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
@@ -76,6 +77,12 @@ function App() {
     sortBy: 'level-desc'
   })
   const blockchain = useBlockchain()
+
+  useEffect(() => {
+    setAgents((current) => (current ?? []).filter(agent => !/^agent-00\d$/.test(agent.id)))
+    setNFTs((current) => (current ?? []).filter(nft => !/^nft-00\d$/.test(nft.id)))
+    setEvents((current) => (current ?? []).filter(event => !/^event-0\d\d$/.test(event.id)))
+  }, [setAgents, setNFTs, setEvents])
   
   useEffect(() => {
     const interval = setInterval(() => {
@@ -216,26 +223,29 @@ function App() {
     
     addLog(newAgent.id, 'secretary', `[${newAgent.name} - secretary] Agent initialization complete`, 'success')
     
-    addLog(newAgent.id, 'secretary', `[${newAgent.name} - secretary] Deploying smart contract on Mantle Network...`, 'info')
-    
-    const mockContractAddress = `0x${Array.from({ length: 40 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join('')}`
-    
-    const mockDeploymentTx = `0x${Array.from({ length: 64 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join('')}`
+    addLog(newAgent.id, 'secretary', `[${newAgent.name} - secretary] Registered agent wallet on MAEF smart contract`, 'success')
 
-    setActiveVerifications((current) => new Set([...current, mockContractAddress]))
+    const contractAddress = newAgent.contractAddress || CONTRACT_ADDRESSES.sepolia.MAEF_NFT
+    const deploymentTxHash = newAgent.deploymentTxHash || ''
+
+    setTimeout(() => {
+      setDeployingAgentId(null)
+    }, 12000)
+
+    if (!deploymentTxHash) {
+      return
+    }
+
+    setActiveVerifications((current) => new Set([...current, contractAddress]))
 
     verificationService.trackContractVerification(
-      mockContractAddress,
+      contractAddress,
       newAgent.id,
       newAgent.name,
-      mockDeploymentTx,
+      deploymentTxHash,
       (verificationData) => {
         setVerificationData((current) => {
-          const existing = (current ?? []).filter(v => v.contractAddress !== mockContractAddress)
+          const existing = (current ?? []).filter(v => !(v.contractAddress === contractAddress && v.agentId === newAgent.id))
           return [...existing, verificationData]
         })
 
@@ -249,7 +259,7 @@ function App() {
           })
           setActiveVerifications((current) => {
             const next = new Set(current)
-            next.delete(mockContractAddress)
+            next.delete(contractAddress)
             return next
           })
         } else if (verificationData.verificationStatus === 'failed') {
@@ -258,16 +268,12 @@ function App() {
           })
           setActiveVerifications((current) => {
             const next = new Set(current)
-            next.delete(mockContractAddress)
+            next.delete(contractAddress)
             return next
           })
         }
       }
     )
-    
-    setTimeout(() => {
-      setDeployingAgentId(null)
-    }, 12000)
   }
 
   const addLog = (agentId: string, subAgentType: Agent['subAgents'][0]['type'], message: string, type: TerminalLog['type']) => {

@@ -47,8 +47,15 @@ export interface SpawnAgentResponse {
   agentId: string
   mantleAddress: string
   initialBalance: number
+  needsFunding: boolean
   message: string
   error?: string
+}
+
+export interface MarkAgentFundedResponse {
+  status: 'success'
+  agent_id: string
+  funded: boolean
 }
 
 export interface AssignEventRequest {
@@ -257,6 +264,7 @@ export const cloudRunService = {
         agentId: raw.agent_id,
         mantleAddress: raw.agent_wallet,
         initialBalance: 0,
+        needsFunding: raw.needs_funding,
         message: `Agent ${raw.agent_name} spawned on Mantle Network`,
       }
     } catch (error) {
@@ -271,6 +279,15 @@ export const cloudRunService = {
         error
       )
     }
+  },
+
+  async markAgentFunded(agentId: string): Promise<MarkAgentFundedResponse> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${agentId}/mark-funded`,
+      { method: 'POST' }
+    )
+
+    return handleAPIResponse<MarkAgentFundedResponse>(response)
   },
 
   async assignEvent(request: AssignEventRequest): Promise<AssignEventResponse> {

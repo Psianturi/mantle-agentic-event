@@ -32,6 +32,15 @@ export interface NFTMintResult {
   gasUsed?: string
 }
 
+export interface SpawnAgentOnChainResult {
+  success: boolean
+  transactionHash?: string
+  contractAddress?: string
+  provisionAmount?: string
+  error?: string
+  gasUsed?: string
+}
+
 export class MantleBlockchainService {
   private provider: BrowserProvider | null = null
   private signer: ethers.Signer | null = null
@@ -135,6 +144,49 @@ export class MantleBlockchainService {
     }
 
     this.contract = new Contract(contractAddress, MAEF_NFT_ABI, this.signer)
+  }
+
+  getContractAddress(): string {
+    const chainId = this.currentNetwork.chainId
+    if (chainId === MANTLE_NETWORKS.mainnet.chainId) {
+      return CONTRACT_ADDRESSES.mainnet.MAEF_NFT
+    }
+
+    return CONTRACT_ADDRESSES.sepolia.MAEF_NFT
+  }
+
+  async spawnAgent(agentWallet: string): Promise<SpawnAgentOnChainResult> {
+    if (!this.contract) {
+      return {
+        success: false,
+        error: 'Contract is not initialized. Check wallet connection and VITE_NFT_CONTRACT_ADDRESS_SEPOLIA.'
+      }
+    }
+
+    try {
+      const tx = await this.contract.spawnAgent(agentWallet, {
+        value: ethers.parseEther('1'),
+      })
+
+      const receipt: TransactionReceipt = await tx.wait()
+      const gasUsed = receipt.gasUsed.toString()
+      const gasPrice = receipt.gasPrice || BigInt(0)
+      const gasCost = (Number(gasUsed) * Number(gasPrice)) / 1e18
+
+      return {
+        success: true,
+        transactionHash: receipt.hash,
+        contractAddress: this.getContractAddress(),
+        provisionAmount: '0.5',
+        gasUsed: gasCost.toFixed(6)
+      }
+    } catch (error) {
+      console.error('Agent spawn transaction error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
+    }
   }
 
   async mintNFT(params: MintNFTParams): Promise<NFTMintResult> {

@@ -6,8 +6,15 @@ export const MAEF_NFT_ABI = [
   { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256" }, { "indexed": true, "internalType": "address", "name": "agentWallet", "type": "address" }, { "indexed": false, "internalType": "string", "name": "eventTitle", "type": "string" }, { "indexed": false, "internalType": "string", "name": "agentName", "type": "string" }, { "indexed": false, "internalType": "uint256", "name": "agentLevel", "type": "uint256" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }], "name": "NFTMinted", "type": "event" },
   { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "address", "name": "agentWallet", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "newLevel", "type": "uint256" }, { "indexed": false, "internalType": "uint256", "name": "totalEvents", "type": "uint256" }], "name": "AgentLevelUp", "type": "event" },
   { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "address", "name": "agentWallet", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }], "name": "WisdomUnlocked", "type": "event" },
+  { "anonymous": false, "inputs": [{ "indexed": true, "internalType": "address", "name": "agentWallet", "type": "address" }, { "indexed": true, "internalType": "address", "name": "spawner", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "provisionAmount", "type": "uint256" }, { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }], "name": "AgentSpawned", "type": "event" },
 
   // Write functions
+  {
+    "inputs": [{ "internalType": "address", "name": "agentWallet", "type": "address" }],
+    "name": "spawnAgent",
+    "outputs": [],
+    "stateMutability": "payable", "type": "function"
+  },
   {
     "inputs": [{ "internalType": "address", "name": "agentWallet", "type": "address" }, { "internalType": "string", "name": "eventTitle", "type": "string" }, { "internalType": "string", "name": "eventUrl", "type": "string" }, { "internalType": "string", "name": "platform", "type": "string" }, { "internalType": "string", "name": "agentName", "type": "string" }, { "internalType": "string", "name": "summary", "type": "string" }, { "internalType": "string", "name": "niche", "type": "string" }],
     "name": "mintAttendanceNFT",
@@ -62,6 +69,12 @@ export const MAEF_NFT_ABI = [
     "inputs": [{ "internalType": "uint256", "name": "tokenId", "type": "uint256" }],
     "name": "tokenURI",
     "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
+    "stateMutability": "view", "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "address", "name": "agentWallet", "type": "address" }],
+    "name": "isAgentActive",
+    "outputs": [{ "internalType": "bool", "name": "", "type": "bool" }],
     "stateMutability": "view", "type": "function"
   },
   {

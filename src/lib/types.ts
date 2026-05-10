@@ -18,6 +18,9 @@ export interface Agent {
   personality: Personality
   niche: Niche
   walletAddress: string
+  contractAddress?: string
+  deploymentTxHash?: string
+  needsFunding?: boolean
   eventsAttended: number
   level: number
   status: AgentStatus

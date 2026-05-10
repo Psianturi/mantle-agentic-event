@@ -5,10 +5,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Niche, Personality, Agent, SubAgent } from '@/lib/types'
-import { createMockAgent } from '@/lib/mockData'
 import { Sparkle, Lightning, CheckCircle, XCircle } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cloudRunService } from '@/services/cloudRunService'
+import { mantleService } from '@/lib/blockchain/mantleService'
 import { toast } from 'sonner'
 
 interface SpawnAgentDialogProps {
@@ -40,7 +40,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
     
     const steps = [
       { step: 'Generating Mantle wallet address', status: 'pending' as const },
-      { step: 'Deploying smart contract on Mantle', status: 'pending' as const },
+      { step: 'Registering agent on MAEF smart contract', status: 'pending' as const },
       { step: 'Initializing sub-agent squad', status: 'pending' as const },
       { step: 'Establishing neural pathways', status: 'pending' as const },
       { step: 'Funding wallet with initial MNT', status: 'pending' as const },
@@ -65,6 +65,22 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
       })
 
       if (response.success) {
+        const fundingTx = response.needsFunding
+          ? await mantleService.spawnAgent(response.mantleAddress)
+          : {
+              success: true,
+              contractAddress: mantleService.getContractAddress(),
+              provisionAmount: '0.5',
+            }
+
+        if (!fundingTx.success) {
+          throw new Error(fundingTx.error || 'Agent funding transaction failed')
+        }
+
+        if (response.needsFunding) {
+          await cloudRunService.markAgentFunded(response.agentId)
+        }
+
         setDeploymentSteps(prev => prev.map(s => ({ ...s, status: 'complete' })))
 
         const subAgents: SubAgent[] = [
@@ -106,15 +122,21 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
           createdAt: Date.now(),
           subAgents,
           wisdomUnlocked: false,
-          mantleBalance: response.initialBalance,
-          gasSpent: 0,
+          mantleBalance: Number(fundingTx.provisionAmount ?? response.initialBalance),
+          gasSpent: fundingTx.gasUsed ? Number(fundingTx.gasUsed) : 0,
+          agentGasBalance: Number(fundingTx.provisionAmount ?? 0.5),
+          contractAddress: fundingTx.contractAddress,
+          deploymentTxHash: fundingTx.transactionHash,
+          needsFunding: false,
         }
 
         setDeployedAgent(newAgent)
         setPhase('success')
 
         toast.success('Agent deployed successfully!', {
-          description: `Smart contract deployed on Mantle Network`
+          description: fundingTx.transactionHash
+            ? 'Agent registered and funded on Mantle Network'
+            : 'Agent already registered on Mantle Network'
         })
 
         setTimeout(() => {
@@ -136,23 +158,10 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
         errorMsg = error.message
       }
       
-      if (errorMsg.includes('not responding') || errorMsg.includes('timeout')) {
-        errorMsg = 'Backend service unavailable. Using fallback mode...'
-        
-        setTimeout(() => {
-          const fallbackAgent = createMockAgent(name.trim(), personality, niche)
-          onAgentCreated(fallbackAgent)
-          handleClose()
-          toast.warning('Agent created in offline mode', {
-            description: 'Connect to backend for full functionality'
-          })
-        }, 1500)
-      } else {
-        setErrorMessage(errorMsg)
-        toast.error('Deployment failed', {
-          description: errorMsg
-        })
-      }
+      setErrorMessage(errorMsg)
+      toast.error('Deployment failed', {
+        description: errorMsg
+      })
     }
   }
 
