@@ -63,7 +63,7 @@ function App() {
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
-  const [mainView, setMainView] = useState<'dashboard' | 'analytics' | 'vault' | 'marketplace' | 'fusion-lab'>('dashboard')
+  const [mainView, setMainView] = useState<'dashboard' | 'how-it-works' | 'analytics' | 'vault' | 'marketplace' | 'fusion-lab'>('dashboard')
   const [marketplaceFilters, setMarketplaceFilters] = useState<{
     generation: number[]
     niche: Niche[]
@@ -808,6 +808,7 @@ function App() {
               <nav className="flex items-center gap-0.5 flex-1 justify-center">
                 {([
                   { view: 'dashboard', label: 'Dashboard', icon: Robot, color: 'primary' },
+                  { view: 'how-it-works', label: 'How It Works', icon: FlowArrow, color: 'primary' },
                   { view: 'analytics', label: 'Analytics', icon: ChartLine, color: 'primary' },
                   { view: 'vault', label: 'NFT Vault', icon: WalletIcon, color: 'primary' },
                   { view: 'marketplace', label: 'Marketplace', icon: Storefront, color: 'secondary' },
@@ -851,12 +852,7 @@ function App() {
                   )} />
                   {backendStatus === 'live' ? 'Live' : backendStatus === 'checking' ? '...' : 'Offline'}
                 </div>
-                {isViewOnly && (
-                  <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                    <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
-                    <p className="text-xs text-amber-500 font-semibold">View Only</p>
-                  </div>
-                )}
+
                 {walletConnected && (
                   <>
                     <GasPriceMonitor />
@@ -893,7 +889,7 @@ function App() {
                       <div className="relative flex items-center justify-between">
                         <div>
                           <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">{stat.label}</p>
-                          <p className="text-2xl font-bold bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text">{stat.value}</p>
+                          <p className="text-2xl font-bold text-foreground">{stat.value}</p>
                         </div>
                         <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center group-hover:scale-110 group-hover:border-primary/50 transition-all duration-300">
                           <stat.icon size={22} className={stat.color} weight="duotone" />
@@ -1069,6 +1065,27 @@ function App() {
             </>
           )}
 
+          {/* ── How It Works ──────────────────────────── */}
+          {mainView === 'how-it-works' && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="space-y-6"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+                  <FlowArrow className="text-primary" weight="duotone" size={22} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">How It Works</h2>
+                  <p className="text-sm text-muted-foreground">MAEF system architecture and data flow</p>
+                </div>
+              </div>
+              <ArchitectureFlow currentPhase={agents && agents.length > 0 ? (agents[0].eventsAttended >= 5 ? 4 : Math.min(Math.floor(agents[0].eventsAttended / 1.5) + 1, 3)) : 0} />
+            </motion.div>
+          )}
+
           {/* ── Analytics ─────────────────────────────── */}
           {mainView === 'analytics' && (
             <motion.div
@@ -1169,23 +1186,20 @@ function App() {
               transition={{ duration: 0.5 }}
               className="space-y-6 animate-slide-up"
             >
-              <Card className="glass-card-hover p-10 text-center border-2 border-secondary/30 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-secondary/5 via-transparent to-accent/5" />
-                <div className="relative">
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-secondary/30 to-accent/30 border-2 border-secondary/40 flex items-center justify-center animate-glow-pulse-purple shadow-2xl shadow-secondary/30">
-                    <Storefront size={40} className="text-secondary" weight="fill" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-secondary/20 border border-secondary/40 flex items-center justify-center">
+                    <Storefront className="text-secondary" weight="duotone" size={22} />
                   </div>
-                  <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-secondary via-accent to-primary bg-clip-text text-transparent">Agent Marketplace</h2>
-                  <p className="text-muted-foreground mb-4 max-w-xl mx-auto text-base">
-                    Buy pre-trained AI agents from other users. Identity is wiped, but wisdom is inherited.
-                  </p>
-                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <span className="font-semibold">{marketplaceAgents?.length ?? 0} agents available</span>
-                    <span>•</span>
-                    <span>Prices range from 1.8 - 4.5 MNT</span>
+                  <div>
+                    <h2 className="text-xl font-bold">Agent Marketplace</h2>
+                    <p className="text-sm text-muted-foreground">Buy pre-trained agents — identity wiped, wisdom inherited</p>
                   </div>
                 </div>
-              </Card>
+                <div className="text-sm text-muted-foreground font-mono">
+                  {marketplaceAgents?.length ?? 0} available · 1.8–4.5 MNT
+                </div>
+              </div>
 
               <MarketplaceFilters
                 filters={marketplaceFilters}
@@ -1229,35 +1243,33 @@ function App() {
               transition={{ duration: 0.5 }}
               className="space-y-6 animate-slide-up"
             >
-              <Card className="glass-card-hover p-10 text-center border-2 border-accent/30 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-secondary/5" />
-                <div className="relative">
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-accent/30 to-secondary/30 border-2 border-accent/40 flex items-center justify-center shadow-2xl shadow-accent/30">
-                    <Dna size={40} className="text-accent animate-pulse" weight="fill" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
+                    <Dna className="text-accent" weight="duotone" size={22} />
                   </div>
-                  <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-accent via-secondary to-primary bg-clip-text text-transparent">Neural Fusion Laboratory</h2>
-                  <p className="text-muted-foreground mb-8 max-w-xl mx-auto text-base">
-                    Merge two wisdom-unlocked agents to create powerful hybrid offspring. Genetic traits and accumulated knowledge are inherited.
-                  </p>
-                  <div className="flex flex-wrap gap-4 justify-center">
-                    <Button
-                      onClick={() => setBreedingDialogOpen(true)}
-                      disabled={isViewOnly || (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2}
-                      size="lg"
-                      className="bg-gradient-to-r from-accent to-secondary hover:opacity-90 font-semibold px-8 shadow-lg shadow-accent/30"
-                    >
-                      <Dna className="mr-2" weight="duotone" size={20} />
-                      Initiate Neural Fusion
-                    </Button>
+                  <div>
+                    <h2 className="text-xl font-bold">Neural Fusion Lab</h2>
+                    <p className="text-sm text-muted-foreground">Merge wisdom-unlocked agents to breed powerful hybrid offspring</p>
                   </div>
-                  {isViewOnly && (
-                    <p className="text-xs text-amber-500 mt-4">Connect your wallet to breed agents</p>
-                  )}
-                  {!isViewOnly && (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2 && (
-                    <p className="text-xs text-muted-foreground mt-4">You need at least 2 wisdom-unlocked agents to perform fusion</p>
-                  )}
                 </div>
-              </Card>
+                <Button
+                  onClick={() => setBreedingDialogOpen(true)}
+                  disabled={isViewOnly || (agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2}
+                  size="sm"
+                  className="bg-gradient-to-r from-accent to-secondary hover:opacity-90 font-semibold shadow-lg shadow-accent/20"
+                >
+                  <Dna className="mr-1.5" weight="duotone" size={15} />
+                  Initiate Fusion
+                </Button>
+              </div>
+              {(agents?.filter(a => a.wisdomUnlocked).length ?? 0) < 2 && (
+                <p className="text-xs text-muted-foreground">
+                  {walletConnected
+                    ? `Need ${2 - (agents?.filter(a => a.wisdomUnlocked).length ?? 0)} more wisdom-unlocked agent(s) to fuse`
+                    : 'Connect your wallet to access Fusion Lab'}
+                </p>
+              )}
 
               <div>
                 <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
