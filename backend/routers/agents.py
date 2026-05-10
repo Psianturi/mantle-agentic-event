@@ -15,6 +15,7 @@ import time
 
 from eth_account import Account
 from fastapi import APIRouter, HTTPException, Query
+from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, field_validator
 from web3 import Web3
 
@@ -152,7 +153,7 @@ async def list_agents_by_wallet(
     try:
         async for doc in (
             db.collection(AGENTS_COLLECTION)
-            .where("user_wallet", "==", wallet)
+            .where(filter=FieldFilter("user_wallet", "==", wallet))
             .stream()
         ):
             data = doc.to_dict()
