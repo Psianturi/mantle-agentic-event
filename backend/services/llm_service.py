@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 _GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1/models/"
-    "gemini-2.0-flash:generateContent"
+    "gemini-2.5-flash:generateContent"
 )
 
 # Max transcript chars sent to Gemini (~700-800 words, well within token budget)
