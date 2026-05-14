@@ -1,117 +1,75 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Agent, WisdomCard, Event } from '@/lib/types'
+import { Agent } from '@/lib/types'
 import { Brain, Download, Sparkle, TrendUp, Lightbulb } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { useKV } from '@github/spark/hooks'
+import { cloudRunService } from '@/services/cloudRunService'
 
 interface WisdomReportDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   agent: Agent
-  wisdomCard?: WisdomCard
 }
 
-export function WisdomReportDialog({ open, onOpenChange, agent, wisdomCard }: WisdomReportDialogProps) {
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [generatedReport, setGeneratedReport] = useState<WisdomCard | null>(wisdomCard || null)
-  const [events] = useKV<Event[]>('maef-events', [])
+interface WisdomReport {
+  insights: string[]
+  strategicTips: string[]
+  eventsAnalyzed: number
+  generatedAt: number
+}
 
-  useEffect(() => {
-    if (wisdomCard) {
-      setGeneratedReport(wisdomCard)
-    }
-  }, [wisdomCard])
+export function WisdomReportDialog({ open, onOpenChange, agent }: WisdomReportDialogProps) {
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [report, setReport] = useState<WisdomReport | null>(null)
 
   const generateReport = async () => {
     setIsGenerating(true)
-    toast.info('Analyzing events with AI...')
-    
+    toast.info('Analyzing events with Gemini AI...', { description: 'This may take up to 30 seconds.' })
+
     try {
-      const agentEvents = events?.filter(e => e.agentId === agent.id) || []
-      const eventSummaries = agentEvents.map(e => `${e.title}: ${e.summary}`).join('\n\n')
-
-      const promptText = `You are an AI analyst specializing in ${agent.niche}. 
-
-Analyze these ${agentEvents.length} event summaries attended by an AI agent:
-
-${eventSummaries}
-
-Generate a comprehensive wisdom report with:
-1. Five key insights about trends, patterns, and opportunities in ${agent.niche}
-2. Four strategic recommendations or actionable tips
-
-Return a JSON object with this exact structure:
-{
-  "insights": ["insight 1", "insight 2", "insight 3", "insight 4", "insight 5"],
-  "strategicTips": ["tip 1", "tip 2", "tip 3", "tip 4"]
-}
-
-Make insights data-driven, specific, and forward-looking. Make tips actionable and strategic.`
-
-      const response = await window.spark.llm(promptText, 'gpt-4o', true)
-      const data = JSON.parse(response)
-
-      const report: WisdomCard = {
-        id: `wisdom-${Date.now()}`,
-        agentId: agent.id,
-        niche: agent.niche,
-        events: agentEvents.map(e => e.id),
-        insights: data.insights || [],
-        strategicTips: data.strategicTips || [],
-        generatedAt: Date.now()
-      }
-
-      setGeneratedReport(report)
+      const result = await cloudRunService.generateWisdom(agent.id, agent.niche)
+      setReport(result)
       toast.success('Wisdom Report Generated!', {
-        description: 'AI analysis complete'
+        description: `Analyzed ${result.eventsAnalyzed} event${result.eventsAnalyzed !== 1 ? 's' : ''}`
       })
     } catch (error) {
-      console.error('Failed to generate wisdom report:', error)
-      toast.error('Failed to generate report', {
-        description: 'Using fallback analysis'
-      })
-
-      const fallbackReport: WisdomCard = {
-        id: `wisdom-${Date.now()}`,
-        agentId: agent.id,
-        niche: agent.niche,
-        events: ['fallback'],
-        insights: [
-          `${agent.niche} sector shows strong momentum with increased activity`,
-          'Cross-analysis reveals emerging patterns and opportunities',
-          'Strategic opportunities identified across multiple events',
-          'Market sentiment indicates positive trend continuation',
-          'Risk-adjusted metrics suggest favorable conditions ahead'
-        ],
-        strategicTips: [
-          'Diversify exposure across multiple protocols and platforms',
-          'Monitor emerging trends for early positioning opportunities',
-          'Implement strategic timing for optimal entry points',
-          'Leverage cross-platform opportunities for enhanced returns'
-        ],
-        generatedAt: Date.now()
-      }
-
-      setGeneratedReport(fallbackReport)
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      toast.error('Failed to generate report', { description: msg })
     } finally {
       setIsGenerating(false)
     }
   }
 
   const downloadReport = () => {
-    toast.success('Report Downloaded!', {
-      description: 'Saved to your downloads folder'
-    })
+    if (!report) return
+    const content = [
+      `MAEF Wisdom Report — ${agent.name}`,
+      `Niche: ${agent.niche}`,
+      `Events Analyzed: ${report.eventsAnalyzed}`,
+      `Generated: ${new Date(report.generatedAt).toLocaleString()}`,
+      '',
+      'KEY INSIGHTS',
+      ...report.insights.map((s, i) => `${i + 1}. ${s}`),
+      '',
+      'STRATEGIC RECOMMENDATIONS',
+      ...report.strategicTips.map((s, i) => `${i + 1}. ${s}`),
+    ].join('\n')
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `wisdom-${agent.name.replace(/\s+/g, '-')}.txt`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto glass-card border-2 border-amber-500/50 bg-gradient-to-br from-background via-amber-500/5 to-background">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,215,0,0.15),transparent_50%),radial-gradient(ellipse_at_bottom_left,rgba(255,140,0,0.15),transparent_50%)] pointer-events-none" />
-        
+
         <DialogHeader className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center animate-glow-pulse-gold shadow-2xl shadow-amber-500/50">
@@ -130,14 +88,14 @@ Make insights data-driven, specific, and forward-looking. Make tips actionable a
         </DialogHeader>
 
         <div className="relative z-10 space-y-6 mt-6">
-          {!generatedReport ? (
+          {!report ? (
             <div className="text-center py-12">
               <div className="w-24 h-24 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-amber-400/20 to-orange-500/20 border-2 border-amber-500/40 flex items-center justify-center">
                 <Sparkle size={48} className="text-amber-500" weight="fill" />
               </div>
               <h3 className="text-xl font-bold mb-3">Generate Strategic Wisdom</h3>
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                Unlock deep insights by analyzing patterns across all attended events. This will generate a comprehensive strategic report.
+                Unlock deep insights by analyzing patterns across all attended events. Powered by Gemini AI with real event data.
               </p>
               <Button
                 onClick={generateReport}
@@ -161,7 +119,7 @@ Make insights data-driven, specific, and forward-looking. Make tips actionable a
                   <h3 className="text-lg font-bold">Key Insights</h3>
                 </div>
                 <ul className="space-y-3">
-                  {generatedReport.insights.map((insight, idx) => (
+                  {report.insights.map((insight, idx) => (
                     <motion.li
                       key={idx}
                       initial={{ opacity: 0, x: -20 }}
@@ -184,12 +142,12 @@ Make insights data-driven, specific, and forward-looking. Make tips actionable a
                   <h3 className="text-lg font-bold">Strategic Recommendations</h3>
                 </div>
                 <ul className="space-y-3">
-                  {generatedReport.strategicTips.map((tip, idx) => (
+                  {report.strategicTips.map((tip, idx) => (
                     <motion.li
                       key={idx}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: (generatedReport.insights.length * 0.1) + (idx * 0.1) }}
+                      transition={{ delay: (report.insights.length * 0.1) + (idx * 0.1) }}
                       className="flex items-start gap-3 text-sm"
                     >
                       <Sparkle size={20} className="text-orange-500 flex-shrink-0 mt-1" weight="fill" />
@@ -201,9 +159,11 @@ Make insights data-driven, specific, and forward-looking. Make tips actionable a
 
               <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
                 <div className="text-sm">
-                  <p className="font-semibold text-foreground">Report Generated</p>
+                  <p className="font-semibold text-foreground">
+                    Analyzed {report.eventsAnalyzed} event{report.eventsAnalyzed !== 1 ? 's' : ''}
+                  </p>
                   <p className="text-muted-foreground font-mono text-xs">
-                    {new Date(generatedReport.generatedAt).toLocaleString()}
+                    {new Date(report.generatedAt).toLocaleString()}
                   </p>
                 </div>
                 <Button

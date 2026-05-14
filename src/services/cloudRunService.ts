@@ -518,29 +518,32 @@ export const cloudRunService = {
     }
   },
 
-  async generateWisdom(request: GenerateWisdomRequest): Promise<GenerateWisdomResponse> {
+  async generateWisdom(agentId: string, niche: string): Promise<{ insights: string[]; strategicTips: string[]; eventsAnalyzed: number; generatedAt: number }> {
     try {
       const response = await fetchWithTimeout(
-        `${GCP_BACKEND_URL}/api/agents/${request.agentId}/wisdom`,
-        {
-          method: 'POST',
-          body: JSON.stringify(request),
-        },
-        90000
+        `${GCP_BACKEND_URL}/api/v1/agent/${agentId}/wisdom`,
+        { method: 'POST' },
+        60000
       )
 
-      return handleAPIResponse<GenerateWisdomResponse>(response)
-    } catch (error) {
-      if (error instanceof CloudRunAPIError) {
-        throw error
+      const raw = await handleAPIResponse<{
+        agent_id: string
+        niche: string
+        events_analyzed: number
+        insights: string[]
+        strategic_tips: string[]
+        generated_at: number
+      }>(response)
+
+      return {
+        insights: raw.insights,
+        strategicTips: raw.strategic_tips,
+        eventsAnalyzed: raw.events_analyzed,
+        generatedAt: raw.generated_at * 1000,
       }
-
-      console.error('Error generating wisdom:', error)
-      throw new CloudRunAPIError(
-        'Failed to generate wisdom report',
-        undefined,
-        error
-      )
+    } catch (error) {
+      if (error instanceof CloudRunAPIError) throw error
+      throw new CloudRunAPIError('Failed to generate wisdom report', undefined, error)
     }
   },
 

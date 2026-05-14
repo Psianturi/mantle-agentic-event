@@ -59,8 +59,8 @@ const simulationMessages = [
 
 function App() {
   const [agents, setAgents] = useState<Agent[]>([])
-  const [nfts, setNFTs] = useLocalStorage<NFT[]>('maef-nfts', [])
-  const [events, setEvents] = useLocalStorage<Event[]>('maef-events', [])
+  const [nfts, setNFTs] = useState<NFT[]>([])
+  const [events, setEvents] = useState<Event[]>([])
   const [mockAgents, setMockAgents] = useState<Agent[]>(() => getMockAgents())
   const [mockNFTs, setMockNFTs] = useState<NFT[]>(() => getMockNFTs())
   const [mockEvents, setMockEvents] = useState<Event[]>(() => getMockEvents())
@@ -266,6 +266,8 @@ function App() {
     setWalletConnected(false)
     setWalletAddress(undefined)
     setAgents([])
+    setNFTs([])
+    setEvents([])
     toast.info('Wallet disconnected')
   }
 

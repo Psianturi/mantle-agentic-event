@@ -3,6 +3,7 @@ POST /api/v1/agent/spawn          — Spawn a new autonomous AI agent with its o
 GET  /api/v1/agent/list           — List all agents owned by a wallet address.
 GET  /api/v1/agent/{agent_id}     — Get agent details.
 POST /api/v1/agent/{agent_id}/mark-funded — Mark agent as funded on-chain.
+POST /api/v1/agent/{agent_id}/wisdom      — Generate wisdom report from agent's events.
 
 All agent state is persisted in Firestore (collection: "agents").
 This ensures agent wallets and private keys survive Cloud Run cold starts.
@@ -20,6 +21,7 @@ from pydantic import BaseModel, field_validator
 from web3 import Web3
 
 from core.database import get_db
+from services.llm_service import generate_wisdom_report
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/agent", tags=["agents"])
@@ -236,3 +238,64 @@ async def get_agent_private_key(agent_id: str) -> str:
         raise ValueError(f"Agent '{agent_id}' has no private key stored")
 
     return private_key
+
+
+EVENTS_COLLECTION = "agent_events"
+
+
+@router.post("/{agent_id}/wisdom")
+async def generate_agent_wisdom(agent_id: str) -> dict:
+    """
+    Generate a Wisdom Report by analysing all events the agent has attended.
+    Reads event summaries from Firestore and calls Gemini for analysis.
+    """
+    db = get_db()
+
+    # Fetch agent to get niche
+    try:
+        agent_doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if not agent_doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    agent_data = agent_doc.to_dict() or {}
+    niche = agent_data.get("niche", "Blockchain/DeFi")
+
+    # Fetch all event records for this agent
+    summaries: list[str] = []
+    event_titles: list[str] = []
+    try:
+        async for doc in (
+            db.collection(EVENTS_COLLECTION)
+            .where(filter=FieldFilter("agent_id", "==", agent_id))
+            .stream()
+        ):
+            data = doc.to_dict() or {}
+            title = data.get("event_title", "")
+            summary = data.get("wisdom_summary", "")
+            if title and summary:
+                summaries.append(f"{title}: {summary}")
+                event_titles.append(title)
+    except Exception as exc:
+        logger.error("Firestore event query failed for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if not summaries:
+        raise HTTPException(
+            status_code=422,
+            detail="No attended events found for this agent. Attend at least one event first.",
+        )
+
+    report = await generate_wisdom_report(niche=niche, event_summaries=summaries)
+
+    return {
+        "agent_id": agent_id,
+        "niche": niche,
+        "events_analyzed": len(summaries),
+        "event_titles": event_titles,
+        "insights": report["insights"],
+        "strategic_tips": report["strategic_tips"],
+        "generated_at": time.time(),
+    }

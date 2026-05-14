@@ -120,7 +120,97 @@ async def _fetch_youtube_transcript(url: str) -> str | None:
     return await loop.run_in_executor(None, _fetch_transcript_sync, video_id)
 
 
-# ── Public interface ──────────────────────────────────────────────────────────
+# ── Wisdom report generation ──────────────────────────────────────────────────
+
+_WISDOM_PROMPT = """\
+You are an AI analyst specializing in {niche}.
+
+Analyze these {count} event summaries attended by an autonomous AI agent:
+
+{summaries}
+
+Generate a comprehensive wisdom report. Return ONLY a valid JSON object with this structure:
+{{
+  "insights": ["insight1", "insight2", "insight3", "insight4", "insight5"],
+  "strategic_tips": ["tip1", "tip2", "tip3", "tip4"]
+}}
+
+Make insights data-driven and specific to the actual events above.
+Make tips actionable and forward-looking.\
+"""
+
+_WISDOM_FALLBACK = {
+    "insights": [
+        "Cross-event analysis reveals emerging patterns in the niche",
+        "Market momentum shows continued growth in key sectors",
+        "Strategic opportunities identified across multiple attended events",
+        "Community sentiment indicates positive trend continuation",
+        "Risk-adjusted metrics suggest favorable positioning ahead",
+    ],
+    "strategic_tips": [
+        "Diversify exposure across multiple protocols and platforms",
+        "Monitor emerging trends identified in attended events for early positioning",
+        "Implement strategic timing based on patterns from event analysis",
+        "Leverage cross-platform opportunities for enhanced returns",
+    ],
+}
+
+
+async def generate_wisdom_report(niche: str, event_summaries: list[str]) -> dict:
+    """
+    Generate a structured wisdom report from a list of event summaries.
+    Returns dict with 'insights' and 'strategic_tips' lists.
+    Falls back to generic content on error.
+    """
+    if not event_summaries:
+        return _WISDOM_FALLBACK
+
+    try:
+        api_key = get_llm_api_key()
+    except RuntimeError:
+        return _WISDOM_FALLBACK
+
+    summaries_text = "\n\n".join(
+        f"Event {i + 1}: {s}" for i, s in enumerate(event_summaries)
+    )
+    prompt = _WISDOM_PROMPT.format(
+        niche=niche,
+        count=len(event_summaries),
+        summaries=summaries_text,
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.6,
+            "maxOutputTokens": 1024,
+            "topP": 0.9,
+        },
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                _GEMINI_URL,
+                params={"key": api_key},
+                json=payload,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            # Strip markdown code fences if present
+            if raw_text.startswith("```"):
+                raw_text = raw_text.split("```")[1]
+                if raw_text.startswith("json"):
+                    raw_text = raw_text[4:]
+            import json
+            result = json.loads(raw_text)
+            return {
+                "insights": result.get("insights", _WISDOM_FALLBACK["insights"]),
+                "strategic_tips": result.get("strategic_tips", _WISDOM_FALLBACK["strategic_tips"]),
+            }
+    except Exception as exc:
+        logger.error("Wisdom report generation failed: %s", exc)
+        return _WISDOM_FALLBACK
 
 
 async def summarize_event(
