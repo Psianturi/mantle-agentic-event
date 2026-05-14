@@ -13,7 +13,7 @@ import time
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException
-from google.cloud.firestore_v1 import AsyncIncrement
+from google.cloud.firestore_v1 import Increment
 from pydantic import BaseModel, field_validator
 from web3 import Web3
 
@@ -176,7 +176,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 if level_up and new_level <= current_level:
                     new_level = current_level + 1
                 update_payload: dict = {
-                    "total_events": AsyncIncrement(1),
+                    "total_events": Increment(1),
                     "level": new_level,
                 }
                 await agent_ref.update(update_payload)
