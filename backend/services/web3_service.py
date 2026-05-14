@@ -179,6 +179,7 @@ class Web3Service:
             gas_limit = int(gas_estimate * 1.2)
         except Exception as exc:
             exc_str = str(exc)
+            actual_signing_mode = "B" if using_agent_key else "A"
             if using_agent_key and any(
                 s in exc_str for s in ("0xe2517d3f", "AccessControl", "MINTER_ROLE")
             ):
@@ -188,6 +189,7 @@ class Web3Service:
                 signer = Account.from_key(private_key)
                 signer_address = signer.address
                 nonce = w3.eth.get_transaction_count(signer_address, "pending")
+                actual_signing_mode = "A"
                 try:
                     gas_estimate = fn_call.estimate_gas({"from": signer_address})
                     gas_limit = int(gas_estimate * 1.2)
@@ -197,6 +199,8 @@ class Web3Service:
             else:
                 logger.warning("Gas estimation failed, using default 300 000: %s", exc)
                 gas_limit = 300_000
+        else:
+            actual_signing_mode = "B" if using_agent_key else "A"
 
         raw_tx = fn_call.build_transaction(
             {
@@ -229,6 +233,7 @@ class Web3Service:
             "block_number": receipt["blockNumber"],
             "status": "success" if receipt["status"] == 1 else "failed",
             "level_up": level_up,
+            "signing_mode": actual_signing_mode,
         }
 
     def _sync_total_minted(self) -> int:

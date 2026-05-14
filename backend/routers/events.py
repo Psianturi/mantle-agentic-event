@@ -294,6 +294,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     tx_hash = mint_result.get("tx_hash")
     success = mint_result.get("status") == "success"
     level_up = mint_result.get("level_up", False)
+    signing_mode = mint_result.get("signing_mode", "B" if req.mode_b else "A")
     explorer_base = _resolve_explorer_base()
 
     # ── Update agent stats in Firestore ───────────────────────────────────
@@ -315,7 +316,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 
                 # Track autonomous signatures for Agency Score
                 autonomous_sigs = data.get("autonomous_signatures", 0)
-                if req.mode_b:
+                if signing_mode == "B":
                     autonomous_sigs += 1
                 
                 update_payload: dict = {
@@ -328,7 +329,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 logger.info(
                     "Agent %s stats updated: total_events=%d level=%d mode=%s autonomous_sigs=%d",
                     req.agent_id, current_events, new_level, 
-                    ("B" if req.mode_b else "A"), autonomous_sigs
+                    signing_mode, autonomous_sigs
                 )
             else:
                 logger.warning("Agent %s not found in Firestore — skipping stat update", req.agent_id)
@@ -350,7 +351,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "gas_used": str(mint_result.get("gas_used", "")),
                 "block_number": mint_result.get("block_number"),
                 "attended_at": time.time(),
-                "mode": "B" if req.mode_b else "A",  # Track which mode was used
+                "mode": signing_mode,  # Track the actual signing mode used
             }
             await db.collection(EVENTS_COLLECTION).add(event_doc)
         except Exception as exc:

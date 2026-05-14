@@ -18,6 +18,8 @@ import httpx
 from core.secrets import get_llm_api_key
 
 logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 _GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1/models/"
@@ -209,7 +211,7 @@ async def generate_wisdom_report(niche: str, event_summaries: list[str]) -> dict
                 "strategic_tips": result.get("strategic_tips", _WISDOM_FALLBACK["strategic_tips"]),
             }
     except Exception as exc:
-        logger.error("Wisdom report generation failed: %s", exc)
+        logger.error("Wisdom report generation failed: %s", exc.__class__.__name__)
         return _WISDOM_FALLBACK
 
 
@@ -256,7 +258,7 @@ async def chat_with_agent(
             data = resp.json()
             return data["candidates"][0]["content"]["parts"][0]["text"].strip()
     except Exception as exc:
-        logger.error("Agent chat LLM error: %s", exc)
+        logger.error("Agent chat LLM error: %s", exc.__class__.__name__)
         return (
             f"I apologize, I'm having trouble connecting right now. "
             f"As your {personality.lower()} agent focused on {niche}, "
@@ -338,9 +340,14 @@ async def summarize_event(
     except httpx.TimeoutException:
         logger.warning("Gemini timeout for '%s', using fallback", event_title)
     except httpx.HTTPStatusError as exc:
-        logger.error("Gemini HTTP %s for '%s': %s", exc.response.status_code, event_title, exc)
+        logger.error(
+            "Gemini HTTP %s for '%s': %s",
+            exc.response.status_code,
+            event_title,
+            exc.response.text[:200],
+        )
     except Exception as exc:
-        logger.error("Unexpected LLM error for '%s': %s", event_title, exc)
+        logger.error("Unexpected LLM error for '%s': %s", event_title, exc.__class__.__name__)
 
     return _FALLBACK_TEMPLATE.format(
         agent_name=agent_name, event_title=event_title, platform=platform
