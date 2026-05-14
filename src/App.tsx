@@ -203,8 +203,19 @@ function App() {
       // Load agents persisted in Firestore for this wallet
       const cloudAgents = await cloudRunService.getAgentsByWallet(connectedAddress)
       if (cloudAgents.length > 0) {
-        setAgents(cloudAgents)
-        toast.info(`Loaded ${cloudAgents.length} agent${cloudAgents.length > 1 ? 's' : ''} from cloud`, {
+        // Enrich with live gas balance from RPC (best-effort, non-blocking)
+        const enriched = await Promise.all(
+          cloudAgents.map(async (a) => {
+            try {
+              const balStr = await blockchain.getBalance(a.walletAddress)
+              return { ...a, agentGasBalance: parseFloat(balStr) }
+            } catch {
+              return a
+            }
+          })
+        )
+        setAgents(enriched)
+        toast.info(`Loaded ${enriched.length} agent${enriched.length > 1 ? 's' : ''} from cloud`, {
           description: 'Your agents are ready'
         })
       }
@@ -429,8 +440,9 @@ function App() {
         imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT',
       }
 
-      const newEventsAttended = agent.eventsAttended + 1
-      const newLevel = result.levelUp ? agent.level + 1 : agent.level
+      // Use authoritative stats from backend (Firestore-persisted), fallback to local increment
+      const newEventsAttended = result.newTotalEvents ?? (agent.eventsAttended + 1)
+      const newLevel = result.newLevel ?? (result.levelUp ? agent.level + 1 : agent.level)
 
       setEvents(c => [...(c ?? []), newEvent])
       setNFTs(c => [...(c ?? []), newNFT])

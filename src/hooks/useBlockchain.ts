@@ -95,6 +95,10 @@ export function useBlockchain() {
     return mantleService.getAddressExplorerUrl(address)
   }, [])
 
+  const getBalance = useCallback(async (address: string): Promise<string> => {
+    return mantleService.getBalance(address)
+  }, [])
+
   return {
     ...state,
     connectWallet,
@@ -103,6 +107,7 @@ export function useBlockchain() {
     estimateGas,
     refreshBalance,
     getExplorerUrl,
-    getAddressExplorerUrl
+    getAddressExplorerUrl,
+    getBalance,
   }
 }

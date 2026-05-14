@@ -121,6 +121,8 @@ export interface AttendEventResponse {
   blockNumber: number
   explorerUrl: string
   levelUp: boolean
+  newTotalEvents?: number
+  newLevel?: number
 }
 
 export interface GenerateWisdomRequest {
@@ -430,6 +432,8 @@ export const cloudRunService = {
         block_number: number | null
         explorer_url: string | null
         level_up: boolean
+        new_total_events: number | null
+        new_level: number | null
       }>(response)
 
       if (!raw.success) {
@@ -445,6 +449,8 @@ export const cloudRunService = {
         blockNumber: raw.block_number ?? 0,
         explorerUrl: raw.explorer_url ?? `https://explorer.sepolia.mantle.xyz`,
         levelUp: raw.level_up,
+        newTotalEvents: raw.new_total_events ?? undefined,
+        newLevel: raw.new_level ?? undefined,
       }
     } catch (error) {
       if (error instanceof CloudRunAPIError) throw error
