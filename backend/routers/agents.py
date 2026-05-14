@@ -56,6 +56,16 @@ class SpawnResponse(BaseModel):
     total_events: int
     created_at: float
     needs_funding: bool  # True if agent needs spawnAgent() call on-chain
+    custom_instructions: str | None = None
+    auto_scout_enabled: bool | None = None
+    custom_agenda: str | None = None
+    generation: int | None = None
+    parent_ids: list[str] | None = None
+    breeding_count: int | None = None
+    max_breedings: int | None = None
+    genetic_traits: list[str] | None = None
+    last_breeding_time: float | None = None
+    breeding_cooldown_hours: int | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -73,7 +83,30 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         total_events=data.get("total_events", 0),
         created_at=data.get("created_at", 0.0),
         needs_funding=needs_funding,
+        custom_instructions=data.get("custom_instructions"),
+        auto_scout_enabled=data.get("auto_scout_enabled"),
+        custom_agenda=data.get("custom_agenda"),
+        generation=data.get("generation"),
+        parent_ids=data.get("parent_ids"),
+        breeding_count=data.get("breeding_count"),
+        max_breedings=data.get("max_breedings"),
+        genetic_traits=data.get("genetic_traits"),
+        last_breeding_time=data.get("last_breeding_time"),
+        breeding_cooldown_hours=data.get("breeding_cooldown_hours"),
     )
+
+
+class UpdateAgentStateRequest(BaseModel):
+    custom_instructions: str | None = None
+    auto_scout_enabled: bool | None = None
+    custom_agenda: str | None = None
+    generation: int | None = None
+    parent_ids: list[str] | None = None
+    breeding_count: int | None = None
+    max_breedings: int | None = None
+    genetic_traits: list[str] | None = None
+    last_breeding_time: float | None = None
+    breeding_cooldown_hours: int | None = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -214,6 +247,38 @@ async def mark_agent_funded(agent_id: str) -> dict:
 
     logger.info("Agent %s marked as funded in Firestore", agent_id)
     return {"status": "success", "agent_id": agent_id, "funded": True}
+
+
+@router.patch("/{agent_id}/state")
+async def update_agent_state(agent_id: str, req: UpdateAgentStateRequest) -> dict:
+    """Persist frontend-owned agent state so it survives refresh/reconnect."""
+    db = get_db()
+    doc_ref = db.collection(AGENTS_COLLECTION).document(agent_id)
+
+    try:
+        doc = await doc_ref.get()
+    except Exception as exc:
+        logger.error("Firestore read failed for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    payload = req.model_dump(exclude_none=True)
+    if not payload:
+        return {"status": "noop", "agent_id": agent_id, "updated_fields": []}
+
+    try:
+        await doc_ref.update(payload)
+    except Exception as exc:
+        logger.error("Firestore update failed for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=503, detail="Failed to update agent state")
+
+    return {
+        "status": "success",
+        "agent_id": agent_id,
+        "updated_fields": sorted(payload.keys()),
+    }
 
 
 async def get_agent_private_key(agent_id: str) -> str:

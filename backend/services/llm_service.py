@@ -181,7 +181,7 @@ async def generate_wisdom_report(niche: str, event_summaries: list[str]) -> dict
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.6,
+            "temperature": 0.62,
             "maxOutputTokens": 1024,
             "topP": 0.9,
         },
@@ -263,6 +263,8 @@ async def chat_with_agent(
             f"I'm ready to share insights from the {events_attended} events I've attended. "
             "Please try again."
         )
+
+async def summarize_event(
     event_title: str,
     event_url: str,
     platform: str,
