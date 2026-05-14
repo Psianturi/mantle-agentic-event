@@ -19,6 +19,9 @@ google-cloud-firestore>=2.16.0,<3.0.0
 # HTTP client (async, used by llm_service)
 httpx>=0.26.0,<0.30.0
 
+# YouTube transcript extraction (no API key required)
+youtube-transcript-api>=0.6.0,<1.0.0
+
 # Data validation
 pydantic>=2.5.0,<3.0.0
 pydantic-settings>=2.2.0,<3.0.0
