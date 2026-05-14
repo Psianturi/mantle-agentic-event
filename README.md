@@ -58,7 +58,7 @@ MAEF is a cutting-edge SaaS platform built on the Mantle Network that enables us
 
 ### Development Guidelines
 - [Daily Analysis Report](./DAILY_ANALYSIS.md) - Current status and improvement recommendations
-- [Summary (Bahasa Indonesia)](./SUMMARY_ID.md) - Ringkasan analisis dan rekomendasi
+- [Summary Report](./SUMMARY_ID.md) - Analysis summary and recommendations
 - [Commit Message Guidelines](./COMMIT_GUIDELINES.md) - Professional commit standards (English)
 - [Pre-Commit Checklist](./PRE_COMMIT_CHECKLIST.md) - Quality assurance before every commit
 - [Dependency Update Guide](./DEPENDENCY_UPDATE_GUIDE.md) - How to handle pending dependency updates

@@ -393,7 +393,7 @@ function App() {
     }
     const urlValidation = validateEventUrl(eventUrl.trim())
     if (!urlValidation.valid) {
-      toast.error(urlValidation.error || 'URL tidak valid')
+      toast.error(urlValidation.error || 'Invalid URL')
       return
     }
 

@@ -49,6 +49,13 @@ _MANTLE_EXPLORER_BY_CHAIN: dict[int, str] = {
 }
 
 
+def _resolve_explorer_base() -> str:
+    configured = settings.mantle_explorer_url.strip()
+    if configured:
+        return configured.rstrip("/")
+    return _MANTLE_EXPLORER_BY_CHAIN.get(settings.chain_id, _MANTLE_EXPLORER_BY_CHAIN[5003])
+
+
 # ── Request / Response models ─────────────────────────────────────────────────
 
 
@@ -126,9 +133,7 @@ async def list_events_by_wallet(
     wallet = Web3.to_checksum_address(wallet)
 
     db = get_db()
-    explorer_base = _MANTLE_EXPLORER_BY_CHAIN.get(
-        settings.chain_id, "https://explorer.sepolia.mantle.xyz"
-    )
+    explorer_base = _resolve_explorer_base()
 
     agent_ids: list[str] = []
     try:
@@ -250,9 +255,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     tx_hash = mint_result.get("tx_hash")
     success = mint_result.get("status") == "success"
     level_up = mint_result.get("level_up", False)
-    explorer_base = _MANTLE_EXPLORER_BY_CHAIN.get(
-        settings.chain_id, "https://explorer.sepolia.mantle.xyz"
-    )
+    explorer_base = _resolve_explorer_base()
 
     # ── Update agent stats in Firestore ───────────────────────────────────
     new_total_events: int | None = None

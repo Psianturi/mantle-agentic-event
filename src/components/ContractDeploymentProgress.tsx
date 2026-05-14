@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle, XCircle, ArrowRight, Clock, Cube, Lightning } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Agent } from '@/lib/types'
+import { config as appConfig } from '@/lib/config'
 
 interface DeploymentStep {
   id: string
@@ -24,6 +25,8 @@ interface ContractDeploymentProgressProps {
 }
 
 export function ContractDeploymentProgress({ agent, isDeploying, onComplete }: ContractDeploymentProgressProps) {
+  const explorerBaseUrl = appConfig.blockchain.explorerUrl
+
   const [steps, setSteps] = useState<DeploymentStep[]>([
     { id: 'wallet', label: 'Generating Mantle wallet', status: 'pending' },
     { id: 'contract', label: 'Compiling smart contract', status: 'pending' },
@@ -67,7 +70,7 @@ export function ContractDeploymentProgress({ agent, isDeploying, onComplete }: C
 
       setTimeout(() => {
         const mockGas = (Math.random() * 0.002 + 0.001).toFixed(6)
-        const mockTxHash = `0x${Math.random().toString(16).slice(2, 18)}...`
+        const mockTxHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
 
         setSteps(prev => prev.map((s, idx) => 
           idx === stepIndex 
@@ -210,7 +213,7 @@ export function ContractDeploymentProgress({ agent, isDeploying, onComplete }: C
                         size="sm"
                         variant="ghost"
                         className="h-7 px-2 text-xs font-mono hover:bg-primary/10"
-                        onClick={() => window.open(`https://explorer.mantle.xyz/tx/${step.transactionHash}`, '_blank')}
+                        onClick={() => window.open(`${explorerBaseUrl}/tx/${step.transactionHash}`, '_blank')}
                       >
                         <span className="truncate max-w-[200px]">{step.transactionHash}</span>
                         <ArrowRight size={12} className="ml-1 flex-shrink-0" />
@@ -245,7 +248,7 @@ export function ContractDeploymentProgress({ agent, isDeploying, onComplete }: C
                 size="sm"
                 variant="outline"
                 className="text-xs"
-                onClick={() => window.open(`https://explorer.mantle.xyz/address/${agent.walletAddress}`, '_blank')}
+                onClick={() => window.open(`${explorerBaseUrl}/address/${agent.walletAddress}`, '_blank')}
               >
                 View on Explorer
                 <ArrowRight size={14} className="ml-1" />

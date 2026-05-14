@@ -213,7 +213,56 @@ async def generate_wisdom_report(niche: str, event_summaries: list[str]) -> dict
         return _WISDOM_FALLBACK
 
 
-async def summarize_event(
+async def chat_with_agent(
+    agent_name: str,
+    personality: str,
+    niche: str,
+    events_attended: int,
+    message: str,
+    conversation_history: list[str],
+) -> str:
+    """
+    Generate a contextual chat reply from the agent using Gemini.
+    Falls back to a canned reply if the API is unavailable.
+    """
+    history_text = "\n\n".join(conversation_history[-6:]) if conversation_history else ""
+    prompt = (
+        f"You are {agent_name}, an AI agent with a {personality.lower()} personality "
+        f"specializing in {niche}. You have attended {events_attended} events and gained "
+        f"deep insights in your domain.\n\n"
+        + (f"Previous conversation:\n{history_text}\n\n" if history_text else "")
+        + f"User: {message}\n\n"
+        "Respond naturally and helpfully, drawing on your expertise. "
+        "Keep the response conversational but informative, under 150 words."
+    )
+
+    try:
+        api_key = get_llm_api_key()
+    except RuntimeError:
+        return (
+            f"I'm {agent_name}, your {personality.lower()} agent focused on {niche}. "
+            "I'm currently unable to connect to my AI backend. Please try again later."
+        )
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 300, "topP": 0.9},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(_GEMINI_URL, params={"key": api_key}, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception as exc:
+        logger.error("Agent chat LLM error: %s", exc)
+        return (
+            f"I apologize, I'm having trouble connecting right now. "
+            f"As your {personality.lower()} agent focused on {niche}, "
+            f"I'm ready to share insights from the {events_attended} events I've attended. "
+            "Please try again."
+        )
     event_title: str,
     event_url: str,
     platform: str,

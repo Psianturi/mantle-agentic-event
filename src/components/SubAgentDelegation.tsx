@@ -10,7 +10,6 @@ import { User, FileText, ChatCircle, Coin, Robot, ArrowRight, Circle, CheckCircl
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { SubAgentAnalytics, SubAgentHistoricalData } from './SubAgentAnalytics'
-import { useKV } from '@github/spark/hooks'
 
 interface SubAgentTask {
   id: string
@@ -122,7 +121,7 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
   const [selectedAgentId, setSelectedAgentId] = useState<string>(agents[0]?.id || '')
   const [activePulse, setActivePulse] = useState<SubAgentType | null>(null)
   const [taskQueue, setTaskQueue] = useState<SubAgentTask[]>(currentTasks)
-  const [historicalData, setHistoricalData] = useKV<Record<string, SubAgentHistoricalData>>('sub-agent-analytics', {})
+  const [historicalData, setHistoricalData] = useState<Record<string, SubAgentHistoricalData>>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | SubAgentTask['status']>('all')
   const [subAgentFilter, setSubAgentFilter] = useState<'all' | SubAgentType>('all')

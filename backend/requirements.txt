@@ -15,6 +15,7 @@ eth-abi>=4.0.0,<6.0.0a0
 # GCP
 google-cloud-secret-manager>=2.18.0,<3.0.0
 google-cloud-firestore>=2.16.0,<3.0.0
+google-cloud-kms>=2.21.0,<3.0.0
 
 # HTTP client (async, used by llm_service)
 httpx>=0.26.0,<0.30.0

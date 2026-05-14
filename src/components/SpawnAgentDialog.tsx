@@ -34,6 +34,12 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
 
   const handleSpawn = async () => {
     if (!name.trim()) return
+    if (!userWallet) {
+      toast.error('Wallet is not connected', {
+        description: 'Connect your wallet before spawning an agent.'
+      })
+      return
+    }
 
     setPhase('spawning')
     setErrorMessage('')

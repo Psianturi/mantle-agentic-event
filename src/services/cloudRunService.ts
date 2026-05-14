@@ -1,4 +1,5 @@
 import { Agent, Event, Niche, Personality, SubAgentType } from '@/lib/types'
+import { config as appConfig } from '@/lib/config'
 
 const GCP_BACKEND_URL = import.meta.env.VITE_GCP_BACKEND_URL || 'https://agentic-event-factory.run.app'
 const REQUEST_TIMEOUT = 55000
@@ -18,17 +19,17 @@ export function validateEventUrl(url: string): { valid: boolean; error?: string 
   try {
     parsed = new URL(url)
   } catch {
-    return { valid: false, error: 'URL tidak valid. Pastikan format URL lengkap (contoh: https://...)' }
+    return { valid: false, error: 'Invalid URL. Please provide a full URL format (for example: https://...)' }
   }
 
   if (parsed.protocol !== 'https:') {
-    return { valid: false, error: 'Hanya URL HTTPS yang diizinkan.' }
+    return { valid: false, error: 'Only HTTPS URLs are allowed.' }
   }
 
   const hostname = parsed.hostname.toLowerCase()
   const isAllowed = ALLOWED_EVENT_DOMAINS.some(domain => hostname === domain || hostname.endsWith(`.${domain}`))
   if (!isAllowed) {
-    return { valid: false, error: `Domain tidak diizinkan. Platform yang didukung: YouTube, Luma, Eventbrite, Zoom.` }
+    return { valid: false, error: 'Domain is not allowed. Supported platforms: YouTube, Luma, Eventbrite, Zoom.' }
   }
 
   return { valid: true }
@@ -249,11 +250,15 @@ async function handleAPIResponse<T>(response: Response): Promise<T> {
 export const cloudRunService = {
   async spawnAgent(request: SpawnAgentRequest): Promise<SpawnAgentResponse> {
     try {
+      if (!request.userWallet) {
+        throw new CloudRunAPIError('Wallet must be connected before spawning an agent.', 400)
+      }
+
       // Backend field names differ from frontend: name→agent_name, userWallet→user_wallet
       const backendPayload = {
         agent_name: request.name,
         niche: request.niche,
-        user_wallet: request.userWallet || '0x0000000000000000000000000000000000000001',
+        user_wallet: request.userWallet,
       }
 
       const response = await fetchWithTimeout(
@@ -395,39 +400,8 @@ export const cloudRunService = {
       throw new CloudRunAPIError(urlCheck.error || 'Invalid event URL', 400)
     }
 
-    try {
-      // Backend endpoint: /api/v1/event/attend — full agentic flow (AI + mint)
-      // Note: backend needs more fields; caller should use attendEvent() instead for full flow
-      const response = await fetchWithTimeout(
-        `${GCP_BACKEND_URL}/api/v1/event/attend`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            agent_id: request.agentId,
-            agent_wallet: '0x0000000000000000000000000000000000000001', // placeholder
-            agent_name: 'Agent',
-            event_url: request.eventUrl,
-            event_title: 'Event',
-            platform: 'YouTube',
-            niche: 'General',
-          }),
-        },
-        120000
-      )
-
-      return handleAPIResponse<AssignEventResponse>(response)
-    } catch (error) {
-      if (error instanceof CloudRunAPIError) {
-        throw error
-      }
-
-      console.error('Error assigning event:', error)
-      throw new CloudRunAPIError(
-        'Failed to assign event to agent',
-        undefined,
-        error
-      )
-    }
+    // Legacy API path intentionally disabled to prevent partial payload writes.
+    throw new CloudRunAPIError('assignEvent is not supported. Use attendEvent with the full payload instead.', 400)
   },
 
   async pollMissionStatus(taskId: string): Promise<MissionStatusResponse> {
@@ -503,7 +477,7 @@ export const cloudRunService = {
         wisdomSummary: raw.wisdom_summary,
         gasUsed: raw.gas_used ?? '0',
         blockNumber: raw.block_number ?? 0,
-        explorerUrl: raw.explorer_url ?? `https://explorer.sepolia.mantle.xyz`,
+        explorerUrl: raw.explorer_url ?? (raw.tx_hash ? `${appConfig.blockchain.explorerUrl}/tx/${raw.tx_hash}` : appConfig.blockchain.explorerUrl),
         levelUp: raw.level_up,
         newTotalEvents: raw.new_total_events ?? undefined,
         newLevel: raw.new_level ?? undefined,
@@ -516,6 +490,16 @@ export const cloudRunService = {
         error
       )
     }
+  },
+
+  async chatWithAgent(agentId: string, message: string, conversationHistory: string[]): Promise<string> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${agentId}/chat`,
+      { method: 'POST', body: JSON.stringify({ message, conversation_history: conversationHistory }) },
+      20000
+    )
+    const raw = await handleAPIResponse<{ reply: string }>(response)
+    return raw.reply
   },
 
   async generateWisdom(agentId: string, niche: string): Promise<{ insights: string[]; strategicTips: string[]; eventsAnalyzed: number; generatedAt: number }> {

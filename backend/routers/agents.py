@@ -21,7 +21,8 @@ from pydantic import BaseModel, field_validator
 from web3 import Web3
 
 from core.database import get_db
-from services.llm_service import generate_wisdom_report
+from core.kms_service import decrypt_private_key, encrypt_private_key
+from services.llm_service import chat_with_agent, generate_wisdom_report
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/agent", tags=["agents"])
@@ -118,7 +119,7 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         "user_wallet": req.user_wallet,
         "level": 1,
         "total_events": 0,
-        "private_key": private_key,  # TODO: Encrypt with GCP KMS in production
+        "private_key_enc": encrypt_private_key(private_key),
         "funded": False,
         "created_at": now,
     }
@@ -232,15 +233,46 @@ async def get_agent_private_key(agent_id: str) -> str:
         raise ValueError(f"Agent '{agent_id}' not found in database")
 
     data = doc.to_dict()
-    private_key = data.get("private_key") if data else None
+    # Support both legacy field name and new encrypted field
+    stored = (data.get("private_key_enc") or data.get("private_key")) if data else None
 
-    if not private_key:
+    if not stored:
         raise ValueError(f"Agent '{agent_id}' has no private key stored")
 
-    return private_key
+    return decrypt_private_key(stored)
 
 
 EVENTS_COLLECTION = "agent_events"
+
+
+class ChatRequest(BaseModel):
+    message: str
+    conversation_history: list[str] = []
+
+
+@router.post("/{agent_id}/chat")
+async def agent_chat(agent_id: str, req: ChatRequest) -> dict:
+    """Reply to a user message as the named agent, using Gemini."""
+    db = get_db()
+
+    try:
+        doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    data = doc.to_dict() or {}
+    reply = await chat_with_agent(
+        agent_name=data.get("agent_name", "Agent"),
+        personality=data.get("personality", "Analytical"),
+        niche=data.get("niche", "Blockchain/DeFi"),
+        events_attended=data.get("total_events", 0),
+        message=req.message,
+        conversation_history=req.conversation_history,
+    )
+    return {"reply": reply}
 
 
 @router.post("/{agent_id}/wisdom")

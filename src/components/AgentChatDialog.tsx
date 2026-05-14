@@ -7,6 +7,7 @@ import { Agent } from '@/lib/types'
 import { ChatCircle, PaperPlaneRight, Robot } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { cloudRunService } from '@/services/cloudRunService'
 
 interface Message {
   id: string
@@ -59,25 +60,15 @@ export function AgentChatDialog({ open, onOpenChange, agent }: AgentChatDialogPr
 
     try {
       const conversationHistory = messages
-        .slice(-5)
+        .slice(-6)
         .map(m => `${m.role === 'user' ? 'User' : 'Agent'}: ${m.content}`)
-        .join('\n\n')
 
-      const promptText = `You are ${agent.name}, an AI agent with a ${agent.personality.toLowerCase()} personality specializing in ${agent.niche}. You have attended ${agent.eventsAttended} events and gained deep insights in your domain.
-
-Previous conversation:
-${conversationHistory}
-
-User: ${userMessage.content}
-
-Respond naturally and helpfully, drawing on your expertise in ${agent.niche}. Keep responses conversational but informative, under 150 words.`
-
-      const response = await window.spark.llm(promptText, 'gpt-4o-mini', false)
+      const responseText = await cloudRunService.chatWithAgent(agent.id, userMessage.content, conversationHistory)
 
       const agentMessage: Message = {
         id: `msg-${Date.now()}`,
         role: 'agent',
-        content: response.trim(),
+        content: responseText,
         timestamp: Date.now()
       }
 
