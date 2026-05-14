@@ -1,5 +1,6 @@
 """
 POST /api/v1/agent/spawn          — Spawn a new autonomous AI agent with its own wallet.
+POST /api/v1/agent/breed          — Breed two agents to create an offspring agent.
 GET  /api/v1/agent/list           — List all agents owned by a wallet address.
 GET  /api/v1/agent/{agent_id}     — Get agent details.
 POST /api/v1/agent/{agent_id}/mark-funded — Mark agent as funded on-chain.
@@ -9,6 +10,7 @@ All agent state is persisted in Firestore (collection: "agents").
 This ensures agent wallets and private keys survive Cloud Run cold starts.
 """
 
+import asyncio
 import hashlib
 import logging
 import secrets
@@ -56,6 +58,7 @@ class SpawnResponse(BaseModel):
     total_events: int
     created_at: float
     needs_funding: bool  # True if agent needs spawnAgent() call on-chain
+    personality: str | None = None
     custom_instructions: str | None = None
     auto_scout_enabled: bool | None = None
     custom_agenda: str | None = None
@@ -83,6 +86,7 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         total_events=data.get("total_events", 0),
         created_at=data.get("created_at", 0.0),
         needs_funding=needs_funding,
+        personality=data.get("personality"),
         custom_instructions=data.get("custom_instructions"),
         auto_scout_enabled=data.get("auto_scout_enabled"),
         custom_agenda=data.get("custom_agenda"),
@@ -94,6 +98,28 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         last_breeding_time=data.get("last_breeding_time"),
         breeding_cooldown_hours=data.get("breeding_cooldown_hours"),
     )
+
+
+class BreedRequest(BaseModel):
+    user_wallet: str
+    parent_1_id: str
+    parent_2_id: str
+    offspring_name: str
+
+    @field_validator("user_wallet")
+    @classmethod
+    def validate_wallet(cls, v: str) -> str:
+        if not Web3.is_address(v):
+            raise ValueError("Invalid Ethereum wallet address")
+        return Web3.to_checksum_address(v)
+
+    @field_validator("offspring_name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v or len(v) > 50:
+            raise ValueError("offspring_name must be 1-50 characters")
+        return v
 
 
 class UpdateAgentStateRequest(BaseModel):
@@ -169,6 +195,193 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         agent_account.address,
     )
     return _to_response(agent_data, needs_funding=True)
+
+
+@router.post("/breed", response_model=SpawnResponse, status_code=201)
+async def breed_agents(req: BreedRequest) -> SpawnResponse:
+    """
+    Create an offspring agent from two parent agents.
+
+    All validation, inheritance calculation, and wallet creation happen server-side.
+    Parents and offspring are written atomically in a single Firestore batch.
+    Idempotent: same (parent1_id, parent2_id, offspring_name) always returns the same agent.
+    """
+    if req.parent_1_id == req.parent_2_id:
+        raise HTTPException(status_code=400, detail="An agent cannot breed with itself")
+
+    # Sort IDs so (A, B) and (B, A) produce the same offspring (guardrail #8)
+    p1_id, p2_id = sorted([req.parent_1_id, req.parent_2_id])
+
+    # Offspring ID is deterministic — idempotency per unique combo (guardrail #3)
+    offspring_id = hashlib.sha256(
+        f"breed:{p1_id}:{p2_id}:{req.offspring_name}".encode()
+    ).hexdigest()[:16]
+
+    db = get_db()
+    offspring_ref = db.collection(AGENTS_COLLECTION).document(offspring_id)
+
+    # Idempotency check — return existing if already bred
+    try:
+        existing = await offspring_ref.get()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if existing.exists:
+        data = existing.to_dict() or {}
+        if data.get("user_wallet") != req.user_wallet:
+            raise HTTPException(status_code=403, detail="This offspring does not belong to your wallet")
+        logger.info("Breed idempotency hit: offspring %s already exists", offspring_id)
+        return _to_response(data, needs_funding=not data.get("funded", False))
+
+    # Fetch both parents concurrently
+    try:
+        p1_doc, p2_doc = await asyncio.gather(
+            db.collection(AGENTS_COLLECTION).document(p1_id).get(),
+            db.collection(AGENTS_COLLECTION).document(p2_id).get(),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if not p1_doc.exists:
+        raise HTTPException(status_code=404, detail=f"Parent agent '{p1_id}' not found")
+    if not p2_doc.exists:
+        raise HTTPException(status_code=404, detail=f"Parent agent '{p2_id}' not found")
+
+    p1 = p1_doc.to_dict() or {}
+    p2 = p2_doc.to_dict() or {}
+
+    # Ownership: both parents must belong to the requesting wallet (guardrail #2)
+    if p1.get("user_wallet") != req.user_wallet:
+        raise HTTPException(status_code=403, detail=f"Parent '{p1_id}' does not belong to your wallet")
+    if p2.get("user_wallet") != req.user_wallet:
+        raise HTTPException(status_code=403, detail=f"Parent '{p2_id}' does not belong to your wallet")
+
+    # Wisdom unlock: level >= 3 or total_events >= 5
+    for p_id, p_data in [(p1_id, p1), (p2_id, p2)]:
+        if p_data.get("level", 1) < 3 and p_data.get("total_events", 0) < 5:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Agent '{p_data.get('agent_name', p_id)}' needs level 3+ or 5+ events to breed",
+            )
+
+    # Breeding quota (server-authoritative — guardrail #4)
+    _max_b = 3
+    for p_id, p_data in [(p1_id, p1), (p2_id, p2)]:
+        count = p_data.get("breeding_count") or 0
+        max_b = p_data.get("max_breedings") or _max_b
+        if count >= max_b:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Agent '{p_data.get('agent_name', p_id)}' has reached its breeding limit ({max_b})",
+            )
+
+    # Cooldown check (server-authoritative — guardrail #4)
+    now = time.time()
+    for p_id, p_data in [(p1_id, p1), (p2_id, p2)]:
+        last_bt = p_data.get("last_breeding_time")
+        cooldown_h = p_data.get("breeding_cooldown_hours") or 0
+        if last_bt and cooldown_h:
+            # Normalise: frontend sends Date.now() (ms); backend stores time.time() (s)
+            last_bt_s = last_bt / 1000 if last_bt > 1e12 else last_bt
+            elapsed = now - last_bt_s
+            if elapsed < cooldown_h * 3600:
+                remaining_h = int((cooldown_h * 3600 - elapsed) / 3600) + 1
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Agent '{p_data.get('agent_name', p_id)}' is on cooldown for ~{remaining_h}h more",
+                )
+
+    # ── Deterministic inheritance ─────────────────────────────────────────────
+    # Seed: sorted parent IDs + offspring name (guardrail: sort already applied above)
+    seed_base = f"{p1_id}:{p2_id}:{req.offspring_name}"
+
+    def _bit(salt: str) -> int:
+        return int(hashlib.sha256(f"{seed_base}:{salt}".encode()).hexdigest()[0], 16) % 2
+
+    personalities = [p1.get("personality", "Analytical"), p2.get("personality", "Analytical")]
+    niches = [p1.get("niche", "Blockchain/DeFi"), p2.get("niche", "Blockchain/DeFi")]
+    personality = personalities[_bit("personality")]
+    offspring_niche = niches[_bit("niche")]
+
+    total_parent_events = (p1.get("total_events") or 0) + (p2.get("total_events") or 0)
+    inherited_events = total_parent_events // 3 + ((p1.get("level", 1) + p2.get("level", 1)) // 4)
+    inherited_level = max(1, inherited_events // 3 + 1)
+    offspring_gen = max(p1.get("generation") or 1, p2.get("generation") or 1) + 1
+
+    # Genetic traits — fully deterministic from parent attributes (no randomness)
+    genetic_traits: list[str] = []
+    if p1.get("niche") == p2.get("niche"):
+        genetic_traits.append("Specialized Niche Mastery")
+    else:
+        genetic_traits.append("Cross-Domain Intelligence")
+
+    if p1.get("personality") == p2.get("personality"):
+        genetic_traits.append("Enhanced Personality Traits")
+    else:
+        genetic_traits.append("Adaptive Personality Matrix")
+
+    if total_parent_events >= 15:
+        genetic_traits.append("Legendary Wisdom Heritage")
+    elif total_parent_events >= 10:
+        genetic_traits.append("Superior Knowledge Base")
+
+    if offspring_gen >= 3:
+        genetic_traits.append("Multi-Generation Evolution")
+
+    # ── Generate offspring wallet + encrypt key ───────────────────────────────
+    offspring_private_key = "0x" + secrets.token_hex(32)
+    offspring_account = Account.from_key(offspring_private_key)
+
+    offspring_data: dict = {
+        "agent_id": offspring_id,
+        "agent_wallet": offspring_account.address,
+        "agent_name": req.offspring_name,
+        "niche": offspring_niche,
+        "personality": personality,
+        "user_wallet": req.user_wallet,
+        "level": inherited_level,
+        "total_events": inherited_events,
+        "private_key_enc": encrypt_private_key(offspring_private_key),
+        "funded": False,
+        "needs_funding": True,
+        "created_at": now,
+        "generation": offspring_gen,
+        "parent_ids": [p1_id, p2_id],
+        "breeding_count": 0,
+        "max_breedings": 3,
+        "genetic_traits": genetic_traits,
+        "ownership_status": "bred",
+    }
+
+    # ── Atomic Firestore batch: offspring + both parents (guardrail #5) ───────
+    parent1_ref = db.collection(AGENTS_COLLECTION).document(p1_id)
+    parent2_ref = db.collection(AGENTS_COLLECTION).document(p2_id)
+
+    try:
+        batch = db.batch()
+        batch.set(offspring_ref, offspring_data)
+        batch.update(parent1_ref, {
+            "breeding_count": (p1.get("breeding_count") or 0) + 1,
+            "last_breeding_time": now,
+            "breeding_cooldown_hours": 24,
+            "max_breedings": p1.get("max_breedings") or _max_b,
+        })
+        batch.update(parent2_ref, {
+            "breeding_count": (p2.get("breeding_count") or 0) + 1,
+            "last_breeding_time": now,
+            "breeding_cooldown_hours": 24,
+            "max_breedings": p2.get("max_breedings") or _max_b,
+        })
+        await batch.commit()
+    except Exception as exc:
+        logger.error("Firestore batch write failed for offspring %s: %s", offspring_id, exc)
+        raise HTTPException(status_code=503, detail="Failed to persist breeding result") from exc
+
+    logger.info(
+        "Bred offspring %s → wallet %s (gen %d, parents %s + %s)",
+        offspring_id, offspring_account.address, offspring_gen, p1_id, p2_id,
+    )
+    return _to_response(offspring_data, needs_funding=True)
 
 
 @router.get("/list")

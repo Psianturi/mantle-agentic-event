@@ -155,15 +155,14 @@ class Web3Service:
         w3 = self._init_w3()
         contract = self._init_contract()
         
-        # Use agent's own key if provided (agentic autonomy)
-        # Otherwise fall back to backend master key (MINTER_ROLE)
-        if agent_private_key:
+        using_agent_key = bool(agent_private_key)
+        if using_agent_key:
             private_key = agent_private_key
             logger.info("Agent signing its own transaction (autonomous mode)")
         else:
-            private_key = get_agent_private_key()  # Backend master key
+            private_key = get_agent_private_key()
             logger.info("Backend signing transaction (MINTER_ROLE mode)")
-        
+
         signer = Account.from_key(private_key)
         signer_address = signer.address
 
@@ -177,10 +176,27 @@ class Web3Service:
 
         try:
             gas_estimate = fn_call.estimate_gas({"from": signer_address})
-            gas_limit = int(gas_estimate * 1.2)  # 20 % buffer
+            gas_limit = int(gas_estimate * 1.2)
         except Exception as exc:
-            logger.warning("Gas estimation failed, using default 300 000: %s", exc)
-            gas_limit = 300_000
+            exc_str = str(exc)
+            if using_agent_key and any(
+                s in exc_str for s in ("0xe2517d3f", "AccessControl", "MINTER_ROLE")
+            ):
+                # Agent wallet lacks MINTER_ROLE — fall back to backend master key
+                logger.warning("Agent lacks MINTER_ROLE, falling back to backend master key")
+                private_key = get_agent_private_key()
+                signer = Account.from_key(private_key)
+                signer_address = signer.address
+                nonce = w3.eth.get_transaction_count(signer_address, "pending")
+                try:
+                    gas_estimate = fn_call.estimate_gas({"from": signer_address})
+                    gas_limit = int(gas_estimate * 1.2)
+                except Exception as exc2:
+                    logger.warning("Gas estimation failed with master key, using 300 000: %s", exc2)
+                    gas_limit = 300_000
+            else:
+                logger.warning("Gas estimation failed, using default 300 000: %s", exc)
+                gas_limit = 300_000
 
         raw_tx = fn_call.build_transaction(
             {
@@ -203,10 +219,8 @@ class Web3Service:
             mint_logs = contract.events.NFTMinted().process_receipt(receipt, errors=DISCARD)
             if mint_logs:
                 token_id = int(mint_logs[0]["args"]["tokenId"])
-            level_logs = contract.events.AgentLevelUp().process_receipt(receipt, errors=DISCARD)
-            level_up = len(level_logs) > 0
         except Exception as exc:
-            logger.warning("Could not parse event logs: %s", exc)
+            logger.warning("Could not parse NFTMinted event logs: %s", exc)
 
         return {
             "tx_hash": tx_hash.hex(),

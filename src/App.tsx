@@ -850,12 +850,16 @@ function App() {
     const parent1 = displayedAgents.find(a => a.id === (newAgent.parentIds?.[0]))
     const parent2 = displayedAgents.find(a => a.id === (newAgent.parentIds?.[1]))
 
+    // Backend already persisted offspring + parent counters atomically.
+    // We only need to update local React state for immediate UI consistency.
     setAgents((current) => {
       const updated = (current ?? []).map((a) => {
         if (a.id === parent1?.id || a.id === parent2?.id) {
           return {
             ...a,
-            breedingCount: (a.breedingCount ?? 0) + 1
+            breedingCount: (a.breedingCount ?? 0) + 1,
+            lastBreedingTime: Date.now(),
+            breedingCooldownHours: 24,
           }
         }
         return a
@@ -865,27 +869,16 @@ function App() {
 
     setUserBalance((current) => (current ?? 0) - 2.5)
 
-    toast.success('🧬 Breeding Successful!', {
+    toast.success('Breeding Successful!', {
       description: `${offspringName} has been created with inherited wisdom from both parents.`,
       duration: 5000
     })
 
-    addLog(newAgent.id, 'secretary', `[SYSTEM] Agent "${offspringName}" bred successfully. Inherited ${result.wisdomMerge.inheritedWisdom} events worth of wisdom.`, 'success')
-    
-    if (parent1 && parent2) {
-      addLog(newAgent.id, 'secretary', `[SYSTEM] Parents: "${parent1.name}" + "${parent2.name}" | Generation ${newAgent.generation} | ${result.geneticBonus.length} genetic bonuses applied.`, 'info')
-    }
+    addLog(newAgent.id, 'secretary', `[SYSTEM] Agent "${offspringName}" bred successfully. Inherited ${result.wisdomMerge.inheritedWisdom} events worth of wisdom. Wallet: ${newAgent.walletAddress}`, 'success')
 
-    ;[parent1, parent2].filter(Boolean).forEach((parent) => {
-      void cloudRunService.updateAgentState(parent!.id, {
-        breedingCount: (parent!.breedingCount ?? 0) + 1,
-        maxBreedings: parent!.maxBreedings ?? 3,
-        lastBreedingTime: Date.now(),
-        breedingCooldownHours: 24,
-      }).catch((error) => {
-        console.warn('[cloudRunService] failed to persist breeding metadata:', error)
-      })
-    })
+    if (parent1 && parent2) {
+      addLog(newAgent.id, 'secretary', `[SYSTEM] Parents: "${parent1.name}" + "${parent2.name}" | Generation ${newAgent.generation} | ${result.geneticBonus.length} genetic bonuses`, 'info')
+    }
   }
 
   const handleCooldownBoost = (agentId: string) => {
@@ -1524,6 +1517,7 @@ function App() {
         agents={agents ?? []}
         onBreedComplete={handleBreedComplete}
         userBalance={userBalance ?? 0}
+        userWallet={walletAddress ?? ''}
       />
 
       <TerminalConsole logs={logs} />

@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge'
 import { Sparkle, Lightning, ArrowsLeftRight, Plus, Dna, Check, X } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Progress } from '@/components/ui/progress'
+import { toast } from 'sonner'
+import { cloudRunService } from '@/services/cloudRunService'
 
 interface AgentBreedingDialogProps {
   open: boolean
@@ -16,14 +18,16 @@ interface AgentBreedingDialogProps {
   agents: Agent[]
   onBreedComplete: (result: BreedingResult, offspringName: string) => void
   userBalance: number
+  userWallet: string
 }
 
-export function AgentBreedingDialog({ 
-  open, 
-  onOpenChange, 
-  agents, 
+export function AgentBreedingDialog({
+  open,
+  onOpenChange,
+  agents,
   onBreedComplete,
-  userBalance 
+  userBalance,
+  userWallet,
 }: AgentBreedingDialogProps) {
   const [selectedParent1, setSelectedParent1] = useState<Agent | null>(null)
   const [selectedParent2, setSelectedParent2] = useState<Agent | null>(null)
@@ -40,63 +44,21 @@ export function AgentBreedingDialog({
     (a.breedingCount ?? 0) < (a.maxBreedings ?? 3)
   )
 
-  const canBreed = selectedParent1 && 
-                   selectedParent2 && 
+  const canBreed = selectedParent1 &&
+                   selectedParent2 &&
                    selectedParent1.id !== selectedParent2.id &&
                    offspringName.trim().length > 0 &&
                    userBalance >= BREEDING_COST
 
-  const calculateInheritedWisdom = (p1: Agent, p2: Agent): number => {
-    const baseWisdom = Math.floor((p1.eventsAttended + p2.eventsAttended) / 3)
-    const levelBonus = Math.floor((p1.level + p2.level) / 4)
-    return baseWisdom + levelBonus
-  }
-
-  const getGeneticBonuses = (p1: Agent, p2: Agent): string[] => {
-    const bonuses: string[] = []
-    
-    if (p1.niche === p2.niche) {
-      bonuses.push('Specialized Niche Mastery')
-    } else {
-      bonuses.push('Cross-Domain Intelligence')
-    }
-
-    if (p1.personality === p2.personality) {
-      bonuses.push('Enhanced Personality Traits')
-    } else {
-      bonuses.push('Adaptive Personality Matrix')
-    }
-
-    const totalEvents = p1.eventsAttended + p2.eventsAttended
-    if (totalEvents >= 15) {
-      bonuses.push('Legendary Wisdom Heritage')
-    } else if (totalEvents >= 10) {
-      bonuses.push('Superior Knowledge Base')
-    }
-
-    const generation = Math.max(p1.generation ?? 1, p2.generation ?? 1)
-    if (generation >= 2) {
-      bonuses.push('Multi-Generation Evolution')
-    }
-
-    return bonuses
-  }
-
+  // Display-only: used after backend returns the real offspring
   const getInheritedTraits = (p1: Agent, p2: Agent) => {
-    const traits = []
-    
+    const traits: { from: string; trait: string }[] = []
     traits.push({ from: p1.name, trait: `${p1.niche} Domain Expertise` })
     traits.push({ from: p2.name, trait: `${p2.niche} Domain Expertise` })
     traits.push({ from: p1.name, trait: `${p1.personality} Strategy Patterns` })
     traits.push({ from: p2.name, trait: `${p2.personality} Analysis Methods` })
-    
-    if (p1.customInstructions) {
-      traits.push({ from: p1.name, trait: 'Custom Protocol Library' })
-    }
-    if (p2.customInstructions) {
-      traits.push({ from: p2.name, trait: 'Advanced Instruction Set' })
-    }
-
+    if (p1.customInstructions) traits.push({ from: p1.name, trait: 'Custom Protocol Library' })
+    if (p2.customInstructions) traits.push({ from: p2.name, trait: 'Advanced Instruction Set' })
     return traits
   }
 
@@ -106,87 +68,45 @@ export function AgentBreedingDialog({
     setIsBreeding(true)
     setBreedingProgress(0)
 
-    const progressSteps = [
-      { progress: 20, delay: 500 },
-      { progress: 40, delay: 800 },
-      { progress: 60, delay: 700 },
-      { progress: 80, delay: 600 },
-      { progress: 100, delay: 500 }
-    ]
+    // Animate progress while backend call runs
+    const tick = setInterval(() => {
+      setBreedingProgress(prev => (prev < 85 ? prev + 12 : prev))
+    }, 600)
 
-    for (const step of progressSteps) {
-      await new Promise(resolve => setTimeout(resolve, step.delay))
-      setBreedingProgress(step.progress)
+    try {
+      const offspring = await cloudRunService.breedAgents({
+        userWallet,
+        parent1Id: selectedParent1.id,
+        parent2Id: selectedParent2.id,
+        offspringName,
+      })
+
+      clearInterval(tick)
+      setBreedingProgress(100)
+
+      // Reconstruct display-only data from backend response + parent attributes
+      const inheritedTraits = getInheritedTraits(selectedParent1, selectedParent2)
+      const result: BreedingResult = {
+        offspring,
+        inheritedTraits,
+        wisdomMerge: {
+          parent1Events: selectedParent1.eventsAttended,
+          parent2Events: selectedParent2.eventsAttended,
+          inheritedWisdom: offspring.eventsAttended,
+        },
+        geneticBonus: offspring.geneticTraits ?? [],
+      }
+
+      setBreedingResult(result)
+      setIsBreeding(false)
+      setShowResult(true)
+    } catch (error) {
+      clearInterval(tick)
+      setIsBreeding(false)
+      setBreedingProgress(0)
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      toast.error('Breeding failed', { description: msg })
     }
-
-    const inheritedWisdom = calculateInheritedWisdom(selectedParent1, selectedParent2)
-    const geneticBonuses = getGeneticBonuses(selectedParent1, selectedParent2)
-    const inheritedTraits = getInheritedTraits(selectedParent1, selectedParent2)
-
-    const result: BreedingResult = {
-      offspring: {
-        id: `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        name: offspringName,
-        personality: Math.random() > 0.5 ? selectedParent1.personality : selectedParent2.personality,
-        niche: Math.random() > 0.5 ? selectedParent1.niche : selectedParent2.niche,
-        walletAddress: `0x${Array.from({ length: 40 }, () => 
-          Math.floor(Math.random() * 16).toString(16)
-        ).join('')}`,
-        eventsAttended: inheritedWisdom,
-        level: Math.floor(inheritedWisdom / 2) + 1,
-        status: 'idle',
-        createdAt: Date.now(),
-        subAgents: [
-          {
-            type: 'secretary',
-            name: 'The Secretary',
-            status: 'idle',
-            description: 'Handles autonomous registration on platforms'
-          },
-          {
-            type: 'scribe',
-            name: 'The Scribe',
-            status: 'idle',
-            description: 'Captures and summarizes event content'
-          },
-          {
-            type: 'social-lite',
-            name: 'The Social-Lite',
-            status: 'idle',
-            description: 'Manages community presence and engagement'
-          },
-          {
-            type: 'mint-master',
-            name: 'The Mint-Master',
-            status: 'idle',
-            description: 'Handles NFT minting and gas optimization'
-          }
-        ],
-        wisdomUnlocked: inheritedWisdom >= 5,
-        isGenesis: false,
-        ownershipStatus: 'bred',
-        agentGasBalance: 0.8,
-        mantleBalance: 0.8,
-        gasSpent: 0,
-        autoReplenishGas: false,
-        generation: Math.max(selectedParent1.generation ?? 1, selectedParent2.generation ?? 1) + 1,
-        parentIds: [selectedParent1.id, selectedParent2.id],
-        breedingCount: 0,
-        maxBreedings: 3,
-        geneticTraits: geneticBonuses
-      },
-      inheritedTraits,
-      wisdomMerge: {
-        parent1Events: selectedParent1.eventsAttended,
-        parent2Events: selectedParent2.eventsAttended,
-        inheritedWisdom
-      },
-      geneticBonus: geneticBonuses
-    }
-
-    setBreedingResult(result)
-    setIsBreeding(false)
-    setShowResult(true)
   }
 
   const handleConfirm = () => {
@@ -398,13 +318,13 @@ export function AgentBreedingDialog({
                         <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
                           <p className="text-muted-foreground mb-1 text-xs uppercase tracking-wider">Inherited Wisdom</p>
                           <p className="font-bold text-primary text-lg">
-                            {calculateInheritedWisdom(selectedParent1, selectedParent2)} Events
+                            {Math.floor((selectedParent1.eventsAttended + selectedParent2.eventsAttended) / 3) + Math.floor((selectedParent1.level + selectedParent2.level) / 4)} Events
                           </p>
                         </div>
                         <div className="p-3 rounded-lg bg-secondary/10 border border-secondary/20">
                           <p className="text-muted-foreground mb-1 text-xs uppercase tracking-wider">Starting Level</p>
                           <p className="font-bold text-secondary text-lg">
-                            Level {Math.floor(calculateInheritedWisdom(selectedParent1, selectedParent2) / 2) + 1}
+                            Level {Math.max(1, Math.floor((Math.floor((selectedParent1.eventsAttended + selectedParent2.eventsAttended) / 3) + Math.floor((selectedParent1.level + selectedParent2.level) / 4)) / 3) + 1)}
                           </p>
                         </div>
                         <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
@@ -417,7 +337,12 @@ export function AgentBreedingDialog({
                       <div>
                         <p className="text-muted-foreground mb-3 text-sm font-semibold">Genetic Enhancement Matrix:</p>
                         <div className="flex flex-wrap gap-2">
-                          {getGeneticBonuses(selectedParent1, selectedParent2).map((bonus, idx) => (
+                          {[
+                            selectedParent1.niche === selectedParent2.niche ? 'Specialized Niche Mastery' : 'Cross-Domain Intelligence',
+                            selectedParent1.personality === selectedParent2.personality ? 'Enhanced Personality Traits' : 'Adaptive Personality Matrix',
+                            ...(selectedParent1.eventsAttended + selectedParent2.eventsAttended >= 15 ? ['Legendary Wisdom Heritage'] :
+                               selectedParent1.eventsAttended + selectedParent2.eventsAttended >= 10 ? ['Superior Knowledge Base'] : []),
+                          ].map((bonus, idx) => (
                             <Badge key={idx} className="bg-gradient-to-r from-primary/20 to-secondary/20 text-foreground border border-primary/30 px-3 py-1.5">
                               <Sparkle size={12} className="mr-1.5" weight="fill" />
                               {bonus}

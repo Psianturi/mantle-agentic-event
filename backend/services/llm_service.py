@@ -20,7 +20,7 @@ from core.secrets import get_llm_api_key
 logger = logging.getLogger(__name__)
 
 _GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "https://generativelanguage.googleapis.com/v1/models/"
     "gemini-2.0-flash:generateContent"
 )
 

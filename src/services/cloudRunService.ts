@@ -317,6 +317,74 @@ export const cloudRunService = {
     }
   },
 
+  async breedAgents(request: {
+    userWallet: string
+    parent1Id: string
+    parent2Id: string
+    offspringName: string
+  }): Promise<Agent> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/breed`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          user_wallet: request.userWallet,
+          parent_1_id: request.parent1Id,
+          parent_2_id: request.parent2Id,
+          offspring_name: request.offspringName,
+        }),
+      },
+      30000
+    )
+
+    const raw = await handleAPIResponse<{
+      agent_id: string
+      agent_wallet: string
+      agent_name: string
+      niche: string
+      personality?: string
+      user_wallet: string
+      level: number
+      total_events: number
+      created_at: number
+      needs_funding: boolean
+      generation?: number
+      parent_ids?: string[]
+      breeding_count?: number
+      max_breedings?: number
+      genetic_traits?: string[]
+    }>(response)
+
+    const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
+    const validPersonalities: Personality[] = ['Aggressive', 'Analytical', 'Creative']
+
+    return {
+      id: raw.agent_id,
+      name: raw.agent_name,
+      personality: (validPersonalities.includes(raw.personality as Personality)
+        ? raw.personality
+        : 'Analytical') as Personality,
+      niche: (validNiches.includes(raw.niche as Niche) ? raw.niche : 'Blockchain/DeFi') as Niche,
+      walletAddress: raw.agent_wallet,
+      eventsAttended: raw.total_events,
+      level: raw.level,
+      status: 'idle' as const,
+      createdAt: raw.created_at ? raw.created_at * 1000 : Date.now(),
+      subAgents: [],
+      wisdomUnlocked: raw.level >= 3,
+      needsFunding: raw.needs_funding,
+      agentGasBalance: 0,
+      mantleBalance: 0,
+      generation: raw.generation,
+      parentIds: raw.parent_ids,
+      breedingCount: raw.breeding_count ?? 0,
+      maxBreedings: raw.max_breedings ?? 3,
+      geneticTraits: raw.genetic_traits,
+      ownershipStatus: 'bred' as const,
+      isGenesis: false,
+    }
+  },
+
   async getAgentsByWallet(wallet: string): Promise<Agent[]> {
     try {
       const response = await fetchWithTimeout(
