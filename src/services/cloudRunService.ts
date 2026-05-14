@@ -125,6 +125,21 @@ export interface AttendEventResponse {
   newLevel?: number
 }
 
+export interface EventHistoryItem {
+  id: string
+  agentId: string
+  eventUrl: string
+  eventTitle: string
+  platform: string
+  wisdomSummary: string
+  txHash: string
+  tokenId?: string
+  gasUsed?: string
+  blockNumber?: number
+  attendedAt: number
+  explorerUrl?: string
+}
+
 export interface GenerateWisdomRequest {
   agentId: string
 }
@@ -320,6 +335,47 @@ export const cloudRunService = {
     } catch (error) {
       // Non-fatal: return empty list if backend is unreachable
       console.warn('[cloudRunService] getAgentsByWallet failed:', error)
+      return []
+    }
+  },
+
+  async getEventHistoryByWallet(wallet: string): Promise<EventHistoryItem[]> {
+    try {
+      const response = await fetchWithTimeout(
+        `${GCP_BACKEND_URL}/api/v1/event/list?wallet=${encodeURIComponent(wallet)}`
+      )
+
+      const raw = await handleAPIResponse<Array<{
+        id: string
+        agent_id: string
+        event_url: string
+        event_title: string
+        platform: string
+        wisdom_summary: string
+        tx_hash: string | null
+        token_id: string | null
+        gas_used: string | null
+        block_number: number | null
+        attended_at: number
+        explorer_url: string | null
+      }>>(response)
+
+      return raw.map((r) => ({
+        id: r.id,
+        agentId: r.agent_id,
+        eventUrl: r.event_url,
+        eventTitle: r.event_title,
+        platform: r.platform,
+        wisdomSummary: r.wisdom_summary,
+        txHash: r.tx_hash ?? '',
+        tokenId: r.token_id ?? undefined,
+        gasUsed: r.gas_used ?? undefined,
+        blockNumber: r.block_number ?? undefined,
+        attendedAt: r.attended_at,
+        explorerUrl: r.explorer_url ?? undefined,
+      }))
+    } catch (error) {
+      console.warn('[cloudRunService] getEventHistoryByWallet failed:', error)
       return []
     }
   },

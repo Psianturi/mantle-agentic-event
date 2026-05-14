@@ -109,6 +109,7 @@ export interface NFT {
   date: number
   transactionHash: string
   tokenId: string
+  explorerUrl?: string
   imageUrl?: string
   metadataURI?: string
   imageCID?: string

@@ -200,15 +200,47 @@ function App() {
       toast.success('Wallet connected successfully!', {
         description: `Connected to Mantle Network`
       })
-      // Load agents persisted in Firestore for this wallet
+      // Load cloud state persisted in Firestore for this wallet
       const cloudAgents = await cloudRunService.getAgentsByWallet(connectedAddress)
+      const cloudHistory = await cloudRunService.getEventHistoryByWallet(connectedAddress)
+
+      const restoredEvents: Event[] = cloudHistory.map((item) => ({
+        id: item.id,
+        agentId: item.agentId,
+        url: item.eventUrl,
+        title: item.eventTitle,
+        platform: normalizePlatform(item.platform),
+        date: item.attendedAt > 0 ? item.attendedAt * 1000 : Date.now(),
+        summary: item.wisdomSummary,
+        status: 'completed',
+      }))
+
+      const restoredNFTs: NFT[] = cloudHistory
+        .filter((item) => item.txHash)
+        .map((item) => ({
+          id: `nft-${item.id}`,
+          agentId: item.agentId,
+          eventId: item.id,
+          eventTitle: item.eventTitle,
+          summary: item.wisdomSummary,
+          date: item.attendedAt > 0 ? item.attendedAt * 1000 : Date.now(),
+          transactionHash: item.txHash,
+          tokenId: item.tokenId || '?',
+          explorerUrl: item.explorerUrl,
+          imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT',
+        }))
+
+      setEvents(restoredEvents)
+      setNFTs(restoredNFTs)
+
       if (cloudAgents.length > 0) {
         // Enrich with live gas balance from RPC (best-effort, non-blocking)
         const enriched = await Promise.all(
           cloudAgents.map(async (a) => {
             try {
               const balStr = await blockchain.getBalance(a.walletAddress)
-              return { ...a, agentGasBalance: parseFloat(balStr) }
+              const liveBalance = parseFloat(balStr)
+              return { ...a, agentGasBalance: liveBalance, mantleBalance: liveBalance }
             } catch {
               return a
             }
@@ -216,8 +248,10 @@ function App() {
         )
         setAgents(enriched)
         toast.info(`Loaded ${enriched.length} agent${enriched.length > 1 ? 's' : ''} from cloud`, {
-          description: 'Your agents are ready'
+          description: `Synced ${restoredEvents.length} event${restoredEvents.length > 1 ? 's' : ''} and ${restoredNFTs.length} NFT${restoredNFTs.length > 1 ? 's' : ''}`
         })
+      } else {
+        setAgents([])
       }
     } catch (error) {
       console.error('Wallet connection failed:', error)
@@ -339,6 +373,13 @@ function App() {
     } catch { return 'YouTube' }
   }
 
+  const normalizePlatform = (platform: string): Event['platform'] => {
+    if (platform === 'Luma' || platform === 'Eventbrite' || platform === 'Zoom') {
+      return platform
+    }
+    return 'YouTube'
+  }
+
   const handleAttendEvent = async () => {
     if (!walletConnected) {
       toast.error('Please connect your wallet first!')
@@ -437,12 +478,20 @@ function App() {
         date: Date.now(),
         transactionHash: result.txHash,
         tokenId: result.tokenId,
+        explorerUrl: result.explorerUrl,
         imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT',
       }
 
       // Use authoritative stats from backend (Firestore-persisted), fallback to local increment
       const newEventsAttended = result.newTotalEvents ?? (agent.eventsAttended + 1)
       const newLevel = result.newLevel ?? (result.levelUp ? agent.level + 1 : agent.level)
+      let refreshedBalance: number | undefined
+      try {
+        const nextBalance = await blockchain.getBalance(agent.walletAddress)
+        refreshedBalance = parseFloat(nextBalance)
+      } catch {
+        refreshedBalance = undefined
+      }
 
       setEvents(c => [...(c ?? []), newEvent])
       setNFTs(c => [...(c ?? []), newNFT])
@@ -454,6 +503,8 @@ function App() {
               level: newLevel,
               wisdomUnlocked: newEventsAttended >= 5,
               gasSpent: (a.gasSpent || 0) + Number(result.gasUsed || 0),
+              mantleBalance: refreshedBalance ?? a.mantleBalance,
+              agentGasBalance: refreshedBalance ?? a.agentGasBalance,
             }
           : a
       ))

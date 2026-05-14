@@ -2,6 +2,7 @@ import { NFT } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { DEFAULT_NETWORK } from '@/lib/blockchain/config'
 import { Image, Link as LinkIcon, Calendar, Cube, Database } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 
@@ -13,7 +14,8 @@ interface NFTCardProps {
 export function NFTCard({ nft, onClick }: NFTCardProps) {
   const handleExplorerClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    window.open(`https://explorer.mantle.xyz/tx/${nft.transactionHash}`, '_blank')
+    const explorerUrl = nft.explorerUrl || `${DEFAULT_NETWORK.blockExplorer}/tx/${nft.transactionHash}`
+    window.open(explorerUrl, '_blank')
   }
 
   return (

@@ -12,8 +12,9 @@ import logging
 import time
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from google.cloud.firestore_v1 import Increment
+from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, field_validator
 from web3 import Web3
 
@@ -93,7 +94,101 @@ class AttendResponse(BaseModel):
     new_level: int | None = None
 
 
+class EventHistoryItem(BaseModel):
+    id: str
+    agent_id: str
+    event_url: str
+    event_title: str
+    platform: str
+    wisdom_summary: str
+    tx_hash: str | None
+    token_id: str | None
+    gas_used: str | None
+    block_number: int | None
+    attended_at: float
+    explorer_url: str | None
+
+
 # ── Endpoint ──────────────────────────────────────────────────────────────────
+
+
+@router.get("/list", response_model=list[EventHistoryItem])
+async def list_events_by_wallet(
+    wallet: str = Query(..., description="Owner wallet address (checksummed Ethereum address)"),
+) -> list[EventHistoryItem]:
+    """
+    Return all persisted event records for agents owned by the wallet.
+
+    This powers cross-device NFT/Event restoration on frontend wallet connect.
+    """
+    if not Web3.is_address(wallet):
+        raise HTTPException(status_code=400, detail="Invalid wallet address")
+    wallet = Web3.to_checksum_address(wallet)
+
+    db = get_db()
+    explorer_base = _MANTLE_EXPLORER_BY_CHAIN.get(
+        settings.chain_id, "https://explorer.sepolia.mantle.xyz"
+    )
+
+    agent_ids: list[str] = []
+    try:
+        async for doc in (
+            db.collection(AGENTS_COLLECTION)
+            .where(filter=FieldFilter("user_wallet", "==", wallet))
+            .stream()
+        ):
+            data = doc.to_dict() or {}
+            agent_id = data.get("agent_id")
+            if isinstance(agent_id, str) and agent_id:
+                agent_ids.append(agent_id)
+    except Exception as exc:
+        logger.error("Firestore agent lookup failed for wallet %s: %s", wallet, exc)
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    if not agent_ids:
+        return []
+
+    records: list[dict] = []
+    try:
+        for agent_id in agent_ids:
+            async for doc in (
+                db.collection(EVENTS_COLLECTION)
+                .where(filter=FieldFilter("agent_id", "==", agent_id))
+                .stream()
+            ):
+                data = doc.to_dict() or {}
+                records.append(
+                    {
+                        "id": doc.id,
+                        "agent_id": data.get("agent_id", agent_id),
+                        "event_url": data.get("event_url", ""),
+                        "event_title": data.get("event_title", "Event"),
+                        "platform": data.get("platform", "YouTube"),
+                        "wisdom_summary": data.get("wisdom_summary", ""),
+                        "tx_hash": data.get("tx_hash"),
+                        "token_id": data.get("token_id"),
+                        "gas_used": data.get("gas_used"),
+                        "block_number": data.get("block_number"),
+                        "attended_at": float(data.get("attended_at", 0.0)),
+                    }
+                )
+    except Exception as exc:
+        logger.error("Firestore event query failed for wallet %s: %s", wallet, exc)
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    records.sort(key=lambda r: r.get("attended_at", 0.0), reverse=True)
+    result: list[EventHistoryItem] = []
+    for item in records:
+        tx_hash = item.get("tx_hash")
+        result.append(
+            EventHistoryItem(
+                **item,
+                explorer_url=f"{explorer_base}/tx/{tx_hash}" if tx_hash else None,
+            )
+        )
+
+    logger.info("Listed %d persisted events for wallet %s", len(result), wallet[:10])
+    return result
 
 
 @router.post("/attend", response_model=AttendResponse)
