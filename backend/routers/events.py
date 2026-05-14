@@ -20,6 +20,7 @@ from web3 import Web3
 
 from core.config import settings
 from core.database import get_db
+from core.kms_service import decrypt_private_key
 from services.llm_service import summarize_event
 from services.web3_service import web3_service
 
@@ -67,6 +68,7 @@ class AttendRequest(BaseModel):
     event_title: str
     platform: str = "YouTube"
     niche: str = "General"
+    mode_b: bool = False    # If True, agent signs with its own private key (autonomous); else backend signs (Mode A)
 
     @field_validator("agent_wallet")
     @classmethod
@@ -201,8 +203,11 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     """
     Autonomous event-attendance workflow.
 
+    Mode A (mode_b=False): Backend (MINTER_ROLE) signs and broadcasts tx.
+    Mode B (mode_b=True): Agent signs its own transaction (true autonomy).
+
     Step A — AI: Gemini generates a Wisdom Summary for the event.
-    Step B — Web3: backend wallet signs mintAttendanceNFT() and broadcasts it.
+    Step B — Web3: Signs mintAttendanceNFT() (Mode A: backend, Mode B: agent).
     Step C — Return: tx hash, token ID, explorer link, and wisdom text.
     """
     # Guard: contract must be deployed before minting
@@ -224,10 +229,44 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 
-    # ── Steps B + C: Mint on Mantle (Mode A: master key / MINTER_ROLE) ─────
-    # Backend deployer wallet holds MINTER_ROLE and signs all mint txs.
-    # NFT is minted TO the agent_wallet (agent keeps identity + ownership).
-    # agent_private_key=None triggers fallback to AGENT_PRIVATE_KEY env var.
+    # ── Load agent's private key if Mode B requested ──────────────────────
+    agent_private_key: str | None = None
+    if req.mode_b:
+        db = get_db()
+        try:
+            agent_doc = await db.collection(AGENTS_COLLECTION).document(req.agent_id).get()
+            if not agent_doc.exists:
+                raise HTTPException(status_code=404, detail=f"Agent '{req.agent_id}' not found")
+            
+            agent_data = agent_doc.to_dict() or {}
+            stored_key = agent_data.get("private_key_enc") or agent_data.get("private_key")
+            
+            if not stored_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Agent has no private key stored (cannot sign autonomously)"
+                )
+            
+            # Decrypt private key from KMS if encrypted, otherwise use plaintext (legacy support)
+            try:
+                agent_private_key = decrypt_private_key(stored_key)
+            except Exception as e:
+                logger.warning("KMS decryption failed, attempting plaintext fallback: %s", e)
+                agent_private_key = stored_key  # Fallback for development/legacy
+                
+            logger.info("Loaded agent private key for autonomous signing (Mode B)")
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error("Failed to load agent private key for Mode B: %s", exc)
+            raise HTTPException(
+                status_code=503,
+                detail="Failed to retrieve agent credentials for autonomous signing"
+            )
+
+    # ── Steps B + C: Mint on Mantle ────────────────────────────────────────
+    # Mode A (agent_private_key=None): Backend MINTER_ROLE signs
+    # Mode B (agent_private_key provided): Agent signs with its own key
     try:
         mint_result = await web3_service.mint_attendance_nft(
             agent_wallet=req.agent_wallet,
@@ -237,7 +276,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             agent_name=req.agent_name,
             summary=wisdom_summary,
             niche=req.niche,
-            agent_private_key=None,  # Mode A: master key (MINTER_ROLE) signs
+            agent_private_key=agent_private_key,  # Mode B: agent's key, Mode A: None (fallback)
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -273,15 +312,23 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 new_level = max(current_level, (current_events // 2) + 1)
                 if level_up and new_level <= current_level:
                     new_level = current_level + 1
+                
+                # Track autonomous signatures for Agency Score
+                autonomous_sigs = data.get("autonomous_signatures", 0)
+                if req.mode_b:
+                    autonomous_sigs += 1
+                
                 update_payload: dict = {
                     "total_events": Increment(1),
                     "level": new_level,
+                    "autonomous_signatures": autonomous_sigs,
                 }
                 await agent_ref.update(update_payload)
                 new_total_events = current_events
                 logger.info(
-                    "Agent %s stats updated: total_events=%d level=%d",
-                    req.agent_id, current_events, new_level,
+                    "Agent %s stats updated: total_events=%d level=%d mode=%s autonomous_sigs=%d",
+                    req.agent_id, current_events, new_level, 
+                    ("B" if req.mode_b else "A"), autonomous_sigs
                 )
             else:
                 logger.warning("Agent %s not found in Firestore — skipping stat update", req.agent_id)
@@ -303,6 +350,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "gas_used": str(mint_result.get("gas_used", "")),
                 "block_number": mint_result.get("block_number"),
                 "attended_at": time.time(),
+                "mode": "B" if req.mode_b else "A",  # Track which mode was used
             }
             await db.collection(EVENTS_COLLECTION).add(event_doc)
         except Exception as exc:

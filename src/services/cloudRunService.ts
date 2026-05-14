@@ -59,6 +59,19 @@ export interface MarkAgentFundedResponse {
   funded: boolean
 }
 
+export interface UpdateAgentStateRequest {
+  customInstructions?: string
+  autoScoutEnabled?: boolean
+  customAgenda?: string
+  generation?: number
+  parentIds?: string[]
+  breedingCount?: number
+  maxBreedings?: number
+  geneticTraits?: string[]
+  lastBreedingTime?: number
+  breedingCooldownHours?: number
+}
+
 export interface AssignEventRequest {
   agentId: string
   eventUrl: string
@@ -111,6 +124,7 @@ export interface AttendEventRequest {
   eventTitle: string
   platform: string
   niche: string
+  modeB?: boolean  // If true, agent signs autonomously with its own private key (Mode B); else backend signs (Mode A)
 }
 
 export interface AttendEventResponse {
@@ -319,6 +333,16 @@ export const cloudRunService = {
         total_events: number
         created_at: number
         needs_funding: boolean
+        custom_instructions?: string
+        auto_scout_enabled?: boolean
+        custom_agenda?: string
+        generation?: number
+        parent_ids?: string[]
+        breeding_count?: number
+        max_breedings?: number
+        genetic_traits?: string[]
+        last_breeding_time?: number
+        breeding_cooldown_hours?: number
       }>>(response)
 
       const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -336,6 +360,16 @@ export const cloudRunService = {
         subAgents: [],
         wisdomUnlocked: r.level >= 3,
         needsFunding: r.needs_funding,
+        customInstructions: r.custom_instructions,
+        autoScoutEnabled: r.auto_scout_enabled,
+        customAgenda: r.custom_agenda,
+        generation: r.generation,
+        parentIds: r.parent_ids,
+        breedingCount: r.breeding_count,
+        maxBreedings: r.max_breedings,
+        geneticTraits: r.genetic_traits,
+        lastBreedingTime: r.last_breeding_time,
+        breedingCooldownHours: r.breeding_cooldown_hours,
       }))
     } catch (error) {
       // Non-fatal: return empty list if backend is unreachable
@@ -394,6 +428,31 @@ export const cloudRunService = {
     return handleAPIResponse<MarkAgentFundedResponse>(response)
   },
 
+  async updateAgentState(agentId: string, state: UpdateAgentStateRequest): Promise<void> {
+    const backendPayload = {
+      custom_instructions: state.customInstructions,
+      auto_scout_enabled: state.autoScoutEnabled,
+      custom_agenda: state.customAgenda,
+      generation: state.generation,
+      parent_ids: state.parentIds,
+      breeding_count: state.breedingCount,
+      max_breedings: state.maxBreedings,
+      genetic_traits: state.geneticTraits,
+      last_breeding_time: state.lastBreedingTime,
+      breeding_cooldown_hours: state.breedingCooldownHours,
+    }
+
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/state`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(backendPayload),
+      }
+    )
+
+    await handleAPIResponse(response)
+  },
+
   async assignEvent(request: AssignEventRequest): Promise<AssignEventResponse> {
     const urlCheck = validateEventUrl(request.eventUrl)
     if (!urlCheck.valid) {
@@ -429,7 +488,7 @@ export const cloudRunService = {
     }
   },
 
-  // ── Real backend: AI summary + Mantle NFT mint (Mode A) ──────────────────
+  // ── Real backend: AI summary + Mantle NFT mint (Mode A or B) ───────────────
   async attendEvent(request: AttendEventRequest): Promise<AttendEventResponse> {
     const urlCheck = validateEventUrl(request.eventUrl)
     if (!urlCheck.valid) {
@@ -445,6 +504,7 @@ export const cloudRunService = {
         event_title: request.eventTitle,
         platform: request.platform,
         niche: request.niche,
+        mode_b: request.modeB ?? false,  // Mode B: agent signs autonomously; Mode A: backend signs (default)
       }
 
       const response = await fetchWithTimeout(
@@ -598,6 +658,74 @@ export const cloudRunService = {
         undefined,
         error
       )
+    }
+  },
+
+  // ── Public endpoints (no auth required) ────────────────────────────────────
+
+  async getPublicMetrics() {
+    try {
+      const response = await fetchWithTimeout(
+        `${GCP_BACKEND_URL}/api/v1/public/metrics`,
+        { method: 'GET' }
+      )
+
+      return await handleAPIResponse<{
+        total_agents: number
+        total_wisdom_nfts: number
+        total_events_attended: number
+        average_agent_level: number
+        global_wisdom_index: number
+      }>(response)
+    } catch (error) {
+      console.warn('[cloudRunService] getPublicMetrics failed:', error)
+      return {
+        total_agents: 0,
+        total_wisdom_nfts: 0,
+        total_events_attended: 0,
+        average_agent_level: 0,
+        global_wisdom_index: 0,
+      }
+    }
+  },
+
+  async getPublicFeaturedWisdom() {
+    try {
+      const response = await fetchWithTimeout(
+        `${GCP_BACKEND_URL}/api/v1/public/featured-wisdom`,
+        { method: 'GET' }
+      )
+
+      const raw = await handleAPIResponse<Array<{
+        event_title: string
+        wisdom_summary: string
+        agent_name: string
+        agent_id: string
+        niche: string
+        platform: string
+        attended_at: number
+        tx_hash: string | null
+        token_id: string | null
+        wisdom_quality_score: number
+        category: string
+      }>>(response)
+
+      return raw.map(w => ({
+        eventTitle: w.event_title,
+        wisdomSummary: w.wisdom_summary,
+        agentName: w.agent_name,
+        agentId: w.agent_id,
+        niche: w.niche,
+        platform: w.platform,
+        attendedAt: w.attended_at,
+        txHash: w.tx_hash ?? undefined,
+        tokenId: w.token_id ?? undefined,
+        wisdomQualityScore: w.wisdom_quality_score,
+        category: w.category,
+      }))
+    } catch (error) {
+      console.warn('[cloudRunService] getPublicFeaturedWisdom failed:', error)
+      return []
     }
   },
 }

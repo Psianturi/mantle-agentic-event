@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
-import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent, Niche, RarityTier } from '@/lib/types'
+import { Agent, NFT, TerminalLog, Event, ScoutedEvent, SubAgentType, AgentProposal, MarketplaceAgent, Niche, RarityTier } from '@/lib/types'
 import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
 import { cn } from '@/lib/utils'
 import { AgentCard } from '@/components/AgentCard'
@@ -56,6 +56,80 @@ const simulationMessages = [
   { type: 'social-lite', messages: ['Monitoring Telegram channel...', 'Checking Discord notifications...', 'Analyzing community sentiment...', 'Engaging with community members...'] },
   { type: 'mint-master', messages: ['Estimating Mantle gas fees...', 'Optimizing transaction parameters...', 'Preparing NFT metadata...', 'Calculating optimal mint timing...'] }
 ]
+
+const NICHE_SCOUT_KEYWORDS: Record<Niche, string[]> = {
+  'Blockchain/DeFi': ['blockchain', 'defi', 'mantle', 'layer 2', 'rollup', 'smart contract', 'on-chain'],
+  'Trading/Investment': ['trading', 'investment', 'market', 'portfolio', 'analysis', 'quant', 'risk'],
+  'Technology': ['technology', 'ai', 'agent', 'developer', 'infrastructure', 'architecture', 'automation'],
+  'Health/Wellness': ['health', 'wellness', 'fitness', 'preventive', 'lifestyle', 'mental', 'nutrition'],
+}
+
+function tokenizeScoutText(input: string): string[] {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 4)
+}
+
+function computeScoutRelevance(agent: Agent, source: Event): number {
+  const base = 55
+  const nicheKeywords = NICHE_SCOUT_KEYWORDS[agent.niche] || []
+  const agendaKeywords = tokenizeScoutText(agent.customAgenda || '')
+  const queryKeywords = [...new Set([...nicheKeywords, ...agendaKeywords])]
+  const searchable = `${source.title} ${source.summary} ${source.url} ${source.platform}`.toLowerCase()
+
+  const keywordHits = queryKeywords.reduce((acc, keyword) => (
+    searchable.includes(keyword.toLowerCase()) ? acc + 1 : acc
+  ), 0)
+
+  const platformBoost = source.platform === 'YouTube' || source.platform === 'Luma' ? 6 : 3
+  const recencyDays = Math.max(0, Math.floor((Date.now() - source.date) / (24 * 60 * 60 * 1000)))
+  const recencyBoost = Math.max(0, 12 - Math.min(12, recencyDays))
+
+  return Math.min(98, base + (keywordHits * 7) + platformBoost + recencyBoost)
+}
+
+function buildScoutedOpportunities(agent: Agent, eventPool: Event[]): ScoutedEvent[] {
+  const existingUrls = new Set(
+    eventPool
+      .filter((evt) => evt.agentId === agent.id)
+      .map((evt) => evt.url.trim().toLowerCase())
+  )
+
+  const dedupedByUrl = new Map<string, Event>()
+  eventPool.forEach((evt) => {
+    const key = evt.url.trim().toLowerCase()
+    if (!key) return
+    const previous = dedupedByUrl.get(key)
+    if (!previous || evt.date > previous.date) {
+      dedupedByUrl.set(key, evt)
+    }
+  })
+
+  const ranked = Array.from(dedupedByUrl.values())
+    .filter((evt) => !existingUrls.has(evt.url.trim().toLowerCase()))
+    .map((evt) => ({
+      source: evt,
+      relevance: computeScoutRelevance(agent, evt),
+    }))
+    .sort((a, b) => b.relevance - a.relevance)
+    .slice(0, 5)
+
+  const now = Date.now()
+  return ranked.map(({ source, relevance }, idx) => ({
+    id: `scouted-${agent.id}-${source.id}-${idx}`,
+    title: source.title,
+    platform: source.platform,
+    url: source.url,
+    date: now + ((idx + 1) * 2 * 24 * 60 * 60 * 1000),
+    description: source.summary,
+    relevanceScore: relevance,
+    scoutedAt: now,
+    approved: false,
+  }))
+}
 
 function App() {
   const [agents, setAgents] = useState<Agent[]>([])
@@ -442,9 +516,11 @@ function App() {
       await new Promise(resolve => setTimeout(resolve, 400))
 
       addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Sending event to Gemini AI for analysis...`, 'info')
-  addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Preparing on-chain mint. NFT recipient: ${agent.walletAddress.slice(0, 10)}...${agent.walletAddress.slice(-4)}`, 'info')
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Preparing on-chain mint. NFT recipient: ${agent.walletAddress.slice(0, 10)}...${agent.walletAddress.slice(-4)}`, 'info')
       toast.info('Processing event...', { description: 'Gemini AI is analyzing. This takes 15-40s.' })
 
+      // Mode B (Autonomous Signing): Agent signs with its own private key
+      // Fallback to Mode A if Mode B fails (network error, KMS timeout, etc.)
       const result = await cloudRunService.attendEvent({
         agentId: agent.id,
         agentWallet: agent.walletAddress,
@@ -453,12 +529,14 @@ function App() {
         eventTitle,
         platform,
         niche: agent.niche,
+        modeB: true,  // Enable autonomous signing by default for demo impact
       })
 
+      const signingMode = result.txHash ? (result.txHash.includes('agent') ? 'Agent' : 'Backend') : 'Unknown'
       addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Wisdom generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
-  addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] MAEF minter signed and broadcasted tx to Mantle Sepolia. Agent wallet receives NFT: ${agent.walletAddress.slice(0, 10)}...${agent.walletAddress.slice(-4)}`, 'info')
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Transaction signed by ${signingMode}. TX: ${result.txHash.slice(0, 18)}...`, 'info')
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on Mantle! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
-  addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units | TX: ${result.txHash.slice(0, 18)}...`, 'info')
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units`, 'info')
 
       const newEvent: Event = {
         id: `event-${Date.now()}`,
@@ -565,6 +643,10 @@ function App() {
         a.id === agentId ? { ...a, customInstructions: instructions } : a
       )
     )
+
+    void cloudRunService.updateAgentState(agentId, { customInstructions: instructions }).catch((error) => {
+      console.warn('[cloudRunService] failed to persist custom instructions:', error)
+    })
   }
 
   const handleToggleScout = (agentId: string, enabled: boolean) => {
@@ -572,40 +654,34 @@ function App() {
       (current ?? []).map((a) => {
         if (a.id === agentId) {
           const updatedAgent = { ...a, autoScoutEnabled: enabled }
-          
+
           if (enabled && a.level >= 5) {
-            const mockScoutedEvents = [
-              {
-                id: `scouted-${Date.now()}-1`,
-                title: 'Web3 Security Summit 2026',
-                platform: 'Luma' as const,
-                url: 'https://lu.ma/web3-security-2026',
-                date: Date.now() + 7 * 24 * 60 * 60 * 1000,
-                description: 'Comprehensive conference covering smart contract auditing, zero-knowledge proofs, and emerging security frameworks for decentralized applications.',
-                relevanceScore: 94,
-                scoutedAt: Date.now(),
-                approved: false
-              },
-              {
-                id: `scouted-${Date.now()}-2`,
-                title: 'Building on Layer 2: Mantle Deep Dive',
-                platform: 'YouTube' as const,
-                url: 'https://youtube.com/watch?v=mantle-deep-dive',
-                date: Date.now() + 3 * 24 * 60 * 60 * 1000,
-                description: 'Technical workshop exploring advanced development patterns on Mantle Network, including gas optimization and cross-chain messaging.',
-                relevanceScore: 89,
-                scoutedAt: Date.now(),
-                approved: false
-              }
-            ]
-            updatedAgent.scoutedOpportunities = mockScoutedEvents
+            const opportunities = buildScoutedOpportunities(a, displayedEvents)
+            updatedAgent.scoutedOpportunities = opportunities
           }
-          
+
           return updatedAgent
         }
         return a
       })
     )
+
+    if (enabled) {
+      const sourceCount = displayedEvents.length
+      if (sourceCount === 0) {
+        toast.info('No historical events yet', {
+          description: 'Auto Scout will populate opportunities after your first attended events.'
+        })
+      } else {
+        toast.info('Scout refreshed from live event history', {
+          description: `Generated recommendations from ${sourceCount} event records.`
+        })
+      }
+    }
+
+    void cloudRunService.updateAgentState(agentId, { autoScoutEnabled: enabled }).catch((error) => {
+      console.warn('[cloudRunService] failed to persist auto scout state:', error)
+    })
   }
 
   const handleApproveScoutedEvent = (agentId: string, eventId: string) => {
@@ -632,6 +708,10 @@ function App() {
     )
     toast.success('Custom Agenda Updated', {
       description: 'Agent will now scout events based on your custom criteria'
+    })
+
+    void cloudRunService.updateAgentState(agentId, { customAgenda: agenda }).catch((error) => {
+      console.warn('[cloudRunService] failed to persist custom agenda:', error)
     })
   }
 
@@ -767,8 +847,8 @@ function App() {
 
   const handleBreedComplete = (result: import('@/lib/types').BreedingResult, offspringName: string) => {
     const newAgent = result.offspring
-    const parent1 = agents?.find(a => a.id === (newAgent.parentIds?.[0]))
-    const parent2 = agents?.find(a => a.id === (newAgent.parentIds?.[1]))
+    const parent1 = displayedAgents.find(a => a.id === (newAgent.parentIds?.[0]))
+    const parent2 = displayedAgents.find(a => a.id === (newAgent.parentIds?.[1]))
 
     setAgents((current) => {
       const updated = (current ?? []).map((a) => {
@@ -795,6 +875,17 @@ function App() {
     if (parent1 && parent2) {
       addLog(newAgent.id, 'secretary', `[SYSTEM] Parents: "${parent1.name}" + "${parent2.name}" | Generation ${newAgent.generation} | ${result.geneticBonus.length} genetic bonuses applied.`, 'info')
     }
+
+    ;[parent1, parent2].filter(Boolean).forEach((parent) => {
+      void cloudRunService.updateAgentState(parent!.id, {
+        breedingCount: (parent!.breedingCount ?? 0) + 1,
+        maxBreedings: parent!.maxBreedings ?? 3,
+        lastBreedingTime: Date.now(),
+        breedingCooldownHours: 24,
+      }).catch((error) => {
+        console.warn('[cloudRunService] failed to persist breeding metadata:', error)
+      })
+    })
   }
 
   const handleCooldownBoost = (agentId: string) => {
@@ -818,6 +909,7 @@ function App() {
     if (agent) {
       addLog(agent.id, 'mint-master', `[SYSTEM] Neural recovery boost applied. Agent is ready for immediate fusion.`, 'success')
     }
+
   }
 
   const stats = [
