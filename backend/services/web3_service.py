@@ -12,6 +12,7 @@ from typing import Any
 
 from eth_account import Account
 from web3 import Web3
+from web3.logs import DISCARD
 
 from core.config import settings
 from core.secrets import get_agent_private_key, get_mantle_rpc_url
@@ -59,10 +60,9 @@ MAEF_ABI: list[dict] = [
         "anonymous": False,
         "inputs": [
             {"indexed": True, "internalType": "address", "name": "agentWallet", "type": "address"},
-            {"indexed": False, "internalType": "uint256", "name": "newLevel", "type": "uint256"},
             {"indexed": False, "internalType": "uint256", "name": "totalEvents", "type": "uint256"},
         ],
-        "name": "AgentLevelUp",
+        "name": "WisdomUnlocked",
         "type": "event",
     },
 ]
@@ -200,10 +200,10 @@ class Web3Service:
         token_id: int | None = None
         level_up: bool = False
         try:
-            mint_logs = contract.events.NFTMinted().process_receipt(receipt)
+            mint_logs = contract.events.NFTMinted().process_receipt(receipt, errors=DISCARD)
             if mint_logs:
                 token_id = int(mint_logs[0]["args"]["tokenId"])
-            level_logs = contract.events.AgentLevelUp().process_receipt(receipt)
+            level_logs = contract.events.AgentLevelUp().process_receipt(receipt, errors=DISCARD)
             level_up = len(level_logs) > 0
         except Exception as exc:
             logger.warning("Could not parse event logs: %s", exc)
