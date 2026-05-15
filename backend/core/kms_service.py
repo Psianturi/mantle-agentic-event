@@ -53,6 +53,13 @@ def encrypt_private_key(private_key: str) -> str:
     """
     key_name = _get_kms_key_name()
     if not key_name:
+        from core.config import settings
+        if settings.environment == "production":
+            raise RuntimeError(
+                "KMS_KEY_NAME must be configured in production. "
+                "Refusing to store agent private key as plaintext. "
+                "Set KMS_KEY_NAME in Cloud Run environment variables."
+            )
         logger.warning(
             "KMS_KEY_NAME not set — private key stored unencrypted. "
             "Set KMS_KEY_NAME before mainnet deployment."
