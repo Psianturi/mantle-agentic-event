@@ -530,7 +530,7 @@ class ChatRequest(BaseModel):
 
 @router.post("/{agent_id}/chat")
 async def agent_chat(agent_id: str, req: ChatRequest) -> dict:
-    """Reply to a user message as the named agent, using Gemini."""
+    """Reply to a user message as the named agent, using Gemini with event grounding."""
     db = get_db()
 
     try:
@@ -542,6 +542,23 @@ async def agent_chat(agent_id: str, req: ChatRequest) -> dict:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
 
     data = doc.to_dict() or {}
+
+    # Fetch event summaries to ground the chat with real knowledge
+    event_summaries: list[str] = []
+    try:
+        async for event_doc in (
+            db.collection(EVENTS_COLLECTION)
+            .where(filter=FieldFilter("agent_id", "==", agent_id))
+            .stream()
+        ):
+            event_data = event_doc.to_dict() or {}
+            title = event_data.get("event_title", "")
+            summary = event_data.get("wisdom_summary", "")
+            if title and summary:
+                event_summaries.append(f"{title}: {summary}")
+    except Exception as exc:
+        logger.warning("Could not fetch event history for chat grounding: %s", exc.__class__.__name__)
+
     reply = await chat_with_agent(
         agent_name=data.get("agent_name", "Agent"),
         personality=data.get("personality", "Analytical"),
@@ -549,6 +566,7 @@ async def agent_chat(agent_id: str, req: ChatRequest) -> dict:
         events_attended=data.get("total_events", 0),
         message=req.message,
         conversation_history=req.conversation_history,
+        event_summaries=event_summaries,
     )
     return {"reply": reply}
 

@@ -223,14 +223,16 @@ Analyze these {count} event summaries attended by an autonomous AI agent:
 
 {summaries}
 
-Generate a comprehensive wisdom report. Return ONLY a valid JSON object with this structure:
+Generate a comprehensive wisdom report grounded in the specific events above.
+Each insight must reference or be inspired by specific content from the events listed.
+Return a JSON object with exactly this structure:
 {{
   "insights": ["insight1", "insight2", "insight3", "insight4", "insight5"],
   "strategic_tips": ["tip1", "tip2", "tip3", "tip4"]
 }}
 
-Make insights data-driven and specific to the actual events above.
-Make tips actionable and forward-looking.\
+insights: 5 specific, data-driven observations drawn from the actual events above.
+strategic_tips: 4 actionable forward-looking recommendations based on what the agent learned.\
 """
 
 _WISDOM_FALLBACK = {
@@ -278,6 +280,7 @@ async def generate_wisdom_report(niche: str, event_summaries: list[str]) -> dict
             "temperature": 0.62,
             "maxOutputTokens": 1024,
             "topP": 0.9,
+            "responseMimeType": "application/json",  # Force raw JSON output, no markdown fences
         },
     }
 
@@ -287,17 +290,28 @@ async def generate_wisdom_report(niche: str, event_summaries: list[str]) -> dict
         )
         raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-        # Strip markdown code fences if present
-        if raw_text.startswith("```"):
-            raw_text = raw_text.split("```")[1]
-            if raw_text.startswith("json"):
-                raw_text = raw_text[4:]
+        # Fallback extraction if model still wraps in code fences (shouldn't happen with responseMimeType)
+        if not raw_text.startswith("{"):
+            # Try to extract JSON object from text
+            start = raw_text.find("{")
+            end = raw_text.rfind("}") + 1
+            if start != -1 and end > start:
+                raw_text = raw_text[start:end]
+            else:
+                # Strip code fences
+                for fence in ("```json", "```"):
+                    if raw_text.startswith(fence):
+                        raw_text = raw_text[len(fence):]
+                        break
+                if raw_text.endswith("```"):
+                    raw_text = raw_text[:-3]
+                raw_text = raw_text.strip()
 
         result = json.loads(raw_text)
-        return {
-            "insights": result.get("insights", _WISDOM_FALLBACK["insights"]),
-            "strategic_tips": result.get("strategic_tips", _WISDOM_FALLBACK["strategic_tips"]),
-        }
+        insights = result.get("insights") or _WISDOM_FALLBACK["insights"]
+        tips = result.get("strategic_tips") or _WISDOM_FALLBACK["strategic_tips"]
+        logger.info("Wisdom report generated: %d insights, %d tips", len(insights), len(tips))
+        return {"insights": insights, "strategic_tips": tips}
 
     except Exception as exc:
         logger.error("Wisdom report generation failed: %s", exc.__class__.__name__)
@@ -311,19 +325,33 @@ async def chat_with_agent(
     events_attended: int,
     message: str,
     conversation_history: list[str],
+    event_summaries: list[str] | None = None,
 ) -> str:
     """
     Generate a contextual chat reply from the agent using Gemini.
     Falls back to a canned reply if the API is unavailable.
+    event_summaries: list of "EventTitle: wisdom_summary" strings from Firestore.
     """
     history_text = "\n\n".join(conversation_history[-6:]) if conversation_history else ""
+
+    # Build event knowledge section if available
+    event_knowledge = ""
+    if event_summaries:
+        events_formatted = "\n".join(f"  - {s}" for s in event_summaries[:8])
+        event_knowledge = (
+            f"\nYour attended events and what you learned:\n{events_formatted}\n\n"
+            "Draw on these specific learnings when answering questions about your experience.\n"
+        )
+
     prompt = (
-        f"You are {agent_name}, an AI agent with a {personality.lower()} personality "
-        f"specializing in {niche}. You have attended {events_attended} events and gained "
-        f"deep insights in your domain.\n\n"
+        f"You are {agent_name}, an autonomous AI agent with a {personality.lower()} personality "
+        f"specializing in {niche}. You have attended {events_attended} events on-chain "
+        f"and gained deep insights recorded as NFT wisdom.\n"
+        + event_knowledge
         + (f"Previous conversation:\n{history_text}\n\n" if history_text else "")
         + f"User: {message}\n\n"
-        "Respond naturally and helpfully, drawing on your expertise. "
+        "Respond in the same language as the user's message (Indonesian or English). "
+        "Be specific — reference the actual events you attended when relevant. "
         "Keep the response conversational but informative, under 150 words."
     )
 
