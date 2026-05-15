@@ -10,7 +10,9 @@ Docker image size and full async support.
 """
 
 import asyncio
+import json
 import logging
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -22,12 +24,102 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 _GEMINI_URL = (
-    "https://generativelanguage.googleapis.com/v1/models/"
+    "https://generativelanguage.googleapis.com/v1beta/models/"
     "gemini-2.5-flash:generateContent"
 )
 
 # Max transcript chars sent to Gemini (~700-800 words, well within token budget)
 _TRANSCRIPT_MAX_CHARS = 4000
+
+# Retry configuration for transient Gemini API errors
+_MAX_RETRIES = 2
+_RETRY_DELAY = 1.0  # seconds
+
+# ── Retry helper ──────────────────────────────────────────────────────────────
+
+async def _call_gemini_with_retry(
+    api_key: str,
+    payload: dict[str, Any],
+    timeout: float,
+    context: str = "request",
+) -> dict[str, Any]:
+    """
+    Call Gemini API with retry logic for transient errors (404, 503).
+    Returns parsed JSON response or raises exception after all retries exhausted.
+    """
+    last_exc = None
+
+    for attempt in range(_MAX_RETRIES + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(
+                    _GEMINI_URL,
+                    params={"key": api_key},
+                    json=payload,
+                )
+                resp.raise_for_status()
+
+                # Validate response before parsing
+                try:
+                    data = resp.json()
+                except json.JSONDecodeError as exc:
+                    logger.error(
+                        "Gemini returned invalid JSON for %s (attempt %d/%d): %s",
+                        context, attempt + 1, _MAX_RETRIES + 1, resp.text[:200]
+                    )
+                    raise ValueError(f"Invalid JSON response from Gemini: {exc}")
+
+                # Validate response structure
+                if "candidates" not in data or not data["candidates"]:
+                    logger.error(
+                        "Gemini response missing candidates for %s: %s",
+                        context, str(data)[:200]
+                    )
+                    raise ValueError("Gemini response missing candidates field")
+
+                return data
+
+        except (httpx.HTTPStatusError, httpx.TimeoutException) as exc:
+            last_exc = exc
+            is_retryable = False
+
+            if isinstance(exc, httpx.HTTPStatusError):
+                status = exc.response.status_code
+                is_retryable = status in (404, 503, 500, 502, 504)
+                logger.warning(
+                    "Gemini HTTP %d for %s (attempt %d/%d): %s",
+                    status, context, attempt + 1, _MAX_RETRIES + 1,
+                    exc.response.text[:200]
+                )
+            elif isinstance(exc, httpx.TimeoutException):
+                is_retryable = True
+                logger.warning(
+                    "Gemini timeout for %s (attempt %d/%d)",
+                    context, attempt + 1, _MAX_RETRIES + 1
+                )
+
+            # Retry if error is transient and we have attempts left
+            if is_retryable and attempt < _MAX_RETRIES:
+                delay = _RETRY_DELAY * (2 ** attempt)  # exponential backoff
+                logger.info("Retrying in %.1fs...", delay)
+                await asyncio.sleep(delay)
+                continue
+
+            # Not retryable or out of retries
+            raise
+
+        except ValueError:
+            # JSON decode error or validation error — not retryable
+            raise
+
+        except Exception as exc:
+            logger.error("Unexpected Gemini error for %s: %s", context, exc.__class__.__name__)
+            raise
+
+    # Should never reach here, but for type safety
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("Retry loop exhausted without result")
 
 # ── Prompt templates ──────────────────────────────────────────────────────────
 
@@ -190,26 +282,23 @@ async def generate_wisdom_report(niche: str, event_summaries: list[str]) -> dict
     }
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                _GEMINI_URL,
-                params={"key": api_key},
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-            # Strip markdown code fences if present
-            if raw_text.startswith("```"):
-                raw_text = raw_text.split("```")[1]
-                if raw_text.startswith("json"):
-                    raw_text = raw_text[4:]
-            import json
-            result = json.loads(raw_text)
-            return {
-                "insights": result.get("insights", _WISDOM_FALLBACK["insights"]),
-                "strategic_tips": result.get("strategic_tips", _WISDOM_FALLBACK["strategic_tips"]),
-            }
+        data = await _call_gemini_with_retry(
+            api_key, payload, timeout=30.0, context=f"wisdom report ({niche})"
+        )
+        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+        # Strip markdown code fences if present
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("```")[1]
+            if raw_text.startswith("json"):
+                raw_text = raw_text[4:]
+
+        result = json.loads(raw_text)
+        return {
+            "insights": result.get("insights", _WISDOM_FALLBACK["insights"]),
+            "strategic_tips": result.get("strategic_tips", _WISDOM_FALLBACK["strategic_tips"]),
+        }
+
     except Exception as exc:
         logger.error("Wisdom report generation failed: %s", exc.__class__.__name__)
         return _WISDOM_FALLBACK
@@ -252,13 +341,13 @@ async def chat_with_agent(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(_GEMINI_URL, params={"key": api_key}, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        data = await _call_gemini_with_retry(
+            api_key, payload, timeout=25.0, context=f"chat ({agent_name})"
+        )
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+
     except Exception as exc:
-        logger.error("Agent chat LLM error: %s", exc.__class__.__name__)
+        logger.error("Agent chat failed: %s", exc.__class__.__name__)
         return (
             f"I apologize, I'm having trouble connecting right now. "
             f"As your {personality.lower()} agent focused on {niche}, "
@@ -327,28 +416,16 @@ async def summarize_event(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=25.0) as client:
-            resp = await client.post(
-                _GEMINI_URL,
-                params={"key": api_key},
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["candidates"][0]["content"]["parts"][0]["text"].strip()
-
-    except httpx.TimeoutException:
-        logger.warning("Gemini timeout for '%s', using fallback", event_title)
-    except httpx.HTTPStatusError as exc:
-        logger.error(
-            "Gemini HTTP %s for '%s': %s",
-            exc.response.status_code,
-            event_title,
-            exc.response.text[:200],
+        data = await _call_gemini_with_retry(
+            api_key, payload, timeout=30.0, context=f"event summary ('{event_title}')"
         )
-    except Exception as exc:
-        logger.error("Unexpected LLM error for '%s': %s", event_title, exc.__class__.__name__)
+        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
-    return _FALLBACK_TEMPLATE.format(
-        agent_name=agent_name, event_title=event_title, platform=platform
-    )
+    except Exception as exc:
+        logger.error(
+            "Event summary failed for '%s': %s",
+            event_title, exc.__class__.__name__
+        )
+        return _FALLBACK_TEMPLATE.format(
+            agent_name=agent_name, event_title=event_title, platform=platform
+        )
