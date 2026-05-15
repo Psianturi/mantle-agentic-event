@@ -1,6 +1,7 @@
-const { ethers } = require("hardhat");
+import { network } from "hardhat";
 
 async function main() {
+  const { ethers } = await network.create();
   const [deployer] = await ethers.getSigners();
   console.log("Deploying with:", deployer.address);
 
@@ -17,20 +18,19 @@ async function main() {
   await maef.waitForDeployment();
 
   const address = await maef.getAddress();
-  console.log("✅ MAEFDynamicNFT deployed to:", address);
+  console.log("SUCCESS: MAEFDynamicNFT deployed to:", address);
   console.log("   Explorer:", `https://explorer.sepolia.mantle.xyz/address/${address}`);
 
-  // If AGENT_WALLET is set, grant it MINTER_ROLE so backend can mint autonomously
   const agentWallet = process.env.AGENT_WALLET_ADDRESS;
   if (agentWallet && ethers.isAddress(agentWallet)) {
     const MINTER_ROLE = await maef.MINTER_ROLE();
     const tx = await maef.grantMinterRole(agentWallet);
     await tx.wait();
-    console.log("✅ MINTER_ROLE granted to agent wallet:", agentWallet);
+    console.log("SUCCESS: MINTER_ROLE granted to agent wallet:", agentWallet);
   }
 
-  console.log("\n📋 Next step: update src/lib/blockchain/config.ts");
-  console.log(`   CONTRACT_ADDRESSES.sepolia.MAEF_NFT = '${address}'`);
+  console.log("\nNext step: update src/lib/blockchain/config.ts");
+  console.log(`   CONTRACT_ADDRESSES.sepolia.MAEF_NFT = "${address}"`);
 }
 
 main().catch((err) => {

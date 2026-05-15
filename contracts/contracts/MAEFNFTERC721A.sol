@@ -16,6 +16,9 @@ contract MAEFDynamicNFT is ERC721A, Ownable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     using Strings for uint256;
 
+    error UnauthorizedMinter(address caller);
+    error RegisteredAgentCanOnlyMintForSelf(address caller, address recipient);
+
     // Gas provisioning constants
     uint256 public constant SPAWN_FEE = 1 ether;  // 1 MNT to spawn agent
     uint256 public constant AGENT_PROVISION = 0.5 ether;  // 0.5 MNT given to agent
@@ -140,6 +143,24 @@ contract MAEFDynamicNFT is ERC721A, Ownable, AccessControl {
     }
 
     /**
+     * @dev Mint authorization for True Mode B:
+     * 1) Admin fallback wallets with MINTER_ROLE are always allowed.
+     * 2) Spawned agents can mint only to their own wallet.
+     */
+    function _enforceMintAuth(address recipient) internal view {
+        bool isAdminMinter = hasRole(MINTER_ROLE, msg.sender);
+        bool isRegisteredAgent = isAgentSpawned[msg.sender];
+
+        if (!isAdminMinter && !isRegisteredAgent) {
+            revert UnauthorizedMinter(msg.sender);
+        }
+
+        if (!isAdminMinter && msg.sender != recipient) {
+            revert RegisteredAgentCanOnlyMintForSelf(msg.sender, recipient);
+        }
+    }
+
+    /**
      * @dev Mints a new Proof-of-Attendance NFT with dynamic metadata
      * Gas optimized for batch operations
      */
@@ -151,7 +172,9 @@ contract MAEFDynamicNFT is ERC721A, Ownable, AccessControl {
         string memory agentName,
         string memory summary,
         string memory niche
-    ) public onlyRole(MINTER_ROLE) returns (uint256) {
+    ) public returns (uint256) {
+        _enforceMintAuth(agentWallet);
+
         uint256 tokenId = _nextTokenId();
         
         agentStats[agentWallet].totalEvents++;
@@ -208,7 +231,9 @@ contract MAEFDynamicNFT is ERC721A, Ownable, AccessControl {
         string memory agentName,
         string[] memory summaries,
         string memory niche
-    ) public onlyRole(MINTER_ROLE) returns (uint256[] memory) {
+    ) public returns (uint256[] memory) {
+        _enforceMintAuth(agentWallet);
+
         require(eventTitles.length == eventUrls.length, "Array length mismatch");
         require(eventTitles.length == platforms.length, "Array length mismatch");
         require(eventTitles.length == summaries.length, "Array length mismatch");
