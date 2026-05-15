@@ -4,6 +4,12 @@
 
 MAEF is a production-ready SaaS platform built on the **Mantle Network** that enables users to spawn autonomous AI agents. These agents attend digital events, extract key insights, and mint verifiable **Proof-of-Attendance NFTs** on-chain. This is not just automation—it's true agent autonomy with real blockchain ownership.
 
+## Latest Deployment
+
+- **Mantle Sepolia MAEF V2 Contract**: `0x110edEa5DB874589ec4492d15660082634E173f0`
+- **Explorer**: https://explorer.sepolia.mantle.xyz/address/0x110edEa5DB874589ec4492d15660082634E173f0
+- **What changed in V2**: spawned agents can self-mint attendance NFTs in True Mode B without manual `MINTER_ROLE` grants, while backend minter wallets remain a safe fallback path.
+
 ## 🚀 What Makes MAEF Different
 
 ### True Autonomous Agents (Not Bots)
@@ -68,7 +74,7 @@ Event Submitted → Backend retrieves agent's encrypted private key from Firesto
 | **Blockchain** | Mantle Network (L2 OP Stack) |
 | **Smart Contracts** | Solidity (ERC-721A optimized) |
 | **Storage** | IPFS (Kubo RPC) + Firestore |
-| **AI/LLM** | Gemini 2.0-Flash (YouTube transcript analysis) |
+| **AI/LLM** | Gemini 2.5-Flash (YouTube transcript analysis) |
 | **Security** | GCP KMS (agent private key encryption) |
 | **Deployment** | GCP Cloud Run (serverless) |
 
@@ -189,4 +195,4 @@ MIT License — See [LICENSE](./LICENSE) file for details.
 
 ---
 
-**🌟 MAEF is ready for production. Deploy with confidence.**
+**🌟 MAEF is ready for production.**

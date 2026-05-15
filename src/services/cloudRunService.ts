@@ -1,7 +1,13 @@
 import { Agent, Event, Niche, Personality, SubAgentType } from '@/lib/types'
 import { config as appConfig } from '@/lib/config'
 
-const GCP_BACKEND_URL = import.meta.env.VITE_GCP_BACKEND_URL || 'https://agentic-event-factory.run.app'
+const GCP_BACKEND_URL =
+  import.meta.env.VITE_GCP_BACKEND_URL ||
+  'https://mantle-agentic-event-21898396920.asia-southeast1.run.app'
+
+if (!import.meta.env.VITE_GCP_BACKEND_URL) {
+  console.warn('VITE_GCP_BACKEND_URL is not set. Using production Cloud Run fallback URL.')
+}
 const REQUEST_TIMEOUT = 55000
 
 const ALLOWED_EVENT_DOMAINS = [
