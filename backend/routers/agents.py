@@ -627,3 +627,106 @@ async def generate_agent_wisdom(agent_id: str) -> dict:
         "strategic_tips": report["strategic_tips"],
         "generated_at": time.time(),
     }
+
+
+@router.post("/{agent_id}/scout")
+async def run_auto_scout(agent_id: str) -> dict:
+    """
+    Secretary sub-agent: autonomously discover and attend a YouTube event.
+
+    1. Secretary searches YouTube for videos matching the agent's niche.
+    2. Already-attended URLs are filtered out (dedup via Firestore).
+    3. Gemini picks the best candidate.
+    4. Agent attends the event — Mode B if funded on-chain, Mode A fallback.
+
+    Returns the discovered video details + full attend result.
+    """
+    db = get_db()
+    try:
+        doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    data = doc.to_dict() or {}
+    niche = data.get("niche", "General")
+    agent_name = data.get("agent_name", "Agent")
+    agent_wallet = data.get("agent_wallet", "")
+    custom_instructions = data.get("custom_instructions")
+    is_funded = data.get("funded", False)
+
+    if not agent_wallet:
+        raise HTTPException(status_code=400, detail="Agent has no wallet address")
+
+    # ── Secretary: discover best YouTube event ────────────────────────────
+    from services.scout_service import discover_event
+
+    logger.info("Auto Scout triggered for agent %s (niche=%s)", agent_id, niche)
+    try:
+        video = await discover_event(
+            agent_id=agent_id,
+            niche=niche,
+            agent_name=agent_name,
+            custom_instructions=custom_instructions,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        logger.error("Secretary discovery failed for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=500, detail="Event discovery failed")
+
+    if not video:
+        return {
+            "status": "no_new_events",
+            "message": "Secretary found no new events to attend (all candidates already attended or search returned no results)",
+            "agent_id": agent_id,
+        }
+
+    logger.info(
+        "Secretary selected '%s' for agent %s (reason: %s)",
+        video["title"], agent_id, video.get("scout_reason", "N/A"),
+    )
+
+    # ── Mint-Master: attend the discovered event ──────────────────────────
+    from routers.events import AttendRequest, attend_event
+
+    attend_req = AttendRequest(
+        agent_id=agent_id,
+        agent_wallet=agent_wallet,
+        agent_name=agent_name,
+        event_url=video["url"],
+        event_title=video["title"],
+        platform="YouTube",
+        niche=niche,
+        mode_b=is_funded,
+    )
+
+    try:
+        attend_result = await attend_event(attend_req)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Auto Scout attend failed for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=500, detail="Event attendance failed after discovery")
+
+    return {
+        "status": "attended",
+        "agent_id": agent_id,
+        "discovered": {
+            "url": video["url"],
+            "title": video["title"],
+            "channel": video.get("channel", ""),
+            "scout_reason": video.get("scout_reason", ""),
+        },
+        "attend_result": {
+            "success": attend_result.success,
+            "tx_hash": attend_result.tx_hash,
+            "token_id": attend_result.token_id,
+            "wisdom_summary": attend_result.wisdom_summary,
+            "explorer_url": attend_result.explorer_url,
+            "new_total_events": attend_result.new_total_events,
+            "new_level": attend_result.new_level,
+        },
+    }

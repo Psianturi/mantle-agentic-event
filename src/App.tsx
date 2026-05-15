@@ -684,6 +684,53 @@ function App() {
     })
   }
 
+  const [scoutingAgentId, setScoutingAgentId] = useState<string | null>(null)
+
+  const handleRunAutoScout = async (agentId: string) => {
+    if (!backendConnected) {
+      toast.error('Backend not available', { description: 'Connect to Cloud Run backend first.' })
+      return
+    }
+    setScoutingAgentId(agentId)
+    toast.info('Secretary is searching for events...', { description: 'Scanning YouTube for relevant content.' })
+    try {
+      const result = await cloudRunService.runAutoScout(agentId)
+      if (result.status === 'no_new_events') {
+        toast.info('No new events found', { description: result.message ?? 'All discovered events already attended.' })
+        return
+      }
+      const { discovered, attend_result } = result
+      if (attend_result?.success) {
+        toast.success(`Agent attended: ${discovered?.title}`, {
+          description: `NFT minted. TX: ${attend_result.tx_hash?.slice(0, 10)}...`,
+        })
+        // Update agent stats in local state from scout result
+        if (attend_result.new_total_events != null || attend_result.new_level != null) {
+          setAgents((current) =>
+            (current ?? []).map((a) =>
+              a.id === agentId
+                ? {
+                    ...a,
+                    eventsAttended: attend_result.new_total_events ?? a.eventsAttended,
+                    level: attend_result.new_level ?? a.level,
+                  }
+                : a
+            )
+          )
+        }
+      } else {
+        toast.warning('Discovered event but mint failed', {
+          description: discovered?.title ?? 'Check Cloud Run logs.',
+        })
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      toast.error('Auto Scout failed', { description: msg })
+    } finally {
+      setScoutingAgentId(null)
+    }
+  }
+
   const handleApproveScoutedEvent = (agentId: string, eventId: string) => {
     setAgents((current) =>
       (current ?? []).map((a) => {
@@ -1073,7 +1120,7 @@ function App() {
                   </div>
                   <span>Attend Event</span>
                 </h2>
-                <div className="flex gap-3">
+                <div className="flex gap-3 mb-3">
                   <Input
                     placeholder="Enter YouTube or Luma event URL..."
                     value={eventUrl}
@@ -1088,6 +1135,26 @@ function App() {
                     {!walletConnected ? 'Connect & Attend' : 'Attend Event'}
                   </Button>
                 </div>
+                {backendConnected && displayedAgents.length > 0 && (() => {
+                  const scoutAgent = selectedAgent ?? displayedAgents[0]
+                  return (
+                    <div className="flex items-center gap-3 pt-2 border-t border-primary/10">
+                      <span className="text-xs text-muted-foreground">Auto Scout</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRunAutoScout(scoutAgent.id)}
+                        disabled={scoutingAgentId === scoutAgent.id}
+                        className="border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 text-xs font-semibold"
+                      >
+                        {scoutingAgentId === scoutAgent.id ? 'Secretary searching...' : 'Run Auto Scout'}
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {scoutAgent.name} discovers &amp; attends a {scoutAgent.niche} event autonomously
+                      </span>
+                    </div>
+                  )
+                })()}
               </Card>
 
               {displayedAgents.length > 0 && (

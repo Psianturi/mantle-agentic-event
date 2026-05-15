@@ -626,6 +626,33 @@ export const cloudRunService = {
     }
   },
 
+  async runAutoScout(agentId: string): Promise<{
+    status: 'attended' | 'no_new_events'
+    message?: string
+    discovered?: { url: string; title: string; channel: string; scout_reason: string }
+    attend_result?: {
+      success: boolean
+      tx_hash: string | null
+      token_id: string | null
+      wisdom_summary: string
+      explorer_url: string | null
+      new_total_events: number | null
+      new_level: number | null
+    }
+  }> {
+    try {
+      const response = await fetchWithTimeout(
+        `${GCP_BACKEND_URL}/api/v1/agent/${agentId}/scout`,
+        { method: 'POST' },
+        120000  // 120s — YouTube search + Gemini filter + Mantle tx
+      )
+      return handleAPIResponse(response)
+    } catch (error) {
+      if (error instanceof CloudRunAPIError) throw error
+      throw new CloudRunAPIError('Auto Scout failed', undefined, error)
+    }
+  },
+
   async chatWithAgent(agentId: string, message: string, conversationHistory: string[]): Promise<string> {
     const response = await fetchWithTimeout(
       `${GCP_BACKEND_URL}/api/v1/agent/${agentId}/chat`,

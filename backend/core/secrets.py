@@ -79,6 +79,14 @@ def get_llm_api_key() -> str:
     return _get_secret("LLM_API_KEY")
 
 
+def get_youtube_api_key() -> str | None:
+    """Return YOUTUBE_API_KEY if configured, None otherwise (auto scout disabled)."""
+    try:
+        return _get_secret("YOUTUBE_API_KEY")
+    except RuntimeError:
+        return None
+
+
 def get_mantle_rpc_url() -> str:
     """Return MANTLE_RPC_URL, falling back to public Sepolia RPC."""
     try:
