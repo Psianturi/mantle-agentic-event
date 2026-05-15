@@ -197,11 +197,12 @@ export interface AgentDetailsResponse {
   error?: string
 }
 
-class CloudRunAPIError extends Error {
+export class CloudRunAPIError extends Error {
   constructor(
     message: string,
     public statusCode?: number,
-    public originalError?: unknown
+    public originalError?: unknown,
+    public errorCode?: string,
   ) {
     super(message)
     this.name = 'CloudRunAPIError'
@@ -243,25 +244,33 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout 
 async function handleAPIResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let errorMessage = `API Error: ${response.status} ${response.statusText}`
+    let errorCode: string | undefined
     
     try {
       const errorData = await response.json()
-      errorMessage = errorData.error || errorData.message || errorMessage
+      const detail = errorData?.detail
+
+      if (detail && typeof detail === 'object') {
+        errorCode = typeof detail.code === 'string' ? detail.code : undefined
+        errorMessage = detail.message || errorData.error || errorData.message || errorMessage
+      } else {
+        errorMessage = detail || errorData.error || errorData.message || errorMessage
+      }
     } catch {
       // Ignore JSON parse errors
     }
 
     if (response.status === 504) {
-      throw new CloudRunAPIError('Gateway timeout - the autonomous agent is still processing. Please try polling for status.', 504)
+      throw new CloudRunAPIError('Gateway timeout - the autonomous agent is still processing. Please try polling for status.', 504, undefined, errorCode)
     } else if (response.status === 503) {
-      throw new CloudRunAPIError('Service temporarily unavailable - Cloud Run instance may be starting up', 503)
+      throw new CloudRunAPIError('Service temporarily unavailable - Cloud Run instance may be starting up', 503, undefined, errorCode)
     } else if (response.status === 500) {
-      throw new CloudRunAPIError('Internal server error - agent encountered an unexpected issue', 500)
+      throw new CloudRunAPIError('Internal server error - agent encountered an unexpected issue', 500, undefined, errorCode)
     } else if (response.status === 429) {
-      throw new CloudRunAPIError('Too many requests - please wait before retrying', 429)
+      throw new CloudRunAPIError('Too many requests - please wait before retrying', 429, undefined, errorCode)
     }
 
-    throw new CloudRunAPIError(errorMessage, response.status)
+    throw new CloudRunAPIError(errorMessage, response.status, undefined, errorCode)
   }
 
   return response.json()
@@ -830,5 +839,3 @@ export const cloudRunService = {
     }
   },
 }
-
-export { CloudRunAPIError }

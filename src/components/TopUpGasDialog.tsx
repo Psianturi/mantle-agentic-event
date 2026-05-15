@@ -12,7 +12,7 @@ interface TopUpGasDialogProps {
   onOpenChange: (open: boolean) => void
   agent: Agent
   userBalance: number
-  onTopUp: (agentId: string, amount: number) => void
+  onTopUp: (agentId: string, amount: number) => Promise<void>
 }
 
 export function TopUpGasDialog({ open, onOpenChange, agent, userBalance, onTopUp }: TopUpGasDialogProps) {
@@ -41,17 +41,22 @@ export function TopUpGasDialog({ open, onOpenChange, agent, userBalance, onTopUp
       description: 'Please approve the transaction in your wallet'
     })
 
-    await new Promise(resolve => setTimeout(resolve, 2000))
+    try {
+      await onTopUp(agent.id, numAmount)
 
-    onTopUp(agent.id, numAmount)
-    
-    toast.success('Gas top-up successful!', {
-      description: `Transferred ${numAmount.toFixed(4)} MNT to ${agent.name}'s wallet`
-    })
+      toast.success('Gas top-up successful!', {
+        description: `Transferred ${numAmount.toFixed(4)} MNT to ${agent.name}'s wallet`
+      })
 
-    setIsProcessing(false)
-    setAmount('')
-    onOpenChange(false)
+      setAmount('')
+      onOpenChange(false)
+    } catch (error) {
+      toast.error('Top-up failed', {
+        description: error instanceof Error ? error.message : 'Failed to top up agent gas'
+      })
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
   const handleMaxClick = () => {

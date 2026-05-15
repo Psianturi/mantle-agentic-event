@@ -15,7 +15,7 @@ from web3 import Web3
 from web3.logs import DISCARD
 
 from core.config import settings
-from core.secrets import get_agent_private_key, get_mantle_rpc_url
+from core.secrets import get_mantle_rpc_url, get_minter_service_private_key
 
 logger = logging.getLogger(__name__)
 
@@ -119,6 +119,7 @@ class Web3Service:
         summary: str,
         niche: str = "General",
         agent_private_key: str | None = None,  # Agent's own key for autonomy
+        allow_mode_b_fallback: bool = True,
     ) -> dict[str, Any]:
         """
         Signs and broadcasts mintAttendanceNFT to Mantle.
@@ -132,7 +133,15 @@ class Web3Service:
         return await loop.run_in_executor(
             None,
             self._sync_mint,
-            agent_wallet, event_title, event_url, platform, agent_name, summary, niche, agent_private_key,
+            agent_wallet,
+            event_title,
+            event_url,
+            platform,
+            agent_name,
+            summary,
+            niche,
+            agent_private_key,
+            allow_mode_b_fallback,
         )
 
     async def get_total_minted(self) -> int:
@@ -151,6 +160,7 @@ class Web3Service:
         summary: str,
         niche: str,
         agent_private_key: str | None = None,
+        allow_mode_b_fallback: bool = True,
     ) -> dict[str, Any]:
         w3 = self._init_w3()
         contract = self._init_contract()
@@ -158,10 +168,13 @@ class Web3Service:
         using_agent_key = bool(agent_private_key)
         if using_agent_key:
             private_key = agent_private_key
-            logger.info("Agent signing its own transaction (autonomous mode)")
+            logger.info(
+                "Agent signing its own transaction (autonomous mode, fallback=%s)",
+                allow_mode_b_fallback,
+            )
         else:
-            private_key = get_agent_private_key()
-            logger.info("Backend signing transaction (MINTER_ROLE mode)")
+            private_key = get_minter_service_private_key()
+            logger.info("Minter service wallet signing transaction (Mode A)")
 
         signer = Account.from_key(private_key)
         signer_address = signer.address
@@ -179,22 +192,46 @@ class Web3Service:
             gas_limit = int(gas_estimate * 1.2)
         except Exception as exc:
             exc_str = str(exc)
+            exc_lower = exc_str.lower()
             actual_signing_mode = "B" if using_agent_key else "A"
-            if using_agent_key and any(
-                s in exc_str for s in ("0xe2517d3f", "AccessControl", "MINTER_ROLE")
-            ):
-                # Agent wallet lacks MINTER_ROLE — fall back to backend master key
-                logger.warning("Agent lacks MINTER_ROLE, falling back to backend master key")
-                private_key = get_agent_private_key()
-                signer = Account.from_key(private_key)
-                signer_address = signer.address
-                nonce = w3.eth.get_transaction_count(signer_address, "pending")
-                actual_signing_mode = "A"
-                try:
-                    gas_estimate = fn_call.estimate_gas({"from": signer_address})
-                    gas_limit = int(gas_estimate * 1.2)
-                except Exception as exc2:
-                    logger.warning("Gas estimation failed with master key, using 300 000: %s", exc2)
+            if using_agent_key:
+                lacks_minter = any(
+                    s in exc_str for s in ("0xe2517d3f", "AccessControl", "MINTER_ROLE")
+                )
+                insufficient_gas = "insufficient funds" in exc_lower
+
+                if not allow_mode_b_fallback:
+                    if lacks_minter:
+                        raise PermissionError(
+                            "Mode B rejected: agent wallet is not authorized to mint on this contract. "
+                            "Ensure spawnAgent() was executed on the active V2 contract."
+                        ) from exc
+                    if insufficient_gas:
+                        raise RuntimeError(
+                            "Mode B rejected: agent wallet out of gas. Top up the agent wallet and retry."
+                        ) from exc
+                    raise RuntimeError(
+                        f"Mode B rejected: autonomous gas estimation failed ({exc_str[:180]})"
+                    ) from exc
+
+                if lacks_minter or insufficient_gas:
+                    logger.warning(
+                        "Mode B fallback triggered (%s). Falling back to minter service wallet.",
+                        "missing role" if lacks_minter else "insufficient gas",
+                    )
+                    private_key = get_minter_service_private_key()
+                    signer = Account.from_key(private_key)
+                    signer_address = signer.address
+                    nonce = w3.eth.get_transaction_count(signer_address, "pending")
+                    actual_signing_mode = "A"
+                    try:
+                        gas_estimate = fn_call.estimate_gas({"from": signer_address})
+                        gas_limit = int(gas_estimate * 1.2)
+                    except Exception as exc2:
+                        logger.warning("Gas estimation failed with service wallet, using 300 000: %s", exc2)
+                        gas_limit = 300_000
+                else:
+                    logger.warning("Gas estimation failed in Mode B, using default 300 000: %s", exc)
                     gas_limit = 300_000
             else:
                 logger.warning("Gas estimation failed, using default 300 000: %s", exc)

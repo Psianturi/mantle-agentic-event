@@ -41,6 +41,14 @@ export interface SpawnAgentOnChainResult {
   gasUsed?: string
 }
 
+export interface TopUpGasResult {
+  success: boolean
+  transactionHash?: string
+  amount?: string
+  gasUsed?: string
+  error?: string
+}
+
 export class MantleBlockchainService {
   private provider: BrowserProvider | null = null
   private signer: ethers.Signer | null = null
@@ -185,6 +193,47 @@ export class MantleBlockchainService {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
+    }
+  }
+
+  async topUpAgentGas(agentWallet: string, amountMnt: number): Promise<TopUpGasResult> {
+    if (!this.signer || !this.provider) {
+      return {
+        success: false,
+        error: 'Wallet signer is not initialized. Please reconnect your wallet.'
+      }
+    }
+
+    if (!Number.isFinite(amountMnt) || amountMnt <= 0) {
+      return {
+        success: false,
+        error: 'Top-up amount must be greater than zero.'
+      }
+    }
+
+    try {
+      const tx = await this.signer.sendTransaction({
+        to: agentWallet,
+        value: ethers.parseEther(amountMnt.toString()),
+      })
+
+      const receipt: TransactionReceipt = await tx.wait()
+      const gasUsed = receipt.gasUsed.toString()
+      const gasPrice = receipt.gasPrice || BigInt(0)
+      const gasCost = (Number(gasUsed) * Number(gasPrice)) / 1e18
+
+      return {
+        success: true,
+        transactionHash: receipt.hash,
+        amount: amountMnt.toFixed(4),
+        gasUsed: gasCost.toFixed(6),
+      }
+    } catch (error) {
+      console.error('Agent gas top-up transaction error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown top-up error occurred'
       }
     }
   }

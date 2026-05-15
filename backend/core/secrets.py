@@ -74,6 +74,26 @@ def get_agent_private_key() -> str:
 
 
 @lru_cache(maxsize=None)
+def get_minter_service_private_key() -> str:
+    """
+    Return MINTER_SERVICE_PRIVATE_KEY (preferred) or AGENT_PRIVATE_KEY (legacy).
+
+    This allows separating:
+      - deployer/admin wallet (cold, infrequent)
+      - minter service wallet (hot, operational Mode A)
+    """
+    try:
+        key = _get_secret("MINTER_SERVICE_PRIVATE_KEY")
+    except RuntimeError:
+        logger.warning(
+            "MINTER_SERVICE_PRIVATE_KEY not set, falling back to AGENT_PRIVATE_KEY. "
+            "Configure MINTER_SERVICE_PRIVATE_KEY for safer wallet separation."
+        )
+        key = _get_secret("AGENT_PRIVATE_KEY")
+    return key if key.startswith("0x") else f"0x{key}"
+
+
+@lru_cache(maxsize=None)
 def get_llm_api_key() -> str:
     """Return LLM_API_KEY (Google Gemini API key)."""
     return _get_secret("LLM_API_KEY")

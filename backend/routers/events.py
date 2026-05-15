@@ -231,6 +231,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
 
     # ── Load agent's private key if Mode B requested ──────────────────────
     agent_private_key: str | None = None
+    allow_mode_b_fallback = True
     if req.mode_b:
         db = get_db()
         try:
@@ -239,6 +240,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 raise HTTPException(status_code=404, detail=f"Agent '{req.agent_id}' not found")
             
             agent_data = agent_doc.to_dict() or {}
+            agent_funded = bool(agent_data.get("funded", False))
             stored_key = agent_data.get("private_key_enc") or agent_data.get("private_key")
             
             if not stored_key:
@@ -254,7 +256,12 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 logger.warning("KMS decryption failed, attempting plaintext fallback: %s", e)
                 agent_private_key = stored_key  # Fallback for development/legacy
                 
-            logger.info("Loaded agent private key for autonomous signing (Mode B)")
+            allow_mode_b_fallback = not agent_funded
+            logger.info(
+                "Loaded agent private key for Mode B (funded=%s fallback=%s)",
+                agent_funded,
+                allow_mode_b_fallback,
+            )
         except HTTPException:
             raise
         except Exception as exc:
@@ -277,9 +284,28 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             summary=wisdom_summary,
             niche=req.niche,
             agent_private_key=agent_private_key,  # Mode B: agent's key, Mode A: None (fallback)
+            allow_mode_b_fallback=allow_mode_b_fallback,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "AGENT_NOT_AUTHORIZED",
+                "message": str(exc),
+            },
+        )
+    except RuntimeError as exc:
+        msg = str(exc)
+        code = "AGENT_OUT_OF_GAS" if "out of gas" in msg.lower() else "MODE_B_STRICT_REJECTED"
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": code,
+                "message": msg,
+            },
+        )
     except ConnectionError as exc:
         raise HTTPException(
             status_code=503, detail=f"Mantle RPC unavailable: {exc}"

@@ -46,9 +46,10 @@ import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
 import { ipfsService } from '@/lib/ipfs/ipfsService'
 import { useSubAgentTasks } from '@/hooks/useSubAgentTasks'
-import { cloudRunService, validateEventUrl } from '@/services/cloudRunService'
+import { CloudRunAPIError, cloudRunService, validateEventUrl } from '@/services/cloudRunService'
 import { ContractVerificationData, verificationService } from '@/lib/blockchain/verificationService'
 import { CONTRACT_ADDRESSES } from '@/lib/blockchain/config'
+import { mantleService } from '@/lib/blockchain/mantleService'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -132,6 +133,11 @@ function buildScoutedOpportunities(agent: Agent, eventPool: Event[]): ScoutedEve
 }
 
 function App() {
+  type PendingAttendContext = {
+    agentId: string
+    eventUrl: string
+  }
+
   const [agents, setAgents] = useState<Agent[]>([])
   const [nfts, setNFTs] = useState<NFT[]>([])
   const [events, setEvents] = useState<Event[]>([])
@@ -215,6 +221,7 @@ function App() {
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false)
   const [genesisMintDialogOpen, setGenesisMintDialogOpen] = useState(false)
   const [selectedAgentForTopUp, setSelectedAgentForTopUp] = useState<Agent | null>(null)
+  const [pendingAttendContext, setPendingAttendContext] = useState<PendingAttendContext | null>(null)
   const [marketplaceAgents, setMarketplaceAgents] = useLocalStorage<MarketplaceAgent[]>('maef-marketplace', getMockMarketplaceAgents())
   const [purchasingAgentId, setPurchasingAgentId] = useState<string | null>(null)
   const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
@@ -609,15 +616,81 @@ function App() {
         }, 1200)
       }
     } catch (error) {
+      const modeBOutOfGas =
+        error instanceof CloudRunAPIError && error.errorCode === 'AGENT_OUT_OF_GAS'
+
+      if (modeBOutOfGas) {
+        setSelectedAgentForTopUp(agent)
+        setPendingAttendContext({
+          agentId: agent.id,
+          eventUrl: eventUrl.trim(),
+        })
+        setTopUpDialogOpen(true)
+        toast.warning('Agent wallet out of gas', {
+          description: `${agent.name} needs a gas top-up before autonomous signing can continue.`
+        })
+      }
+
       const msg = error instanceof Error ? error.message : 'Unknown error from Agent Engine'
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Error: ${msg}`, 'error')
-      toast.error('Event attendance failed', {
-        description: msg,
-        action: { label: 'Retry', onClick: handleAttendEvent },
-      })
+      if (!modeBOutOfGas) {
+        toast.error('Event attendance failed', {
+          description: msg,
+          action: { label: 'Retry', onClick: handleAttendEvent },
+        })
+      }
       setIsProcessingEvent(false)
       setActiveAgentId(null)
       clearTasks()
+    }
+  }
+
+  const handleTopUpAgentGas = async (agentId: string, amount: number): Promise<void> => {
+    const agent = (agents ?? []).find((a) => a.id === agentId)
+    if (!agent) {
+      throw new Error('Agent not found for gas top-up')
+    }
+
+    const tx = await mantleService.topUpAgentGas(agent.walletAddress, amount)
+    if (!tx.success) {
+      throw new Error(tx.error || 'Gas top-up transaction failed')
+    }
+
+    // Keep local balances reasonably in sync until the next full hydration.
+    const txFee = Number(tx.gasUsed || 0)
+    setUserBalance((current) => (current ?? 0) - amount - txFee)
+
+    let refreshedAgentBalance = agent.agentGasBalance
+    try {
+      const bal = await blockchain.getBalance(agent.walletAddress)
+      refreshedAgentBalance = parseFloat(bal)
+    } catch {
+      refreshedAgentBalance = (agent.agentGasBalance ?? 0) + amount
+    }
+
+    setAgents((current) =>
+      (current ?? []).map((a) =>
+        a.id === agentId
+          ? {
+              ...a,
+              agentGasBalance: refreshedAgentBalance,
+              mantleBalance: refreshedAgentBalance,
+            }
+          : a
+      )
+    )
+
+    addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas topped up by owner. TX: ${tx.transactionHash?.slice(0, 18)}...`, 'success')
+
+    // Auto-retry pending Mode B request for the same agent.
+    if (pendingAttendContext && pendingAttendContext.agentId === agentId) {
+      setEventUrl(pendingAttendContext.eventUrl)
+      setPendingAttendContext(null)
+      setTopUpDialogOpen(false)
+      toast.info('Retrying autonomous mint...', {
+        description: 'Mode B event attendance is being retried after top-up.'
+      })
+      await handleAttendEvent()
     }
   }
 
@@ -724,6 +797,19 @@ function App() {
         })
       }
     } catch (err) {
+      if (err instanceof CloudRunAPIError && err.errorCode === 'AGENT_OUT_OF_GAS') {
+        const agent = (agents ?? []).find(a => a.id === agentId) || null
+        if (agent) {
+          setSelectedAgentForTopUp(agent)
+          setPendingAttendContext(null) // scout has its own URL selection path
+          setTopUpDialogOpen(true)
+        }
+        toast.warning('Auto Scout paused: agent out of gas', {
+          description: 'Top up agent wallet, then run Auto Scout again.'
+        })
+        return
+      }
+
       const msg = err instanceof Error ? err.message : 'Unknown error'
       toast.error('Auto Scout failed', { description: msg })
     } finally {
@@ -1586,6 +1672,21 @@ function App() {
         userBalance={userBalance ?? 0}
         userWallet={walletAddress ?? ''}
       />
+
+      {selectedAgentForTopUp && (
+        <TopUpGasDialog
+          open={topUpDialogOpen}
+          onOpenChange={(open) => {
+            setTopUpDialogOpen(open)
+            if (!open) {
+              setPendingAttendContext(null)
+            }
+          }}
+          agent={selectedAgentForTopUp}
+          userBalance={userBalance ?? 0}
+          onTopUp={handleTopUpAgentGas}
+        />
+      )}
 
       <TerminalConsole logs={logs} />
       <Toaster />
