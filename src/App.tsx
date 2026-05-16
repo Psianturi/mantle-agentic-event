@@ -152,7 +152,13 @@ function App() {
   type MainView = 'dashboard' | 'analytics' | 'vault' | 'marketplace' | 'discover'
   const HASH_TO_VIEW: Record<string, MainView> = { analytics: 'analytics', 'nft-vault': 'vault', discover: 'discover', marketplace: 'marketplace' }
   const VIEW_TO_HASH: Record<MainView, string> = { dashboard: '', analytics: 'analytics', vault: 'nft-vault', discover: 'discover', marketplace: 'marketplace' }
-  const [mainView, setMainView] = useState<MainView>(() => HASH_TO_VIEW[window.location.hash.slice(1)] ?? 'dashboard')
+  const [mainView, setMainView] = useState<MainView>(() => {
+    const hashView = HASH_TO_VIEW[window.location.hash.slice(1)]
+    if (hashView) return hashView
+    // Public users land on Discover to see live on-chain wisdom immediately
+    const hasWallet = typeof window !== 'undefined' && !!(window.ethereum as { selectedAddress?: string } | undefined)?.selectedAddress
+    return hasWallet ? 'dashboard' : 'discover'
+  })
   useEffect(() => {
     const hash = VIEW_TO_HASH[mainView]
     if (hash) {
@@ -246,6 +252,13 @@ function App() {
   const [marketplaceAgents, setMarketplaceAgents] = useLocalStorage<MarketplaceAgent[]>('maef-marketplace', getMockMarketplaceAgents())
   const [purchasingAgentId, setPurchasingAgentId] = useState<string | null>(null)
   const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
+  const [platformMetrics, setPlatformMetrics] = useState<{ total_agents: number; total_wisdom_nfts: number; total_events_attended: number; average_agent_level: number } | null>(null)
+  useEffect(() => {
+    cloudRunService.getPublicMetrics()
+      .then(data => setPlatformMetrics(data))
+      .catch(() => {})
+  }, [])
+
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
   const [replenishMap, setReplenishMap] = useLocalStorage<Record<string, boolean>>('maef-auto-replenish', {})
@@ -1431,23 +1444,68 @@ function App() {
                   </Button>
                 </div>
                 {displayedAgents.length === 0 ? (
-                  <Card className="glass-card-hover p-10 text-center border border-dashed border-primary/30">
-                    <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center">
-                      <Robot size={36} className="text-primary animate-float" weight="duotone" />
-                    </div>
-                    <h3 className="text-lg font-bold mb-2">Spawn Your First AI Agent</h3>
-                    <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
-                      Each agent autonomously attends events, generates AI wisdom, and mints Proof-of-Attendance NFTs on Mantle.
-                    </p>
-                    <Button
-                      onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => handleWalletConnect('')}
-                      size="lg"
-                      className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-bold px-8 shadow-xl shadow-secondary/30"
-                    >
-                      <Plus className="mr-2" weight="bold" />
-                      {walletConnected ? 'Spawn Agent to Start' : 'Connect Wallet to Start'}
-                    </Button>
-                  </Card>
+                  <div className="space-y-4">
+                    {/* Ghost Agent Preview — teaser for public users */}
+                    {!walletConnected && featuredWisdom.length > 0 && (() => {
+                      const preview = featuredWisdom[0]
+                      return (
+                        <div className="relative">
+                          <div className="opacity-50 blur-[1px] pointer-events-none select-none">
+                            <Card className="glass-card p-5 border border-primary/30">
+                              <div className="flex items-start gap-4 mb-4">
+                                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/30 to-secondary/30 border border-primary/40 flex items-center justify-center shrink-0">
+                                  <Robot size={26} className="text-primary" weight="duotone" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-bold text-base">{preview.agentName}</span>
+                                    <span className="text-[10px] font-mono bg-primary/10 border border-primary/20 text-primary px-1.5 py-0.5 rounded">Lv 3</span>
+                                    <span className="text-[10px] font-mono bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded">5 Autonomous Sigs</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground font-mono truncate">{preview.niche} · Mantle Sepolia</p>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-3 gap-3 text-center">
+                                {[['Events', '5'], ['NFTs Minted', '5'], ['Gas Balance', '0.342 MNT']].map(([label, val]) => (
+                                  <div key={label} className="bg-background/40 rounded-lg p-2 border border-border/30">
+                                    <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+                                    <p className="text-sm font-bold">{val}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </Card>
+                          </div>
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                            <span className="text-[10px] font-mono bg-primary/20 border border-primary/30 text-primary px-2.5 py-1 rounded-full tracking-widest uppercase">Preview: Active Agent Profile</span>
+                            <Button
+                              onClick={() => handleWalletConnect('')}
+                              className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-bold shadow-xl shadow-secondary/40"
+                            >
+                              <Plus className="mr-2" weight="bold" />
+                              Connect Wallet to Spawn Your Own
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })()}
+                    <Card className="glass-card-hover p-10 text-center border border-dashed border-primary/30">
+                      <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center">
+                        <Robot size={36} className="text-primary animate-float" weight="duotone" />
+                      </div>
+                      <h3 className="text-lg font-bold mb-2">Spawn Your First AI Agent</h3>
+                      <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
+                        Each agent autonomously attends events, generates AI wisdom, and mints Proof-of-Attendance NFTs on Mantle.
+                      </p>
+                      <Button
+                        onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => handleWalletConnect('')}
+                        size="lg"
+                        className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-bold px-8 shadow-xl shadow-secondary/30"
+                      >
+                        <Plus className="mr-2" weight="bold" />
+                        {walletConnected ? 'Spawn Agent to Start' : 'Connect Wallet to Start'}
+                      </Button>
+                    </Card>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {displayedAgents.map((agent, idx) => (
@@ -1585,6 +1643,48 @@ function App() {
               transition={{ duration: 0.4 }}
               className="space-y-6"
             >
+              {/* Autonomous Matrix — platform live stats for public users */}
+              {platformMetrics && (
+                <Card className="glass-card p-4 border border-primary/20 bg-gradient-to-r from-primary/5 via-background to-accent/5">
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                    <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
+                      <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse inline-block" />
+                      <span className="text-emerald-400 font-semibold uppercase tracking-widest text-[10px]">Mantle Autonomous Matrix</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs font-mono">
+                      <Robot size={13} className="text-primary" weight="duotone" />
+                      <span className="text-foreground font-bold">{platformMetrics.total_agents}</span>
+                      <span className="text-muted-foreground">autonomous citizens</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs font-mono">
+                      <Brain size={13} className="text-accent" weight="duotone" />
+                      <span className="text-foreground font-bold">{platformMetrics.total_wisdom_nfts}</span>
+                      <span className="text-muted-foreground">on-chain mint events</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs font-mono">
+                      <Globe size={13} className="text-secondary" weight="duotone" />
+                      <span className="text-foreground font-bold">{platformMetrics.total_events_attended}</span>
+                      <span className="text-muted-foreground">events attended</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs font-mono">
+                      <ChartLine size={13} className="text-amber-400" weight="duotone" />
+                      <span className="text-foreground font-bold">Lv {platformMetrics.average_agent_level.toFixed(1)}</span>
+                      <span className="text-muted-foreground">avg agent level</span>
+                    </div>
+                    {!walletConnected && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleWalletConnect('')}
+                        className="ml-auto bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold text-xs shadow-lg shadow-secondary/30"
+                      >
+                        <Plus className="mr-1" weight="bold" size={12} />
+                        Spawn Your Agent
+                      </Button>
+                    )}
+                  </div>
+                </Card>
+              )}
+
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
                   <Newspaper className="text-accent" weight="duotone" size={22} />
