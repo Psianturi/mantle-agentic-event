@@ -12,6 +12,15 @@ import { cn } from '@/lib/utils'
 import { SubAgentAnalytics, SubAgentHistoricalData } from './SubAgentAnalytics'
 import { cloudRunService } from '@/services/cloudRunService'
 
+function decodeHtml(str: string): string {
+  return str
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+}
+
 interface SubAgentTask {
   id: string
   subAgentType: SubAgentType
@@ -254,7 +263,7 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
         successRate: minted.length > 0 ? 100 : 0,
         taskHistory: [...minted].reverse().map(l => ({
           timestamp: l.runAt * 1000,
-          taskName: l.candidateTitle ? `Minted: ${l.candidateTitle.slice(0, 32)}` : 'Minted NFT on Mantle',
+          taskName: l.candidateTitle ? `Minted: ${decodeHtml(l.candidateTitle).slice(0, 32)}` : 'Minted NFT on Mantle',
           duration: 3000,
           status: 'completed' as const
         })).slice(-20)
@@ -293,7 +302,7 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
         id: `${log.logId}-sec`,
         subAgentType: 'secretary',
         taskName: log.candidateTitle
-          ? `Found: ${log.candidateTitle.slice(0, 40)}`
+          ? `Found: ${decodeHtml(log.candidateTitle).slice(0, 40)}`
           : `Scanned ${selectedAgent?.niche} events`,
         status: 'completed',
         progress: 100,

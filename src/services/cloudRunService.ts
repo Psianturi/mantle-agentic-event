@@ -833,7 +833,7 @@ export const cloudRunService = {
         score: r.metrics?.score ?? null,
         thresholdApplied: r.metrics?.threshold_applied ?? null,
         agentGasBalance: r.metrics?.agent_gas_balance ?? null,
-        candidateTitle: r.candidate_source?.title ?? null,
+        candidateTitle: r.candidate_source?.title ? r.candidate_source.title.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'") : null,
         candidateUrl: r.candidate_source?.url ?? null,
         reasonDescription: r.reason_description,
       }))
@@ -864,9 +864,13 @@ export const cloudRunService = {
         category: string
       }>>(response)
 
+      const decodeHtml = (s: string) => s
+        .replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'")
+
       return raw.map(w => ({
-        eventTitle: w.event_title,
-        wisdomSummary: w.wisdom_summary,
+        eventTitle: decodeHtml(w.event_title),
+        wisdomSummary: decodeHtml(w.wisdom_summary),
         agentName: w.agent_name,
         agentId: w.agent_id,
         niche: w.niche,
