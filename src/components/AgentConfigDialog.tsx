@@ -12,7 +12,7 @@ interface AgentConfigDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   agent: Agent
-  onSave: (agentId: string, instructions: string) => void
+  onSave: (agentId: string, instructions: string, customAgenda: string) => void
 }
 
 export function AgentConfigDialog({ open, onOpenChange, agent, onSave }: AgentConfigDialogProps) {
@@ -25,7 +25,7 @@ export function AgentConfigDialog({ open, onOpenChange, agent, onSave }: AgentCo
     
     await new Promise(resolve => setTimeout(resolve, 1000))
     
-    onSave(agent.id, instructions)
+    onSave(agent.id, instructions, customAgenda)
     setIsSaving(false)
     onOpenChange(false)
     
@@ -47,7 +47,7 @@ export function AgentConfigDialog({ open, onOpenChange, agent, onSave }: AgentCo
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="glass-card border-2 border-primary/30 max-w-2xl">
+      <DialogContent className="glass-card border-2 border-primary/30 max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
@@ -62,7 +62,7 @@ export function AgentConfigDialog({ open, onOpenChange, agent, onSave }: AgentCo
           </div>
         </DialogHeader>
 
-        <div className="space-y-6 mt-4">
+        <div className="space-y-6 mt-4 overflow-y-auto flex-1 pr-1">
           <div className="p-4 rounded-lg bg-muted/30 border border-border/50">
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>

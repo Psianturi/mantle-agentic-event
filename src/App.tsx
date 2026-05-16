@@ -149,7 +149,21 @@ function App() {
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
-  const [mainView, setMainView] = useState<'dashboard' | 'analytics' | 'vault' | 'marketplace' | 'discover'>('dashboard')
+  type MainView = 'dashboard' | 'analytics' | 'vault' | 'marketplace' | 'discover'
+  const HASH_TO_VIEW: Record<string, MainView> = { analytics: 'analytics', 'nft-vault': 'vault', discover: 'discover', marketplace: 'marketplace' }
+  const VIEW_TO_HASH: Record<MainView, string> = { dashboard: '', analytics: 'analytics', vault: 'nft-vault', discover: 'discover', marketplace: 'marketplace' }
+  const [mainView, setMainView] = useState<MainView>(() => HASH_TO_VIEW[window.location.hash.slice(1)] ?? 'dashboard')
+  useEffect(() => {
+    const hash = VIEW_TO_HASH[mainView]
+    if (hash) {
+      window.location.hash = hash
+    } else {
+      history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }, [mainView])
+
+  const [lastSocialPost, setLastSocialPost] = useState<{ agentId: string; text: string; eventTitle: string } | null>(null)
+
   const [featuredWisdom, setFeaturedWisdom] = useState<WisdomFeedItem[]>([])
   const [featuredWisdomLoading, setFeaturedWisdomLoading] = useState(false)
   const [marketplaceFilters, setMarketplaceFilters] = useState<{
@@ -234,7 +248,11 @@ function App() {
   const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
-  const displayedAgents = useMockData ? mockAgents : (agents ?? [])
+  const [replenishMap, setReplenishMap] = useLocalStorage<Record<string, boolean>>('maef-auto-replenish', {})
+  const displayedAgents = (useMockData ? mockAgents : (agents ?? [])).map(a => ({
+    ...a,
+    autoReplenishGas: replenishMap?.[a.id] ?? a.autoReplenishGas ?? false
+  }))
   const displayedNFTs = useMockData ? mockNFTs : (nfts ?? [])
   const displayedEvents = useMockData ? mockEvents : (events ?? [])
   const displayedProposals = useMockData ? mockProposals : (proposals ?? [])
@@ -562,6 +580,11 @@ function App() {
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Transaction signed by ${signingMode}. TX: ${result.txHash.slice(0, 18)}...`, 'info')
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on Mantle! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units`, 'info')
+      const nicheTag = agent.niche === 'Blockchain/DeFi' ? '#DeFi #Web3 #Mantle' : agent.niche === 'Trading/Investment' ? '#Trading #Crypto #DeFi' : agent.niche === 'Technology' ? '#Tech #AI #Web3' : '#Health #Wellness #Web3'
+      const shortWisdom = result.wisdomSummary.length > 110 ? result.wisdomSummary.slice(0, 110) + '…' : result.wisdomSummary
+      const socialPostText = `My AI agent ${agent.name} just attended "${eventTitle}" and minted a Proof-of-Attendance NFT on @MantleNetwork!\n\nKey insight: "${shortWisdom}"\n\nNFT #${result.tokenId} ${nicheTag} #MAEF`
+      setLastSocialPost({ agentId: agent.id, text: socialPostText, eventTitle })
+      addLog(agent.id, 'social-lite', `[${agent.name} - Social-Lite] Post draft ready for "${eventTitle}"`, 'success')
 
       const newEvent: Event = {
         id: `event-${Date.now()}`,
@@ -728,15 +751,15 @@ function App() {
     setConfigDialogOpen(true)
   }
 
-  const handleSaveAgentConfig = (agentId: string, instructions: string) => {
+  const handleSaveAgentConfig = (agentId: string, instructions: string, customAgenda: string) => {
     setAgents((current) =>
       (current ?? []).map((a) =>
-        a.id === agentId ? { ...a, customInstructions: instructions } : a
+        a.id === agentId ? { ...a, customInstructions: instructions, customAgenda } : a
       )
     )
 
-    void cloudRunService.updateAgentState(agentId, { customInstructions: instructions }).catch((error) => {
-      console.warn('[cloudRunService] failed to persist custom instructions:', error)
+    void cloudRunService.updateAgentState(agentId, { customInstructions: instructions, customAgenda }).catch((error) => {
+      console.warn('[cloudRunService] failed to persist agent config:', error)
     })
   }
 
@@ -1010,6 +1033,7 @@ function App() {
   }
 
   const handleToggleAutoReplenish = (agent: Agent, enabled: boolean) => {
+    setReplenishMap(prev => ({ ...(prev ?? {}), [agent.id]: enabled }))
     setAgents((current) =>
       (current ?? []).map((a) =>
         a.id === agent.id ? { ...a, autoReplenishGas: enabled } : a
@@ -1250,49 +1274,93 @@ function App() {
               </div>
 
               <div className="space-y-5">
-              <Card className="glass-card-hover p-6 border-2 border-primary/20">
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                    <Globe className="text-primary" weight="duotone" size={22} />
-                  </div>
-                  <span>Attend Event</span>
-                </h2>
-                <div className="flex gap-3 mb-3">
-                  <Input
-                    placeholder="Enter YouTube or Luma event URL..."
-                    value={eventUrl}
-                    onChange={(e) => setEventUrl(e.target.value)}
-                    className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
-                  />
-                  <Button
-                    onClick={!walletConnected ? () => handleWalletConnect('') : handleAttendEvent}
-                    disabled={walletConnected && !eventUrl.trim()}
-                    className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
-                  >
-                    {!walletConnected ? 'Connect & Attend' : 'Attend Event'}
-                  </Button>
-                </div>
-                {backendConnected && displayedAgents.length > 0 && (() => {
-                  const scoutAgent = selectedAgent ?? displayedAgents[0]
-                  return (
-                    <div className="flex items-center gap-3 pt-2 border-t border-primary/10">
-                      <span className="text-xs text-muted-foreground">Auto Scout</span>
+              {(() => {
+                const [attendAgentId, setAttendAgentId] = [
+                  (selectedAgent ?? displayedAgents[0])?.id ?? '',
+                  (id: string) => { const a = displayedAgents.find(x => x.id === id); if (a) setSelectedAgent(a) }
+                ]
+                const activeAgent = displayedAgents.find(a => a.id === attendAgentId) ?? displayedAgents[0]
+                return (
+                  <Card className="glass-card-hover p-6 border-2 border-primary/20">
+                    <h2 className="text-xl font-bold mb-4 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+                        <Globe className="text-primary" weight="duotone" size={22} />
+                      </div>
+                      <span>Attend Event</span>
+                      {displayedAgents.length > 1 && (
+                        <select
+                          value={attendAgentId}
+                          onChange={e => setAttendAgentId(e.target.value)}
+                          className="ml-auto text-xs font-mono bg-background/50 border border-primary/30 rounded-md px-2 py-1 text-foreground cursor-pointer"
+                        >
+                          {displayedAgents.map(a => (
+                            <option key={a.id} value={a.id}>{a.name} (Lv {a.level})</option>
+                          ))}
+                        </select>
+                      )}
+                    </h2>
+                    <div className="flex gap-3 mb-3">
+                      <Input
+                        placeholder="Enter YouTube or Luma event URL..."
+                        value={eventUrl}
+                        onChange={(e) => setEventUrl(e.target.value)}
+                        className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
+                      />
                       <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRunAutoScout(scoutAgent.id)}
-                        disabled={scoutingAgentId === scoutAgent.id}
-                        className="border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 text-xs font-semibold"
+                        onClick={!walletConnected ? () => handleWalletConnect('') : handleAttendEvent}
+                        disabled={walletConnected && !eventUrl.trim()}
+                        className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
                       >
-                        {scoutingAgentId === scoutAgent.id ? 'Secretary searching...' : 'Run Auto Scout'}
+                        {!walletConnected ? 'Connect & Attend' : 'Attend Event'}
                       </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {scoutAgent.name} discovers &amp; attends a {scoutAgent.niche} event autonomously
-                      </span>
                     </div>
-                  )
-                })()}
-              </Card>
+                    {backendConnected && activeAgent && (
+                      <div className="flex items-center gap-3 pt-2 border-t border-primary/10">
+                        <span className="text-xs text-muted-foreground">Auto Scout</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRunAutoScout(activeAgent.id)}
+                          disabled={scoutingAgentId === activeAgent.id}
+                          className="border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 text-xs font-semibold"
+                        >
+                          {scoutingAgentId === activeAgent.id ? 'Secretary searching...' : 'Run Auto Scout'}
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          {activeAgent.name} discovers &amp; attends a {activeAgent.niche} event autonomously
+                        </span>
+                      </div>
+                    )}
+                  </Card>
+                )
+              })()}
+
+              {lastSocialPost && (
+                <Card className="glass-card-hover p-4 border border-green-500/30 bg-green-500/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-green-500/20 border border-green-500/40 flex items-center justify-center">
+                        <span className="text-sm">💬</span>
+                      </div>
+                      <span className="text-sm font-semibold text-green-400">Social-Lite: Post Draft Ready</span>
+                    </div>
+                    <button onClick={() => setLastSocialPost(null)} className="text-muted-foreground/50 hover:text-muted-foreground text-xs">✕</button>
+                  </div>
+                  <pre className="text-xs text-muted-foreground font-sans whitespace-pre-wrap leading-relaxed bg-background/50 rounded-md p-3 border border-border/30 mb-3">
+                    {lastSocialPost.text}
+                  </pre>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="text-xs border-green-500/40 text-green-400 hover:bg-green-500/10"
+                      onClick={() => { navigator.clipboard.writeText(lastSocialPost.text); toast.success('Copied for Twitter/X!') }}>
+                      🐦 Copy for X/Twitter
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-xs border-primary/40 text-primary hover:bg-primary/10"
+                      onClick={() => { navigator.clipboard.writeText(lastSocialPost.text.replace(/\n\n/g, ' ')); toast.success('Copied for LinkedIn!') }}>
+                      💼 Copy for LinkedIn
+                    </Button>
+                  </div>
+                </Card>
+              )}
 
               {displayedAgents.length > 0 && (
                 <SubAgentDelegation

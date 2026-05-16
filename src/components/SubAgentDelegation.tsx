@@ -258,6 +258,20 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
           duration: 3000,
           status: 'completed' as const
         })).slice(-20)
+      },
+      'social-lite': {
+        totalTasks: minted.length,
+        completedTasks: minted.length,
+        failedTasks: 0,
+        avgDuration: 1500,
+        lastActive: minted[0] ? minted[0].runAt * 1000 : 0,
+        successRate: minted.length > 0 ? 100 : 0,
+        taskHistory: [...minted].reverse().map(l => ({
+          timestamp: l.runAt * 1000,
+          taskName: 'Generated social post draft',
+          duration: 1500,
+          status: 'completed' as const
+        })).slice(-20)
       }
     }
   }, [scoutLogs, selectedAgent?.niche, selectedAgent?.id])
