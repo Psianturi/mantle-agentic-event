@@ -759,6 +759,23 @@ function App() {
 
   const [scoutingAgentId, setScoutingAgentId] = useState<string | null>(null)
 
+  // Wire scoutingAgentId into the SubAgentDelegation active state
+  useEffect(() => {
+    if (scoutingAgentId) {
+      setActiveAgentId(scoutingAgentId)
+      setIsProcessingEvent(true)
+    } else {
+      setIsProcessingEvent(false)
+    }
+  }, [scoutingAgentId])
+
+  // Start sub-agent task animation once isProcessingEvent is true
+  useEffect(() => {
+    if (isProcessingEvent && activeAgentId) {
+      startWorkflow()
+    }
+  }, [isProcessingEvent, activeAgentId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleRunAutoScout = async (agentId: string) => {
     if (!backendConnected) {
       toast.error('Backend not available', { description: 'Connect to Cloud Run backend first.' })
@@ -814,6 +831,7 @@ function App() {
       toast.error('Auto Scout failed', { description: msg })
     } finally {
       setScoutingAgentId(null)
+      clearTasks()
     }
   }
 
