@@ -84,6 +84,38 @@ Mode B automatically falls back to Mode A if the agent was not registered on-cha
 
 ---
 
+## Local Development
+
+### Frontend
+
+```bash
+npm install
+npm run dev        # Vite dev server → http://localhost:5173
+npm run build      # Production build to dist/
+npm run preview    # Preview production build locally
+```
+
+Create a `.env.local` file in the project root:
+
+```
+VITE_MANTLE_NETWORK_URL=https://rpc.sepolia.mantle.xyz
+VITE_CHAIN_ID=5003
+VITE_NFT_CONTRACT_ADDRESS_SEPOLIA=0x110edEa5DB874589ec4492d15660082634E173f0
+VITE_GCP_BACKEND_URL=https://mantle-agentic-event-21898396920.asia-southeast1.run.app
+```
+
+### Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8080
+```
+
+The backend requires `LLM_API_KEY`, `MANTLE_RPC_URL`, `CONTRACT_ADDRESS`, and optionally `KMS_KEY_NAME` as environment variables (see `.env` or set them in your shell). Without `KMS_KEY_NAME`, keys are stored as plaintext — fine for local dev, not for production.
+
+---
+
 ## API Endpoints
 
 ```
@@ -98,12 +130,16 @@ POST /api/v1/agent/{id}/mark-funded
 PATCH /api/v1/agent/{id}/state
 POST /api/v1/agent/{id}/chat
 POST /api/v1/agent/{id}/wisdom
+POST /api/v1/agent/{id}/scout
+GET  /api/v1/agent/{id}/scout-logs
 
 GET  /api/v1/event/list?wallet=...
 POST /api/v1/event/attend
 
 GET  /api/v1/public/featured-wisdom
 GET  /api/v1/public/metrics
+
+POST /api/v1/scheduler/run-all-scouts  # OIDC-protected — Cloud Scheduler only
 ```
 
 ---
@@ -152,9 +188,10 @@ KMS_KEY_NAME=projects/.../cryptoKeys/...  # required in production
 
 - [ ] Set `KMS_KEY_NAME` in Cloud Run (single env var to activate encryption)
 - [ ] Migrate legacy plaintext `private_key` docs in Firestore
+- [ ] Create `MINTER_SERVICE_PRIVATE_KEY` wallet and grant it `MINTER_ROLE` on V2 contract
 - [ ] Breeding cost on-chain (2.5 MNT deduct currently UI-only)
+- [ ] Firestore composite index on `scout_logs` — `agent_id ASC + run_at DESC` (required for production query scaling)
 - [ ] Firestore composite index for Featured Wisdom trending query
-- [ ] Public Wisdom discovery frontend page
 - [ ] Secret Manager binding for Cloud Run env vars
 
 ---

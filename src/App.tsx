@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, startTransition } from 'react'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -1197,7 +1197,7 @@ function App() {
                 ] as const).map(({ view, label, icon: Icon, color }) => (
                   <Button
                     key={view}
-                    onClick={() => setMainView(view)}
+                    onClick={() => startTransition(() => setMainView(view))}
                     variant={mainView === view ? 'default' : 'ghost'}
                     size="sm"
                     className={cn(
@@ -1661,7 +1661,7 @@ function App() {
                     Attend events with your agents to mint Proof-of-Attendance NFTs on Mantle Sepolia
                   </p>
                   <Button
-                    onClick={() => setMainView('dashboard')}
+                    onClick={() => startTransition(() => setMainView('dashboard'))}
                     className="bg-gradient-to-r from-secondary to-accent font-semibold shadow-lg shadow-secondary/30"
                   >
                     <Globe className="mr-2" weight="duotone" />
