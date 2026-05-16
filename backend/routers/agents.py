@@ -261,6 +261,22 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         data = doc.to_dict()
         return _to_response(data, needs_funding=not data.get("funded", False))
 
+    # Per-wallet agent limit (testnet: 3, mainnet: change to 1)
+    MAX_AGENTS_PER_WALLET = 3
+    try:
+        existing_query = db.collection(AGENTS_COLLECTION).where("user_wallet", "==", req.user_wallet)
+        existing_docs = await existing_query.get()
+        existing_count = len(existing_docs)
+        if existing_count >= MAX_AGENTS_PER_WALLET:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Wallet has reached the maximum of {MAX_AGENTS_PER_WALLET} agents. Breed existing agents to create stronger hybrids.",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Could not verify agent count for wallet %s: %s", req.user_wallet[:10], exc)
+
     # Generate a new random wallet (true autonomy — unique private key per agent)
     private_key = "0x" + secrets.token_hex(32)
     agent_account = Account.from_key(private_key)
