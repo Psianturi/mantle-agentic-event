@@ -18,6 +18,7 @@ Flow per invocation:
 import asyncio
 import logging
 import time
+import uuid
 
 from fastapi import APIRouter, Depends
 from google.cloud.firestore_v1.base_query import FieldFilter
@@ -32,7 +33,11 @@ router = APIRouter(prefix="/api/v1/scheduler", tags=["scheduler"])
 AGENTS_COLLECTION = "agents"
 
 
-async def _run_one_scout(agent_id: str, semaphore: asyncio.Semaphore) -> dict:
+async def _run_one_scout(
+    agent_id: str,
+    semaphore: asyncio.Semaphore,
+    scheduler_run_id: str,
+) -> dict:
     """
     Run a single agent's scout cycle under the shared semaphore.
 
@@ -44,11 +49,12 @@ async def _run_one_scout(agent_id: str, semaphore: asyncio.Semaphore) -> dict:
         from routers.agents import run_auto_scout
 
         try:
-            result = await run_auto_scout(agent_id)
+            result = await run_auto_scout(agent_id=agent_id, scheduler_run_id=scheduler_run_id)
         except Exception as exc:
             logger.error(
-                "Scheduler: scout failed for agent %s: %s",
+                "Scheduler: scout failed for agent %s (run=%s): %s",
                 agent_id,
+                scheduler_run_id,
                 exc.__class__.__name__,
             )
             return {"agent_id": agent_id, "status": "error"}
@@ -83,6 +89,7 @@ async def run_all_scouts(_claims: dict = Depends(require_oidc)) -> dict:
     """
     db = get_db()
     now = time.time()
+    scheduler_run_id = f"sched_{int(now)}_{uuid.uuid4().hex[:8]}"
     eligible_ids: list[str] = []
     skipped = 0
 
@@ -99,7 +106,7 @@ async def run_all_scouts(_claims: dict = Depends(require_oidc)) -> dict:
 
             # ── Cooldown check ────────────────────────────────────────────────
             last_at = data.get("last_scout_at")
-            interval_h = data.get("scout_interval_hours", 4)
+            interval_h = data.get("scout_interval_hours", 6)
 
             if last_at is not None:
                 next_due = last_at + interval_h * 3600
@@ -123,14 +130,16 @@ async def run_all_scouts(_claims: dict = Depends(require_oidc)) -> dict:
         return {"status": "error", "detail": "Database query failed", "processed": 0}
 
     logger.info(
-        "Scheduler: %d agents eligible, %d on cooldown",
+        "Scheduler: %d agents eligible, %d on cooldown (run=%s)",
         len(eligible_ids),
         skipped,
+        scheduler_run_id,
     )
 
     if not eligible_ids:
         return {
             "status": "ok",
+            "scheduler_run_id": scheduler_run_id,
             "processed": 0,
             "skipped": skipped,
             "attended": 0,
@@ -140,7 +149,10 @@ async def run_all_scouts(_claims: dict = Depends(require_oidc)) -> dict:
 
     # ── Concurrent safe processing (max 5 simultaneous blockchain ops) ────────
     semaphore = asyncio.Semaphore(5)
-    tasks = [_run_one_scout(agent_id, semaphore) for agent_id in eligible_ids]
+    tasks = [
+        _run_one_scout(agent_id, semaphore, scheduler_run_id)
+        for agent_id in eligible_ids
+    ]
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
     attended = 0
@@ -160,7 +172,8 @@ async def run_all_scouts(_claims: dict = Depends(require_oidc)) -> dict:
                 errors += 1
 
     logger.info(
-        "Scheduler run complete: processed=%d attended=%d no_events=%d errors=%d skipped=%d",
+        "Scheduler run complete: run=%s processed=%d attended=%d no_events=%d errors=%d skipped=%d",
+        scheduler_run_id,
         len(eligible_ids),
         attended,
         no_events,
@@ -170,6 +183,7 @@ async def run_all_scouts(_claims: dict = Depends(require_oidc)) -> dict:
 
     return {
         "status": "ok",
+        "scheduler_run_id": scheduler_run_id,
         "processed": len(eligible_ids),
         "skipped": skipped,
         "attended": attended,

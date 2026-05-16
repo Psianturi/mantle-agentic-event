@@ -30,6 +30,69 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/agent", tags=["agents"])
 
 AGENTS_COLLECTION = "agents"
+SCOUT_LOGS_COLLECTION = "scout_logs"
+
+
+async def _write_scout_log(
+    db,
+    *,
+    agent_id: str,
+    action: str,
+    reason_code: str,
+    run_at: float,
+    scheduler_run_id: str | None = None,
+    score: int | None = None,
+    threshold_applied: int | None = None,
+    agent_gas_balance: float | None = None,
+    candidate_title: str | None = None,
+    candidate_url: str | None = None,
+    reason_description: str | None = None,
+) -> None:
+    """Best-effort logging for autonomous scout decisions (never blocks main flow)."""
+    log_id = f"scout_{agent_id[:8]}_{int(run_at * 1000)}_{secrets.token_hex(3)}"
+
+    payload = {
+        "log_id": log_id,
+        "scheduler_run_id": scheduler_run_id,
+        "agent_id": agent_id,
+        "run_at": run_at,
+        "action": action,
+        "reason_code": reason_code,
+        "metrics": {
+            "score": score,
+            "threshold_applied": threshold_applied,
+            "agent_gas_balance": agent_gas_balance,
+        },
+        "candidate_source": {
+            "title": candidate_title,
+            "url": candidate_url,
+        },
+        "reason_description": reason_description,
+    }
+
+    try:
+        await db.collection(SCOUT_LOGS_COLLECTION).document(log_id).set(payload)
+    except Exception as exc:
+        logger.warning(
+            "Scout log write failed for agent %s: %s",
+            agent_id,
+            exc.__class__.__name__,
+        )
+
+
+async def _update_agent_balance_cache(doc_ref, balance: float | None) -> None:
+    if balance is None:
+        return
+
+    try:
+        await doc_ref.update(
+            {
+                "agent_gas_balance": balance,
+                "mantle_balance": balance,
+            }
+        )
+    except Exception as exc:
+        logger.warning("Agent balance cache update failed: %s", exc.__class__.__name__)
 
 
 # ── Request / Response models ─────────────────────────────────────────────────
@@ -69,7 +132,7 @@ class SpawnResponse(BaseModel):
     genetic_traits: list[str] | None = None
     last_breeding_time: float | None = None
     breeding_cooldown_hours: int | None = None
-    scout_interval_hours: int = 4
+    scout_interval_hours: int = 6
     last_scout_at: float | None = None
     autonomous_signatures: int = 0
 
@@ -96,7 +159,7 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         personality=data.get("personality"),
         custom_instructions=data.get("custom_instructions"),
         auto_scout_enabled=data.get("auto_scout_enabled", False),
-        scout_interval_hours=data.get("scout_interval_hours", 4),
+        scout_interval_hours=data.get("scout_interval_hours", 6),
         last_scout_at=data.get("last_scout_at"),
         custom_agenda=data.get("custom_agenda"),
         generation=data.get("generation"),
@@ -143,6 +206,29 @@ class UpdateAgentStateRequest(BaseModel):
     genetic_traits: list[str] | None = None
     last_breeding_time: float | None = None
     breeding_cooldown_hours: int | None = None
+
+
+class ScoutLogMetricsResponse(BaseModel):
+    score: int | None = None
+    threshold_applied: int | None = None
+    agent_gas_balance: float | None = None
+
+
+class ScoutLogCandidateSourceResponse(BaseModel):
+    title: str | None = None
+    url: str | None = None
+
+
+class ScoutLogResponse(BaseModel):
+    log_id: str
+    scheduler_run_id: str | None = None
+    agent_id: str
+    run_at: float
+    action: str
+    reason_code: str
+    metrics: ScoutLogMetricsResponse
+    candidate_source: ScoutLogCandidateSourceResponse
+    reason_description: str | None = None
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -193,7 +279,7 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         "created_at": now,
         # Autonomous scout scheduling — disabled by default, user opts in per agent
         "auto_scout_enabled": False,
-        "scout_interval_hours": 4,
+        "scout_interval_hours": 6,
         "last_scout_at": None,
     }
 
@@ -367,7 +453,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
         "ownership_status": "bred",
         # Autonomous scout scheduling — disabled by default, user opts in per agent
         "auto_scout_enabled": False,
-        "scout_interval_hours": 4,
+        "scout_interval_hours": 6,
         "last_scout_at": None,
     }
 
@@ -450,6 +536,37 @@ async def get_agent(agent_id: str) -> SpawnResponse:
 
     data = doc.to_dict()
     return _to_response(data, needs_funding=not data.get("funded", False))
+
+
+@router.get("/{agent_id}/scout-logs", response_model=list[ScoutLogResponse])
+async def get_agent_scout_logs(agent_id: str) -> list[ScoutLogResponse]:
+    db = get_db()
+
+    try:
+        agent_doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+    except Exception as exc:
+        logger.error("Firestore read failed for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    if not agent_doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    logs: list[dict] = []
+    try:
+        async for doc in (
+            db.collection(SCOUT_LOGS_COLLECTION)
+            .where(filter=FieldFilter("agent_id", "==", agent_id))
+            .stream()
+        ):
+            data = doc.to_dict() or {}
+            if data:
+                logs.append(data)
+    except Exception as exc:
+        logger.error("Firestore scout log query failed for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+    logs.sort(key=lambda item: item.get("run_at", 0), reverse=True)
+    return [ScoutLogResponse(**item) for item in logs[:20]]
 
 
 @router.post("/{agent_id}/mark-funded")
@@ -648,7 +765,7 @@ async def generate_agent_wisdom(agent_id: str) -> dict:
 
 
 @router.post("/{agent_id}/scout")
-async def run_auto_scout(agent_id: str) -> dict:
+async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> dict:
     """
     Secretary sub-agent: autonomously discover and attend a YouTube event.
 
@@ -660,8 +777,9 @@ async def run_auto_scout(agent_id: str) -> dict:
     Returns the discovered video details + full attend result.
     """
     db = get_db()
+    doc_ref = db.collection(AGENTS_COLLECTION).document(agent_id)
     try:
-        doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+        doc = await doc_ref.get()
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
 
@@ -681,26 +799,82 @@ async def run_auto_scout(agent_id: str) -> dict:
     # ── Secretary: discover best YouTube event ────────────────────────────
     from services.scout_service import discover_event
 
-    logger.info("Auto Scout triggered for agent %s (niche=%s)", agent_id, niche)
+    run_at = time.time()
+    logger.info(
+        "Auto Scout triggered for agent %s (niche=%s, scheduler_run_id=%s)",
+        agent_id,
+        niche,
+        scheduler_run_id or "manual",
+    )
     try:
-        video = await discover_event(
+        decision = await discover_event(
             agent_id=agent_id,
             niche=niche,
             agent_name=agent_name,
+            agent_wallet=agent_wallet,
             custom_instructions=custom_instructions,
         )
     except RuntimeError as exc:
+        msg = str(exc)
+        reason_code = (
+            "YOUTUBE_API_LIMIT"
+            if "youtube" in msg.lower() or "quota" in msg.lower() or "api" in msg.lower()
+            else "LLM_UNAVAILABLE"
+        )
+        await _write_scout_log(
+            db,
+            agent_id=agent_id,
+            action="SKIPPED",
+            reason_code=reason_code,
+            run_at=run_at,
+            scheduler_run_id=scheduler_run_id,
+            reason_description=msg,
+        )
         raise HTTPException(status_code=503, detail=str(exc))
     except Exception as exc:
         logger.error("Secretary discovery failed for agent %s: %s", agent_id, exc)
+        await _write_scout_log(
+            db,
+            agent_id=agent_id,
+            action="SKIPPED",
+            reason_code="LLM_UNAVAILABLE",
+            run_at=run_at,
+            scheduler_run_id=scheduler_run_id,
+            reason_description="Discovery failed before mint decision",
+        )
         raise HTTPException(status_code=500, detail="Event discovery failed")
 
-    if not video:
+    if decision.get("status") != "ready_to_mint":
+        candidate = decision.get("candidate") or {}
+        balance = decision.get("agent_gas_balance")
+        await _update_agent_balance_cache(doc_ref, balance)
+        await _write_scout_log(
+            db,
+            agent_id=agent_id,
+            action="SKIPPED",
+            reason_code=decision.get("reason_code", "NO_NEW_EVENTS"),
+            run_at=run_at,
+            scheduler_run_id=scheduler_run_id,
+            score=decision.get("score"),
+            threshold_applied=decision.get("threshold_applied"),
+            agent_gas_balance=balance,
+            candidate_title=candidate.get("title"),
+            candidate_url=candidate.get("url"),
+            reason_description=decision.get("message") or "Auto Scout skipped by policy.",
+        )
         return {
-            "status": "no_new_events",
-            "message": "Secretary found no new events to attend (all candidates already attended or search returned no results)",
+            "status": "no_new_events" if decision.get("reason_code") == "NO_NEW_EVENTS" else "skipped",
+            "message": decision.get("message") or "Auto Scout skipped by policy.",
             "agent_id": agent_id,
+            "reason_code": decision.get("reason_code"),
+            "decision_metrics": {
+                "score": decision.get("score"),
+                "threshold_applied": decision.get("threshold_applied"),
+                "agent_gas_balance": balance,
+            },
         }
+
+    video = decision["candidate"]
 
     logger.info(
         "Secretary selected '%s' for agent %s (reason: %s)",
@@ -723,11 +897,87 @@ async def run_auto_scout(agent_id: str) -> dict:
 
     try:
         attend_result = await attend_event(attend_req)
-    except HTTPException:
+    except HTTPException as exc:
+        reason_code = "LLM_UNAVAILABLE"
+        reason_description = "Attend stage rejected"
+        detail = exc.detail
+        balance = decision.get("agent_gas_balance")
+
+        if isinstance(detail, dict):
+            code = detail.get("code")
+            if code == "AGENT_OUT_OF_GAS":
+                reason_code = "LOW_GAS"
+            elif code == "MODE_B_STRICT_REJECTED":
+                reason_code = "LLM_UNAVAILABLE"
+            elif code == "AGENT_NOT_AUTHORIZED":
+                reason_code = "LLM_UNAVAILABLE"
+            reason_description = str(detail.get("message") or reason_description)
+        elif isinstance(detail, str):
+            lower = detail.lower()
+            if "youtube" in lower and ("quota" in lower or "limit" in lower or "429" in lower):
+                reason_code = "YOUTUBE_API_LIMIT"
+            elif "out of gas" in lower:
+                reason_code = "LOW_GAS"
+            reason_description = detail
+
+        await _write_scout_log(
+            db,
+            agent_id=agent_id,
+            action="SKIPPED",
+            reason_code=reason_code,
+            run_at=run_at,
+            scheduler_run_id=scheduler_run_id,
+            score=decision.get("score"),
+            threshold_applied=decision.get("threshold_applied"),
+            agent_gas_balance=balance,
+            candidate_title=video.get("title"),
+            candidate_url=video.get("url"),
+            reason_description=reason_description,
+        )
+        await _update_agent_balance_cache(doc_ref, balance)
         raise
     except Exception as exc:
         logger.error("Auto Scout attend failed for agent %s: %s", agent_id, exc)
+        await _write_scout_log(
+            db,
+            agent_id=agent_id,
+            action="SKIPPED",
+            reason_code="LLM_UNAVAILABLE",
+            run_at=run_at,
+            scheduler_run_id=scheduler_run_id,
+            score=decision.get("score"),
+            threshold_applied=decision.get("threshold_applied"),
+            agent_gas_balance=decision.get("agent_gas_balance"),
+            candidate_title=video.get("title"),
+            candidate_url=video.get("url"),
+            reason_description="Event attendance failed after discovery",
+        )
+        await _update_agent_balance_cache(doc_ref, decision.get("agent_gas_balance"))
         raise HTTPException(status_code=500, detail="Event attendance failed after discovery")
+
+    try:
+        from services.web3_service import web3_service
+
+        gas_balance = await web3_service.get_native_balance(agent_wallet)
+    except Exception:
+        gas_balance = decision.get("agent_gas_balance")
+
+    await _update_agent_balance_cache(doc_ref, gas_balance)
+
+    await _write_scout_log(
+        db,
+        agent_id=agent_id,
+        action="MINTED",
+        reason_code="MINTED",
+        run_at=run_at,
+        scheduler_run_id=scheduler_run_id,
+        score=decision.get("score"),
+        threshold_applied=decision.get("threshold_applied"),
+        agent_gas_balance=gas_balance,
+        candidate_title=video.get("title"),
+        candidate_url=video.get("url"),
+        reason_description=video.get("scout_reason") or "Minted after secretary selection",
+    )
 
     return {
         "status": "attended",
@@ -737,6 +987,11 @@ async def run_auto_scout(agent_id: str) -> dict:
             "title": video["title"],
             "channel": video.get("channel", ""),
             "scout_reason": video.get("scout_reason", ""),
+        },
+        "decision_metrics": {
+            "score": decision.get("score"),
+            "threshold_applied": decision.get("threshold_applied"),
+            "agent_gas_balance": gas_balance,
         },
         "attend_result": {
             "success": attend_result.success,

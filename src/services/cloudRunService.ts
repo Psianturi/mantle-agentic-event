@@ -637,8 +637,14 @@ export const cloudRunService = {
   },
 
   async runAutoScout(agentId: string): Promise<{
-    status: 'attended' | 'no_new_events'
+    status: 'attended' | 'no_new_events' | 'skipped'
+    reason_code?: string
     message?: string
+    decision_metrics?: {
+      score?: number | null
+      threshold_applied?: number | null
+      agent_gas_balance?: number | null
+    }
     discovered?: { url: string; title: string; channel: string; scout_reason: string }
     attend_result?: {
       success: boolean

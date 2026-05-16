@@ -148,6 +148,11 @@ class Web3Service:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._sync_total_minted)
 
+    async def get_native_balance(self, address: str) -> float:
+        """Return the wallet's native MNT balance from Mantle RPC in ether units."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._sync_native_balance, address)
+
     # ── Synchronous implementations (run in thread pool) ─────────────────────
 
     def _sync_mint(
@@ -276,6 +281,18 @@ class Web3Service:
     def _sync_total_minted(self) -> int:
         contract = self._init_contract()
         return int(contract.functions.getTotalMinted().call())
+
+    def _sync_native_balance(self, address: str) -> float:
+        w3 = self._init_w3()
+        if not Web3.is_address(address):
+            raise ValueError("Invalid Ethereum wallet address")
+
+        try:
+            wei_balance = w3.eth.get_balance(Web3.to_checksum_address(address))
+        except Exception as exc:
+            raise ConnectionError(f"Failed to fetch native balance from Mantle RPC: {exc}") from exc
+
+        return float(Web3.from_wei(wei_balance, "ether"))
 
 
 # Singleton — re-used across all requests

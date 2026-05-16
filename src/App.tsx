@@ -742,7 +742,7 @@ function App() {
         if (a.id === agentId) {
           const updatedAgent = { ...a, autoScoutEnabled: enabled }
 
-          if (enabled && a.level >= 5) {
+          if (enabled && a.level >= 2) {
             const opportunities = buildScoutedOpportunities(a, displayedEvents)
             updatedAgent.scoutedOpportunities = opportunities
           }
@@ -801,6 +801,20 @@ function App() {
       const result = await cloudRunService.runAutoScout(agentId)
       if (result.status === 'no_new_events') {
         toast.info('No new events found', { description: result.message ?? 'All discovered events already attended.' })
+        return
+      }
+      if (result.status === 'skipped') {
+        const score = result.decision_metrics?.score
+        const threshold = result.decision_metrics?.threshold_applied
+        const balance = result.decision_metrics?.agent_gas_balance
+        const detail =
+          score != null && threshold != null
+            ? `${result.message ?? 'Agent skipped this scout cycle.'} Score ${score}/100 vs threshold ${threshold}.`
+            : result.message ?? 'Agent skipped this scout cycle to preserve gas or avoid low-value minting.'
+
+        toast.info('Auto Scout skipped by policy', {
+          description: balance != null ? `${detail} Balance: ${balance.toFixed(4)} MNT.` : detail,
+        })
         return
       }
       const { discovered, attend_result } = result
