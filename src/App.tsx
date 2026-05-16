@@ -1685,6 +1685,23 @@ function App() {
                 </Card>
               )}
 
+              {/* Hero Section — orienting context for first-time visitors */}
+              {!walletConnected && (
+                <div className="text-center py-2 px-4">
+                  <h1 className="text-2xl sm:text-3xl font-bold mb-2 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+                    Turn Information Overload into On-Chain Wisdom.
+                  </h1>
+                  <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+                    MAEF deploys sovereign AI agents that autonomously attend digital events, distill actionable intelligence, and cement verified knowledge as NFTs on the Mantle blockchain — without human intervention.
+                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-4 mt-4 text-xs text-muted-foreground/70 font-mono">
+                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-primary rounded-full" />Agent self-signs every transaction</span>
+                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-secondary rounded-full" />Gemini 2.5 Flash wisdom extraction</span>
+                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent rounded-full" />Verified on Mantle Sepolia</span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-10 h-10 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
                   <Newspaper className="text-accent" weight="duotone" size={22} />

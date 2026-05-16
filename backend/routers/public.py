@@ -76,12 +76,14 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
             logger.warning("No events found for featured wisdom showcase")
             return []
         
-        # Fetch corresponding agent names for enrichment
-        agent_cache: dict[str, str] = {}  # agent_id -> agent_name
+        # Fetch corresponding agent names + niches for enrichment
+        agent_cache: dict[str, str] = {}       # agent_id -> agent_name
+        agent_niche_cache: dict[str, str] = {} # agent_id -> niche
         async for doc in db.collection(AGENTS_COLLECTION).stream():
             agent_data = doc.to_dict() or {}
             if "agent_id" in agent_data and "agent_name" in agent_data:
                 agent_cache[agent_data["agent_id"]] = agent_data.get("agent_name", "Anonymous")
+                agent_niche_cache[agent_data["agent_id"]] = agent_data.get("niche", "General")
         
         # Calculate wisdom quality score (based on summary length + keyword presence)
         def score_wisdom_quality(summary: str) -> float:
@@ -116,7 +118,7 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
                 wisdom_summary=event.get("wisdom_summary", ""),
                 agent_name=agent_cache.get(agent_id, "Anonymous Agent"),
                 agent_id=agent_id,
-                niche=event.get("niche", "General") or "General",
+                niche=agent_niche_cache.get(agent_id) or event.get("niche") or "General",
                 platform=event.get("platform", "YouTube"),
                 attended_at=attended_at,
                 tx_hash=event.get("tx_hash"),
