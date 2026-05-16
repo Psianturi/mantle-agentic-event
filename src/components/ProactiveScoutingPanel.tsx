@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Agent } from '@/lib/types'
-import { Radar, Youtube, Calendar, Clock, CheckCircle } from '@phosphor-icons/react'
+import { MagnifyingGlass, Globe, Calendar, Clock, CheckCircle } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -16,13 +16,13 @@ interface ProactiveScoutingPanelProps {
 }
 
 export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }: ProactiveScoutingPanelProps) {
-  const canScout = agent.level >= 5
+  const canScout = agent.level >= 2
   const isScoutEnabled = agent.autoScoutEnabled && canScout
   const scoutedEvents = agent.scoutedOpportunities || []
 
   const handleToggle = (enabled: boolean) => {
     if (!canScout) {
-      toast.error('Proactive Scouting requires Level 5+')
+      toast.error('Proactive Scouting requires Level 2+')
       return
     }
     onToggleScout(agent.id, enabled)
@@ -47,7 +47,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                <Radar className="text-primary" weight="duotone" size={18} />
+                <MagnifyingGlass className="text-primary" weight="duotone" size={18} />
               </div>
               <Label htmlFor={`scout-${agent.id}`} className="text-base font-semibold cursor-pointer">
                 Proactive Event Scouting
@@ -56,12 +56,12 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
             <p className="text-sm text-muted-foreground">
               {canScout 
                 ? `Auto-scan and recommend events based on: ${agent.customAgenda || agent.niche}`
-                : 'Unlock at Level 5 to enable autonomous event discovery'
+                : 'Unlock at Level 2 to enable autonomous event discovery'
               }
             </p>
             {!canScout && (
               <Badge variant="outline" className="mt-2 text-xs">
-                Requires Level 5+ (Current: Level {agent.level})
+                Requires Level 2+ (Current: Level {agent.level})
               </Badge>
             )}
           </div>
@@ -92,7 +92,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
 
               {scoutedEvents.length === 0 ? (
                 <div className="text-center py-6">
-                  <Radar size={48} className="mx-auto mb-3 text-muted-foreground opacity-50 animate-pulse" weight="duotone" />
+                  <MagnifyingGlass size={48} className="mx-auto mb-3 text-muted-foreground opacity-50 animate-pulse" weight="duotone" />
                   <p className="text-sm text-muted-foreground font-semibold">
                     Agent is scanning for events...
                   </p>
@@ -118,7 +118,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 space-y-1">
                           <div className="flex items-center gap-2">
-                            {event.platform === 'YouTube' && <Youtube size={16} className="text-red-500" weight="duotone" />}
+                            {event.platform === 'YouTube' && <Globe size={16} className="text-red-500" weight="duotone" />}
                             {event.platform === 'Luma' && <Calendar size={16} className="text-blue-500" weight="duotone" />}
                             {event.platform === 'Eventbrite' && <Calendar size={16} className="text-orange-500" weight="duotone" />}
                             {event.platform === 'Zoom' && <Calendar size={16} className="text-primary" weight="duotone" />}
