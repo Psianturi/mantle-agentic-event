@@ -164,6 +164,7 @@ function App() {
     sortBy: 'level-desc'
   })
   const blockchain = useBlockchain()
+  const [useMockData, setUseMockData] = useState(false)
 
   useEffect(() => {
     if (!useMockData) {
@@ -219,7 +220,6 @@ function App() {
   const [healthCheckOpen, setHealthCheckOpen] = useState(false) // no auto-popup
   const [backendConnected, setBackendConnected] = useState(false)
   const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'error'>('checking')
-  const [useMockData, setUseMockData] = useState(false)
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
   const [verificationData, setVerificationData] = useLocalStorage<ContractVerificationData[]>('maef-verifications', [])
   const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())

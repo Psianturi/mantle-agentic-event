@@ -147,6 +147,7 @@ KMS_KEY_NAME=projects/.../cryptoKeys/...  # required in production
 
 ---
 
+
 ## Pending Before Mainnet
 
 - [ ] Set `KMS_KEY_NAME` in Cloud Run (single env var to activate encryption)
