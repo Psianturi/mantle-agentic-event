@@ -48,6 +48,21 @@ export interface Agent {
   autonomousSignatures?: number
 }
 
+export interface ScoutLogEntry {
+  logId: string
+  schedulerRunId: string | null
+  agentId: string
+  runAt: number
+  action: 'MINTED' | 'SKIPPED'
+  reasonCode: string
+  score: number | null
+  thresholdApplied: number | null
+  agentGasBalance: number | null
+  candidateTitle: string | null
+  candidateUrl: string | null
+  reasonDescription: string | null
+}
+
 export interface ScoutedEvent {
   id: string
   title: string

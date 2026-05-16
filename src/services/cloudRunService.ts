@@ -806,6 +806,43 @@ export const cloudRunService = {
     }
   },
 
+  async getAgentScoutLogs(agentId: string) {
+    try {
+      const response = await fetchWithTimeout(
+        `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/scout-logs`,
+        { method: 'GET' }
+      )
+      const raw = await handleAPIResponse<Array<{
+        log_id: string
+        scheduler_run_id: string | null
+        agent_id: string
+        run_at: number
+        action: string
+        reason_code: string
+        metrics: { score: number | null; threshold_applied: number | null; agent_gas_balance: number | null }
+        candidate_source: { title: string | null; url: string | null }
+        reason_description: string | null
+      }>>(response)
+      return raw.map(r => ({
+        logId: r.log_id,
+        schedulerRunId: r.scheduler_run_id,
+        agentId: r.agent_id,
+        runAt: r.run_at,
+        action: r.action as 'MINTED' | 'SKIPPED',
+        reasonCode: r.reason_code,
+        score: r.metrics?.score ?? null,
+        thresholdApplied: r.metrics?.threshold_applied ?? null,
+        agentGasBalance: r.metrics?.agent_gas_balance ?? null,
+        candidateTitle: r.candidate_source?.title ?? null,
+        candidateUrl: r.candidate_source?.url ?? null,
+        reasonDescription: r.reason_description,
+      }))
+    } catch (error) {
+      console.warn('[cloudRunService] getAgentScoutLogs failed:', error)
+      return []
+    }
+  },
+
   async getPublicFeaturedWisdom() {
     try {
       const response = await fetchWithTimeout(

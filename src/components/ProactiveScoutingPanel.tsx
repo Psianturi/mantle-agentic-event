@@ -1,13 +1,16 @@
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Agent } from '@/lib/types'
-import { MagnifyingGlass, Globe, Calendar, Clock, CheckCircle } from '@phosphor-icons/react'
+import { Agent, ScoutLogEntry } from '@/lib/types'
+import { MagnifyingGlass, Globe, Calendar, Clock, CheckCircle, ListBullets } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
+import { ScoutDecisionTable } from '@/components/ScoutDecisionTable'
+import { cloudRunService } from '@/services/cloudRunService'
 
 interface ProactiveScoutingPanelProps {
   agent: Agent
@@ -19,6 +22,20 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
   const canScout = agent.level >= 2
   const isScoutEnabled = agent.autoScoutEnabled && canScout
   const scoutedEvents = agent.scoutedOpportunities || []
+
+  const [showLog, setShowLog] = useState(false)
+  const [logs, setLogs] = useState<ScoutLogEntry[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
+
+  useEffect(() => {
+    if (!showLog) return
+    if (logs.length > 0) return
+    setLogsLoading(true)
+    cloudRunService.getAgentScoutLogs(agent.id)
+      .then(data => setLogs(data))
+      .catch(() => setLogs([]))
+      .finally(() => setLogsLoading(false))
+  }, [showLog, agent.id])
 
   const handleToggle = (enabled: boolean) => {
     if (!canScout) {
@@ -40,6 +57,14 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
     toast.success('Event approved! Agent will register automatically.')
   }
 
+  const handleRefreshLog = () => {
+    setLogsLoading(true)
+    cloudRunService.getAgentScoutLogs(agent.id)
+      .then(data => setLogs(data))
+      .catch(() => setLogs([]))
+      .finally(() => setLogsLoading(false))
+  }
+
   return (
     <Card className="glass-card-hover p-5 border-2 border-primary/30">
       <div className="space-y-4">
@@ -54,7 +79,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
               </Label>
             </div>
             <p className="text-sm text-muted-foreground">
-              {canScout 
+              {canScout
                 ? `Auto-scan and recommend events based on: ${agent.customAgenda || agent.niche}`
                 : 'Unlock at Level 2 to enable autonomous event discovery'
               }
@@ -81,81 +106,126 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.3 }}
-              className="space-y-3 pt-4 border-t border-border/50"
+              className="space-y-4 pt-4 border-t border-border/50"
             >
-              <div className="flex items-center gap-2">
-                <h5 className="text-sm font-semibold">Scouted Opportunities</h5>
-                <Badge variant="secondary" className="text-xs">
-                  {scoutedEvents.length} new
-                </Badge>
+              {/* Scouted opportunities */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <h5 className="text-sm font-semibold">Scouted Opportunities</h5>
+                  <Badge variant="secondary" className="text-xs">
+                    {scoutedEvents.length} new
+                  </Badge>
+                </div>
+
+                {scoutedEvents.length === 0 ? (
+                  <div className="text-center py-6">
+                    <MagnifyingGlass size={48} className="mx-auto mb-3 text-muted-foreground opacity-50 animate-pulse" weight="duotone" />
+                    <p className="text-sm text-muted-foreground font-semibold">
+                      Agent is scanning for events...
+                    </p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">
+                      Based on: {agent.customAgenda || agent.niche}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {scoutedEvents.map((event) => (
+                      <motion.div
+                        key={event.id}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className={cn(
+                          "p-3 rounded-lg border transition-all duration-200",
+                          event.approved
+                            ? "bg-green-500/10 border-green-500/40"
+                            : "bg-card/50 border-border/50 hover:border-primary/40"
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 space-y-1">
+                            <div className="flex items-center gap-2">
+                              {event.platform === 'YouTube' && <Globe size={16} className="text-red-500" weight="duotone" />}
+                              {event.platform === 'Luma' && <Calendar size={16} className="text-blue-500" weight="duotone" />}
+                              {event.platform === 'Eventbrite' && <Calendar size={16} className="text-orange-500" weight="duotone" />}
+                              {event.platform === 'Zoom' && <Calendar size={16} className="text-primary" weight="duotone" />}
+                              <h6 className="text-sm font-semibold line-clamp-1">{event.title}</h6>
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2">
+                              {event.description}
+                            </p>
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Clock size={12} />
+                                {new Date(event.date).toLocaleDateString()}
+                              </span>
+                              <Badge variant="outline" className="text-xs">
+                                Relevance: {event.relevanceScore}%
+                              </Badge>
+                            </div>
+                          </div>
+                          {!event.approved ? (
+                            <Button
+                              size="sm"
+                              onClick={() => handleApprove(event.id)}
+                              className="bg-gradient-to-r from-primary to-accent hover:opacity-90 shrink-0"
+                            >
+                              Approve
+                            </Button>
+                          ) : (
+                            <div className="flex items-center gap-1 text-green-500 shrink-0">
+                              <CheckCircle size={16} weight="fill" />
+                              <span className="text-xs font-semibold">Approved</span>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {scoutedEvents.length === 0 ? (
-                <div className="text-center py-6">
-                  <MagnifyingGlass size={48} className="mx-auto mb-3 text-muted-foreground opacity-50 animate-pulse" weight="duotone" />
-                  <p className="text-sm text-muted-foreground font-semibold">
-                    Agent is scanning for events...
-                  </p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">
-                    Based on: {agent.customAgenda || agent.niche}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {scoutedEvents.map((event) => (
+              {/* Decision Log toggle */}
+              <div className="pt-2 border-t border-border/30">
+                <button
+                  onClick={() => setShowLog(v => !v)}
+                  className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+                >
+                  <ListBullets size={13} weight="duotone" />
+                  <span className="font-semibold">Decision Log</span>
+                  {logs.length > 0 && !logsLoading && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 ml-1">
+                      {logs.length}
+                    </Badge>
+                  )}
+                  <span className="ml-auto text-muted-foreground/50">{showLog ? '▲' : '▼'}</span>
+                </button>
+
+                <AnimatePresence>
+                  {showLog && (
                     <motion.div
-                      key={event.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className={cn(
-                        "p-3 rounded-lg border transition-all duration-200",
-                        event.approved
-                          ? "bg-green-500/10 border-green-500/40"
-                          : "bg-card/50 border-border/50 hover:border-primary/40"
-                      )}
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="mt-3"
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center gap-2">
-                            {event.platform === 'YouTube' && <Globe size={16} className="text-red-500" weight="duotone" />}
-                            {event.platform === 'Luma' && <Calendar size={16} className="text-blue-500" weight="duotone" />}
-                            {event.platform === 'Eventbrite' && <Calendar size={16} className="text-orange-500" weight="duotone" />}
-                            {event.platform === 'Zoom' && <Calendar size={16} className="text-primary" weight="duotone" />}
-                            <h6 className="text-sm font-semibold line-clamp-1">{event.title}</h6>
-                          </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2">
-                            {event.description}
-                          </p>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Clock size={12} />
-                              {new Date(event.date).toLocaleDateString()}
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                              Relevance: {event.relevanceScore}%
-                            </Badge>
-                          </div>
-                        </div>
-                        {!event.approved ? (
-                          <Button
-                            size="sm"
-                            onClick={() => handleApprove(event.id)}
-                            className="bg-gradient-to-r from-primary to-accent hover:opacity-90 shrink-0"
-                          >
-                            Approve
-                          </Button>
-                        ) : (
-                          <div className="flex items-center gap-1 text-green-500 shrink-0">
-                            <CheckCircle size={16} weight="fill" />
-                            <span className="text-xs font-semibold">Approved</span>
-                          </div>
-                        )}
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-[11px] text-muted-foreground/60">
+                          Each Auto Scout decision — mint or skip — is recorded here.
+                        </p>
+                        <button
+                          onClick={handleRefreshLog}
+                          className="text-[10px] text-primary/60 hover:text-primary transition-colors"
+                        >
+                          Refresh
+                        </button>
                       </div>
+                      <ScoutDecisionTable logs={logs} loading={logsLoading} />
                     </motion.div>
-                  ))}
-                </div>
-              )}
+                  )}
+                </AnimatePresence>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
