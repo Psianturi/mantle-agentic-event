@@ -1,3 +1,4 @@
+import { startTransition } from 'react'
 import { Agent } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -396,7 +397,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               <Button
                 onClick={(e) => {
                   e.stopPropagation()
-                  onViewEvolution(agent)
+                  startTransition(() => onViewEvolution(agent))
                 }}
                 variant="outline"
                 size="sm"
@@ -410,7 +411,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               <Button
                 onClick={(e) => {
                   e.stopPropagation()
-                  onListMarketplace(agent)
+                  startTransition(() => onListMarketplace(agent))
                 }}
                 variant="outline"
                 size="sm"
@@ -425,7 +426,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                 <Button
                   onClick={(e) => {
                     e.stopPropagation()
-                    onChat(agent)
+                    startTransition(() => onChat(agent))
                   }}
                   variant="outline"
                   size="sm"
@@ -439,7 +440,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                 <Button
                   onClick={(e) => {
                     e.stopPropagation()
-                    onConfigure(agent)
+                    startTransition(() => onConfigure(agent))
                   }}
                   variant="outline"
                   size="sm"

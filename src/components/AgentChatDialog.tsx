@@ -99,7 +99,7 @@ export function AgentChatDialog({ open, onOpenChange, agent }: AgentChatDialogPr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl h-[600px] glass-card border-2 border-primary/30 flex flex-col">
+      <DialogContent className="max-w-2xl h-[min(600px,90vh)] glass-card border-2 border-primary/30 flex flex-col overflow-hidden">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/30 to-secondary/30 border-2 border-primary/40 flex items-center justify-center">
@@ -114,7 +114,7 @@ export function AgentChatDialog({ open, onOpenChange, agent }: AgentChatDialogPr
           </div>
         </DialogHeader>
 
-        <ScrollArea ref={scrollAreaRef} className="flex-1 pr-4">
+        <ScrollArea ref={scrollAreaRef} className="flex-1 min-h-0 pr-4">
           <div className="space-y-4 pb-4">
             <AnimatePresence>
               {messages.map((message) => (
