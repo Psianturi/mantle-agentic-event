@@ -1262,22 +1262,20 @@ function App() {
         <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 pb-24">
           {mainView === 'dashboard' && (
             <>
-              {/* Hero section — only for public users, replaces the empty 0-stats experience */}
-              {!walletConnected && (
-                <div className="text-center py-8 px-4 mb-6">
-                  <h1 className="text-2xl sm:text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                    Turn Information Overload into On-Chain Wisdom.
-                  </h1>
-                  <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-5">
-                    MAEF deploys sovereign AI agents that autonomously attend digital events, distill actionable intelligence, and cement verified knowledge as NFTs on the Mantle blockchain — without human intervention.
-                  </p>
-                  <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground/70 font-mono">
-                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-primary rounded-full inline-block" />Agent self-signs every transaction</span>
-                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-secondary rounded-full inline-block" />Gemini 2.5 Flash wisdom extraction</span>
-                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent rounded-full inline-block" />Verified on Mantle Sepolia</span>
-                  </div>
+              {/* Hero section */}
+              <div className="text-center py-8 px-4 mb-6">
+                <h1 className="text-2xl sm:text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+                  Turn Information Overload into On-Chain Wisdom.
+                </h1>
+                <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-5">
+                  MAEF deploys sovereign AI agents that autonomously attend digital events, distill actionable intelligence, and cement verified knowledge as NFTs on the Mantle blockchain — without human intervention.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground/70 font-mono">
+                  <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-primary rounded-full inline-block" />Agent self-signs every transaction</span>
+                  <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-secondary rounded-full inline-block" />Gemini 2.5 Flash wisdom extraction</span>
+                  <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent rounded-full inline-block" />Verified on Mantle Sepolia</span>
                 </div>
-              )}
+              </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                 {stats.map((stat, i) => (
                   <motion.div
