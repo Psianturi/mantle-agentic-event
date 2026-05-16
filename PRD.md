@@ -1,150 +1,135 @@
-# Product Requirements Document: Mantle Agentic Event Factory (MAEF)
+```markdown
+# Product Requirements Document (PRD) 
+## Project: Mantle Agentic Event Factory (MAEF)
+**Status:** Production-Ready MVP  
+**Target Ecosystem:** Mantle Network (L2 OP Stack)  
+**Author/Copyright Holder:** Posma Janius S  
 
-A comprehensive SaaS platform that enables users to spawn autonomous AI agents that attend digital events, summarize content, and mint Proof-of-Attendance NFTs on the Mantle Network - transforming information overload into on-chain wisdom.
+---
 
-**Experience Qualities**:
-1. **Commanding** - Users should feel like they're operating a sophisticated mission control center, orchestrating autonomous AI agents with precision and authority
-2. **Futuristic** - Every interaction should evoke a sense of advanced technology through cybernetic aesthetics, smooth animations, and real-time status updates
-3. **Trustworthy** - Despite the complexity, the interface should communicate reliability through clean organization, clear feedback, and transparent agent operations
+## 🌌 Executive Summary & Vision
 
-**Complexity Level**: Complex Application (advanced functionality, likely with multiple views)
-This is a multi-layered platform featuring hierarchical agent management, real-time status monitoring, blockchain integration, AI-powered summarization, and cross-event analysis requiring sophisticated state management and multiple interconnected views.
+MAEF is a decentralized infrastructure platform on the Mantle Network that transforms digital information overload into structured, on-chain knowledge assets. Instead of deploying passive automation bots, MAEF introduces **Autonomous AI Agents as Sovereign Blockchain Citizens**. 
 
-## Essential Features
+Each agent operates with its own cryptographic identity, independent financial reserves, and data-driven execution loops. Through an integrated Web3 core and advanced LLM orchestrations, agents attend digital events, process transcripts, distill multi-event wisdom, and directly execute on-chain transactions under their own signature authority.
 
-### 1. Agent Factory & Spawning System
-- **Functionality**: Creates new Parent Agents with unique identities, Mantle wallet addresses, and specialized niches
-- **Purpose**: Enables users to build a customized fleet of AI agents tailored to specific information domains
-- **Trigger**: User clicks "Spawn New Agent" button in the Factory view
-- **Progression**: Click Spawn → Modal opens → Fill form (Name, Personality, Niche) → Birth sequence animation → Mantle address generated → Agent card appears in grid
-- **Success criteria**: Agent appears in dashboard with unique wallet address, personality traits visible, and all 4 sub-agents initialized in idle state
+### Experience Qualities
+* **Commanding (Mission Control):** The interface acts as a high-density operations center. Users orchestrate, configure, and monitor independent AI workforces executing asynchronous pipelines with total visibility.
+* **Futuristic (Cybernetic Sovereignty):** A strict dark-mode aesthetic utilizing pulsing neon accents, hardware-accelerated glassmorphic panels, and live state-driven terminal metrics that emphasize true autonomous execution.
+* **Trustworthy (Enterprise-Grade):** High technical reliability achieved through strict error state definitions, zero-knowledge exposure for sensitive parameters, and cryptographic enforcement via enterprise key management systems.
 
-### 2. Event Attendance System
-- **Functionality**: Assigns agents to attend digital events via URL input, triggering multi-agent workflow coordination
-- **Purpose**: Automates event participation, content extraction, and attendance verification across multiple platforms
-- **Trigger**: User pastes event URL (YouTube/Luma) and clicks "Attend Event"
-- **Progression**: Enter URL → Click Attend → Secretary registers → Scribe extracts content → Social-Lite monitors → Mint-Master prepares NFT → Summary generated → NFT minted
-- **Success criteria**: Terminal log shows all sub-agent actions, event counter increments, summary appears in Report Card, NFT minted with transaction hash
+---
 
-### 3. Real-Time Agent Status Dashboard
-- **Functionality**: Displays live status of all agents and their sub-agents with visual indicators
-- **Purpose**: Provides transparency into agent operations and current task execution
-- **Trigger**: Automatic updates when agents perform actions
-- **Progression**: Agent starts task → Status changes to Active → Sub-agent indicators glow → Terminal logs update → Task completes → Status returns to Idle
-- **Success criteria**: Status updates appear within 1 second, color-coded indicators show agent health, sub-agent breakdown visible on card hover
+## 🏗️ Core Architecture & System Features
 
-### 4. Consolidated Wisdom Engine
-- **Functionality**: After 5 events in same niche, performs cross-analysis to generate strategic insights
-- **Purpose**: Transforms accumulated event data into actionable intelligence and trend analysis
-- **Trigger**: 5th event completion in a niche automatically unlocks wisdom panel
-- **Progression**: 5th event completes → Unlock animation plays → Wisdom panel glows → Analysis runs → Strategic report card appears → Investment/tech tips displayed
-- **Success criteria**: Panel locks until 5 events, glowing unlock animation, consolidated report shows patterns across all 5 events, actionable insights presented
+### 1. Agent Factory & On-Chain Provisioning (V2 Contract)
+* **Functional Specification:** Spawns Parent Agents utilizing the optimized `MAEFNFTERC721A` contract standard, anchoring decentralized identity directly to a deterministically generated Ethereum key pair.
+* **Web3 Economic Loop:** * User calls `spawnAgent(name, niche)` via MetaMask, depositing **1 MNT** to the V2 Smart Contract (`0x110edEa5DB874589ec4492d15660082634E173f0`).
+  * The contract stores agent registration records via `isAgentSpawned` mapping and automatically provisions **0.5 MNT** directly to the newly generated agent wallet to establish its independent operability gas reserves.
+* **Data Layer:** Encrypts the raw private key using Google Cloud KMS and writes the record to the Firestore `agents` collection under the `private_key_enc` field.
+* **Success Criteria:** The agent displays globally across any device on wallet connection, displaying an independent public address, a `level = 1` base tier, and all 4 parallel sub-agent states initialized to `IDLE`.
 
-### 5. NFT Vault & Mantle Integration
-- **Functionality**: Gallery view of all minted Proof-of-Attendance NFTs with on-chain verification and transaction links
-- **Purpose**: Provides verifiable on-chain proof of agent activity and creates tradeable digital assets on Mantle Network
-- **Trigger**: User navigates to NFT Vault section or mints a new NFT after event attendance
-- **Progression**: Open Vault → Grid displays NFTs → Click NFT → Modal shows on-chain metadata → View transaction → Opens Mantle Explorer with transaction details
-- **Success criteria**: All minted NFTs display correctly with blockchain data, metadata includes event details and agent info, transaction hashes link to Mantle Explorer, real-time minting status with gas cost display, wallet balance updates after minting
+### 2. Dual-Mode Event Attendance & Real AI Summarization
+* **Functional Specification:** Coordinates the asynchronous ingestion of digital event transcripts (YouTube/Luma/Eventbrite) and processes core intellectual assets through Gemini-powered models.
+* **The Execution Pipeline:**
+  * **Secretary Module:** Resolves URLs, enforces SSRF protections, and invokes the `youtube-transcript-api` to pull raw text data.
+  * **Scribe Module:** If a transcript is available, it feeds a dense 512-token prompt to `gemini-2.5-flash` via the `v1beta` API. If unavailable, it executes a 256-token metadata-only fallback prompt.
+  * **Mint-Master Module:** Prepares the dynamic NFT metadata payload containing the immutable wisdom excerpt.
+* **Signing Modes Logic:**
+  * **Mode B (Autonomous Core):** Retrieves the agent's ciphertext from Firestore, decrypts it in-memory via GCP KMS, signs the minting payload directly with the agent's key, and broadcasts the transaction.
+  * **Mode A (Administrative Fallback):** If the agent wallet lacks gas or is not registered via `spawnAgent()` on the active V2 contract, the system gracefully shifts execution to the backend Minter Service account (`MINTER_SERVICE_PRIVATE_KEY`) to prevent execution blocks, while delivering the asset to the agent's destination.
 
-### 6. Mantle Network Blockchain Integration
-- **Functionality**: Complete Web3 integration with Mantle Network for wallet connection, network switching, and NFT minting
-- **Purpose**: Provides genuine blockchain functionality with on-chain proof of attendance and decentralized ownership
-- **Trigger**: User clicks "Connect Wallet" or "Attend Event" button
-- **Progression**: Connect wallet → MetaMask prompts → Switch to Mantle Network → Wallet connected → Mint NFT → Gas estimation → Transaction confirmation → On-chain verification → Receipt displayed
-- **Success criteria**: Seamless wallet connection, automatic network switching to Mantle Sepolia/Mainnet, accurate gas estimation, successful NFT minting on-chain, transaction hash verification on Mantle Explorer, balance updates after transactions
 
-## Edge Case Handling
+```
 
-- **Invalid Event URLs** - Display inline error with format examples and supported platforms list
-- **Agent Spawn Failures** - Show retry option with error details, maintain form data
-- **Network Connection Loss** - Queue actions locally, show offline indicator, sync when reconnected
-- **Gas Estimation Errors** - Display current Mantle gas price, suggest retry timing, show alternative options
-- **Duplicate Event Attendance** - Warn user agent already attended, offer to resend or skip
-- **Sub-Agent Timeout** - Show which sub-agent failed, provide manual retry, continue with others
-- **Wisdom Panel Edge Cases** - Handle mixed niches (show warning), incomplete event data (mark as partial)
-- **Empty States** - Guide new users with example flows, showcase demo agents, provide quick-start tutorials
+```
+              [User Initiates Attend Event]
+                            ↓
+             [Backend Fetches Video Transcript]
+                            ↓
+           [Gemini 2.5 Flash distills Wisdom]
+                            ↓
+             [Select Execution Signing Mode]
+                           ∕ \
+                          ∕   \
+                 [Mode B]       [Mode A Fallback]
+                    ∕               \
+   [Decrypt Agent Key via KMS]    [Load Minter Service Key]
+                    \               ∕
+             [Broadcast Mint to Mantle V2 Contract]
 
-## Design Direction
+```
 
-The design should evoke the feeling of operating a high-tech command center in a cyberpunk future. Users should feel empowered, like elite operators managing sophisticated AI infrastructure. The aesthetic balances professional credibility (for investors/hackathon judges) with futuristic excitement (for the AI/blockchain community). Every interaction should reinforce the "Agentic Economy" narrative - autonomous systems working on your behalf, creating verifiable on-chain value.
+```
 
-## Color Selection
+### 3. Strict Gas Autonomy & On-Chain Top-Up System
+* **Functional Specification:** Prevents unauthorized administrative bailouts by enforcing hard transaction walls when an agent exhausts its operational gas budget during Mode B executions.
+* **Strict Error Policy:** If a transaction fails due to low gas or contract rejection, the backend stops execution and throws structured error payloads: `AGENT_OUT_OF_GAS`, `AGENT_NOT_AUTHORIZED`, or `MODE_B_STRICT_REJECTED`.
+* **On-Chain Remediation:**
+  * The frontend catches `AGENT_OUT_OF_GAS` and interrupts the user loop with the `TopUpGasDialog`.
+  * The system executes an actual native on-chain MNT transfer directly from the connected user's MetaMask wallet to the destination agent's wallet address.
+  * Upon confirmation on the Mantle Network, an automatic retry handler re-triggers the pending Mode B `attendEvent` execution request.
 
-A bold cybernetic palette that combines deep space blacks with electric neon accents, creating a high-contrast, futuristic mission control aesthetic.
+### 4. Consolidated Cross-Event Wisdom Engine
+* **Functional Specification:** Aggregates individual data milestones into cross-referenced, high-density strategic intelligence reports.
+* **Trigger Condition:** Automatically activates inside the Analytics space upon the compilation of 5 unique event entries under the same agent domain niche.
+* **Processing Engine:** Queries the target agent's `agent_events` collection, extracts all historical wisdom payloads, constructs a composite relational prompt, and invokes Gemini cross-analysis.
+* **Output Layer:** Returns an advanced strategic analysis structured strictly using `responseMimeType: "application/json"`. The frontend renders this structured insight into an interactive console dashboard and exposes a download pathway generating local, standard Markdown (`.md`) dossiers.
 
-- **Primary Color**: Neon Cyan (oklch(0.85 0.15 200)) - Represents digital energy, blockchain connectivity, and AI intelligence; used for primary actions, agent status indicators, and key highlights
-- **Secondary Colors**: 
-  - Deep Space (oklch(0.15 0.02 240)) - Main background creating depth
-  - Slate Gray (oklch(0.25 0.01 240)) - Card backgrounds with glassmorphism
-- **Accent Color**: Electric Purple (oklch(0.65 0.25 300)) - Used for CTAs, NFT elements, unlock animations, and wisdom panel glow
-- **Foreground/Background Pairings**: 
-  - Deep Space Background (oklch(0.15 0.02 240)): White text (oklch(0.98 0 0)) - Ratio 13.8:1 ✓
-  - Slate Cards (oklch(0.25 0.01 240)): Cyan text (oklch(0.85 0.15 200)) - Ratio 8.2:1 ✓
-  - Neon Cyan (oklch(0.85 0.15 200)): Dark text (oklch(0.15 0.02 240)) - Ratio 11.5:1 ✓
-  - Electric Purple (oklch(0.65 0.25 300)): White text (oklch(0.98 0 0)) - Ratio 5.8:1 ✓
+### 5. Genetic Inheritance & Agent Fusion System (Phase 2)
+* **Functional Specification:** Allows users to fuse two high-tier parent agents to generate advanced offspring that inherit structured profile states.
+* **Inheritance Engine Rules:**
+  * **Genealogy Layer:** Offspring generation is enforced dynamically via $G_{\text{offspring}} = \max(G_{\text{parent1}}, G_{\text{parent2}}) + 1$.
+  * **Knowledge Base Transfer:** The system injects the historical wisdom text profiles of the parents' last 3 minted NFTs directly into the offspring's core background state block.
+  * **Trait Synthesis:** Calculates composite niche preference biases, evaluates personality matrices, and automatically saves the comprehensive entity structure directly into the global Firestore data layer under a unified collection schema.
 
-## Font Selection
+---
 
-Typography should communicate technical precision while remaining highly readable - a balance of futuristic monospace for data/terminals and clean sans-serif for content.
+## 🔒 Security Architecture & Guardrails
 
-- **Typographic Hierarchy**:
-  - H1 (Page Titles): Space Grotesk Bold / 36px / tight tracking (-0.02em) - Used for "Agent Factory", "Mission Control"
-  - H2 (Section Headers): Space Grotesk SemiBold / 24px / normal tracking - Agent names, panel titles
-  - H3 (Sub-headers): Space Grotesk Medium / 18px / slight tracking (0.01em) - Sub-agent labels, card titles
-  - Body Text: Inter Regular / 15px / line-height 1.6 - Descriptions, summaries
-  - Terminal/Code: JetBrains Mono Regular / 13px / line-height 1.4 - Agent logs, wallet addresses
-  - Labels: Inter Medium / 12px / uppercase / tracking 0.05em - Status badges, metadata
+* **Cryptographic Sovereignty (GCP KMS):** Plaintext private keys are never written to disk or persistently logged. The system enforces a strict 3-path resolution scheme:
+  1. *Development Path:* Plaintext keys allowed only if `ENVIRONMENT != production`, printing localized system logs with runtime warnings.
+  2. *Legacy Path:* Transparent backward compatibility for unencrypted base entities containing historical prefixes.
+  3. *Production Enforcement:* If `ENVIRONMENT = production`, the system operates under a hard *Fail-Closed* rule, rejecting any spawning or breeding sequences if a valid `KMS_KEY_NAME` environment block is absent.
+* **Log Sanitization:** Complete suppression of `httpx` and `httpcore` verbose engines across backend routers to prevent downstream injection of sensitive parameters or Gemini API key exposure within the GCP Cloud Run environment.
+* **Input Validation:** Strict allowlist validation mechanisms restricting raw endpoint inputs exclusively to verified event platform URLs (YouTube, Luma, Eventbrite, Zoom) to nullify Server-Side Request Forgery (SSRF) exposure vectors.
 
-## Animations
+---
 
-Animations should reinforce the feeling of intelligent systems at work - purposeful transitions that communicate state changes and guide attention to important events. Use sparingly for maximum impact: Agent spawn "birth sequence" (2s particle effect with glow), status transitions (300ms pulse), terminal log entries (slide in from bottom), wisdom panel unlock (1s golden glow expansion), NFT minting success (confetti + glow). All interactions have 150ms hover feedback with subtle scale/glow.
+## 🎨 User Interface & Cybernetic Palette
 
-## Component Selection
+The interface is optimized for speed, dense information display, and immediate visual verification of blockchain transactions, eliminating layered, multi-tier tabs for a flat 4-tab space.
 
-- **Components**: 
-  - Dialog (Agent spawn modal, NFT detail view)
-  - Card (Agent grid items with glassmorphism using backdrop-blur)
-  - Badge (Status indicators: Active/Idle/Processing)
-  - Button (Primary: Electric Purple with glow, Secondary: Outlined Cyan)
-  - Tabs (Dashboard navigation: Overview/Factory/Vault/Settings)
-  - Progress (Event counter, 5-event tracker)
-  - Scroll Area (Terminal console, agent logs)
-  - Tooltip (Sub-agent status on hover)
-  - Alert (Success notifications for minting)
-  
-- **Customizations**: 
-  - Custom Terminal component with typewriter effect
-  - Holographic card effect using gradients and backdrop-blur
-  - Glowing border animations for active agents (using box-shadow keyframes)
-  - NFT gallery grid with hover zoom and metadata overlay
-  - Collapsible console panel docked at bottom
-  
-- **States**: 
-  - Buttons: Default (solid purple), Hover (glow intensifies + scale 1.05), Active (pressed scale 0.98), Disabled (50% opacity, no glow)
-  - Agent Cards: Idle (subtle glow), Active (pulsing cyan border), Processing (animated gradient border), Error (red accent)
-  - Input fields: Default (cyan border), Focus (purple glow ring), Error (red border + shake animation), Success (green checkmark)
-  
-- **Icon Selection**: 
-  - Phosphor Icons throughout for consistency
-  - Robot (agent representation)
-  - Lightning (quick actions, energy)
-  - ChartLine (wisdom/analytics)
-  - Wallet (blockchain/NFT)
-  - Globe (event attendance)
-  - Terminal (console logs)
-  
-- **Spacing**: 
-  - Container padding: px-6 py-8
-  - Card internal spacing: p-6
-  - Grid gaps: gap-6 for agent grid, gap-4 for sub-components
-  - Section margins: mb-8 between major sections
-  - Consistent use of Tailwind's 4px base unit
-  
-- **Mobile**: 
-  - Single column agent grid on <768px
-  - Sidebar collapses to hamburger menu
-  - Terminal console becomes modal overlay
-  - NFT gallery: 1 column mobile, 2 tablet, 3+ desktop
-  - Touch-friendly 44px minimum tap targets
-  - Swipe gestures for terminal drawer
+### Color Tokens
+
+| Token | OKLCH Value | UI Context |
+| :--- | :--- | :--- |
+| **Primary Cyan** | `oklch(0.85 0.15 200)` | Active systems, true Mode B signatures, highlights, primary text highlights. |
+| **Accent Purple** | `oklch(0.65 0.25 300)` | Primary Call-to-Actions, token generation successes, breeding triggers, panel glows. |
+| **Deep Space** | `oklch(0.15 0.02 240)` | Global master layout canvas background. |
+| **Slate Gray** | `oklch(0.25 0.01 240)` | High-density glassmorphic dashboard cards, terminal backgrounds. |
+
+### Flattened Navigation Architecture
+
+```
+
+[MAEF Operations Center]
+├── Tab 1: Dashboard   → Active Workforce Grid | Live Terminal Logs | Attend Event Console
+├── Tab 2: Analytics   → Cross-Event Knowledge Engine | JSON Structure Reports | Markdown Generation
+├── Tab 3: NFT Vault   → ERC-721A Asset Gallery | Direct MantleScan Links | Public Funnel States
+└── Tab 4: Marketplace → Autonomous Entity Indexing Network (Beta Protocol Pipeline)
+
+```
+
+---
+
+## 🚦 Operational Edge Case Matrix
+
+| Target Scenario | System Behavior | User Feedback Matrix |
+| :--- | :--- | :--- |
+| **Agent Out of Gas** | Backend throws structured string `AGENT_OUT_OF_GAS`. | UI halts execution loop, opens `TopUpGasDialog`, prompts MetaMask transfer, auto-retries on block confirmation. |
+| **Gemini Down (503/504)** | Ingestion wrapper executes up to 2 automated retries using an Exponential Backoff model ($1\text{s} \rightarrow 2\text{s}$). | Displays pulsing reload animation inside the active log space, falling back to cached local metadata if hard timeout triggers. |
+| **Unregistered Entity** | Contract `_enforceMintAuth()` flags exception due to missing on-chain spawn reference. | Backend triggers immediate automated fallback to Mode A administrative key, logging warning states to Cloud Run. |
+| **Public State Zero Base** | Wallet disconnected state detects empty global state variables. | Replaces empty screens with an interactive "Public Preview Gallery" featuring top community wisdom trends to maximize Web3 wallet conversion. |
+
+```

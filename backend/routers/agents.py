@@ -69,13 +69,19 @@ class SpawnResponse(BaseModel):
     genetic_traits: list[str] | None = None
     last_breeding_time: float | None = None
     breeding_cooldown_hours: int | None = None
+    scout_interval_hours: int = 4
+    last_scout_at: float | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
-    """Convert a Firestore document dict to SpawnResponse (strips private_key)."""
+    """Convert a Firestore document dict to SpawnResponse (strips private_key).
+
+    Uses explicit .get(field, default) for every optional field so legacy Firestore
+    documents missing new fields never cause a KeyError or Pydantic validation failure.
+    """
     return SpawnResponse(
         agent_id=data["agent_id"],
         agent_wallet=data["agent_wallet"],
@@ -88,7 +94,9 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         needs_funding=needs_funding,
         personality=data.get("personality"),
         custom_instructions=data.get("custom_instructions"),
-        auto_scout_enabled=data.get("auto_scout_enabled"),
+        auto_scout_enabled=data.get("auto_scout_enabled", False),
+        scout_interval_hours=data.get("scout_interval_hours", 4),
+        last_scout_at=data.get("last_scout_at"),
         custom_agenda=data.get("custom_agenda"),
         generation=data.get("generation"),
         parent_ids=data.get("parent_ids"),
@@ -181,6 +189,10 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         "private_key_enc": encrypt_private_key(private_key),
         "funded": False,
         "created_at": now,
+        # Autonomous scout scheduling — disabled by default, user opts in per agent
+        "auto_scout_enabled": False,
+        "scout_interval_hours": 4,
+        "last_scout_at": None,
     }
 
     try:
@@ -351,6 +363,10 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
         "max_breedings": 3,
         "genetic_traits": genetic_traits,
         "ownership_status": "bred",
+        # Autonomous scout scheduling — disabled by default, user opts in per agent
+        "auto_scout_enabled": False,
+        "scout_interval_hours": 4,
+        "last_scout_at": None,
     }
 
     # ── Atomic Firestore batch: offspring + both parents (guardrail #5) ───────
