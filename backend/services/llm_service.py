@@ -288,7 +288,12 @@ async def generate_wisdom_report(niche: str, event_summaries: list[str]) -> dict
         data = await _call_gemini_with_retry(
             api_key, payload, timeout=30.0, context=f"wisdom report ({niche})"
         )
-        raw_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        # gemini-2.5-flash is a thinking model: parts[0] = thought tokens, parts[-1] = actual response
+        parts = data["candidates"][0]["content"]["parts"]
+        raw_text = next(
+            (p["text"].strip() for p in reversed(parts) if p.get("text", "").strip()),
+            "",
+        )
 
         # Fallback extraction if model still wraps in code fences (shouldn't happen with responseMimeType)
         if not raw_text.startswith("{"):
@@ -372,7 +377,11 @@ async def chat_with_agent(
         data = await _call_gemini_with_retry(
             api_key, payload, timeout=25.0, context=f"chat ({agent_name})"
         )
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        parts = data["candidates"][0]["content"]["parts"]
+        return next(
+            (p["text"].strip() for p in reversed(parts) if p.get("text", "").strip()),
+            "",
+        )
 
     except Exception as exc:
         logger.error("Agent chat failed: %s", exc.__class__.__name__)
@@ -447,7 +456,13 @@ async def summarize_event(
         data = await _call_gemini_with_retry(
             api_key, payload, timeout=30.0, context=f"event summary ('{event_title}')"
         )
-        return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        parts = data["candidates"][0]["content"]["parts"]
+        return next(
+            (p["text"].strip() for p in reversed(parts) if p.get("text", "").strip()),
+            _FALLBACK_TEMPLATE.format(
+                agent_name=agent_name, event_title=event_title, platform=platform
+            ),
+        )
 
     except Exception as exc:
         logger.error(

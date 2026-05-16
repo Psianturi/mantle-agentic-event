@@ -1389,7 +1389,7 @@ function App() {
                               Generate Wisdom Report
                             </Button>
                           )}
-                          {agent.level >= 5 && (
+                          {agent.level >= 2 && (
                             <ProactiveScoutingPanel
                               agent={agent}
                               onToggleScout={handleToggleScout}
