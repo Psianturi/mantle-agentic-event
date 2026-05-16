@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown } from '@phosphor-icons/react'
+import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
 
@@ -315,6 +315,23 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold animate-glow-pulse-gold border-0">
                 ✨ Wisdom Unlocked
               </Badge>
+            )}
+            {(agent.autonomousSignatures ?? 0) > 0 && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-green-500/10 border border-green-500/30 cursor-help">
+                      <Signature size={13} className="text-green-400" weight="duotone" />
+                      <span className="text-xs font-bold text-green-400 font-mono">{agent.autonomousSignatures}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-card border-green-500/30">
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-bold text-green-400">{agent.autonomousSignatures}</span> autonomous on-chain signature{(agent.autonomousSignatures ?? 0) !== 1 ? 's' : ''} — Mode B
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
 

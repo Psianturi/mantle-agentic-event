@@ -114,26 +114,27 @@ async def search_youtube(
     return candidates
 
 
-async def filter_best_candidate(
+async def rank_candidates(
     candidates: list[dict],
     niche: str,
     agent_name: str,
     custom_instructions: str | None,
     attended_urls: set[str],
-) -> dict | None:
+    top_n: int = 3,
+) -> list[dict]:
     """
-    Remove already-attended videos, then use Gemini to pick the best candidate.
-    Falls back to first unattended candidate if Gemini fails.
+    Remove already-attended videos, then ask Gemini to rank top_n candidates.
+    Returns candidates in Gemini's preference order (best first).
+    Falls back to first top_n unattended candidates if Gemini fails.
     """
     unattended = [c for c in candidates if c["url"] not in attended_urls]
     if not unattended:
         logger.info("Secretary: all candidates already attended, nothing new to scout")
-        return None
+        return []
 
-    if len(unattended) == 1:
-        return unattended[0]
+    if len(unattended) <= top_n:
+        return unattended
 
-    # Gemini picks the most valuable video
     from services.llm_service import _call_gemini_with_retry
     from core.secrets import get_llm_api_key
 
@@ -147,12 +148,13 @@ async def filter_best_candidate(
     )
 
     prompt = (
-        f"You are selecting the best YouTube event for an AI agent to attend.\n\n"
+        f"You are selecting the best YouTube events for an AI agent to attend.\n\n"
         f"Agent: {agent_name}\nNiche: {niche}{instructions_part}\n\n"
         f"Candidates:\n{candidates_text}\n\n"
         f"Return ONLY valid JSON with this structure:\n"
-        f'{{\"selected_index\": <1-{len(shortlist)}>, \"reason\": \"<one sentence>\"}}\n\n'
-        f"Pick the video with the most educational value for the agent's niche."
+        f'{{\"ranked_indices\": [<best>, <2nd>, <3rd>], \"reason\": \"<one sentence why #1 is best>\"}}\n\n'
+        f"ranked_indices: your top {min(top_n, len(shortlist))} picks by index (1-{len(shortlist)}), best first.\n"
+        f"Pick videos with the most educational value for the agent's niche."
     )
 
     payload = {
@@ -170,16 +172,42 @@ async def filter_best_candidate(
             timeout=20,
             context="secretary_filter",
         )
-        raw = result["candidates"][0]["content"]["parts"][0]["text"]
+        # gemini-2.5-flash thinking model: actual response is in the last non-empty part
+        parts = result["candidates"][0]["content"]["parts"]
+        raw = next(
+            (p["text"].strip() for p in reversed(parts) if p.get("text", "").strip()),
+            "",
+        )
         parsed = json.loads(raw)
-        idx = max(0, min(int(parsed.get("selected_index", 1)) - 1, len(shortlist) - 1))
-        selected = shortlist[idx]
-        selected["scout_reason"] = parsed.get("reason", "")
-        logger.info("Secretary selected: '%s' — %s", selected["title"], selected.get("scout_reason", ""))
-        return selected
+        ranked_indices = parsed.get("ranked_indices") or []
+        scout_reason = parsed.get("reason", "")
+
+        ordered: list[dict] = []
+        seen: set[int] = set()
+        for raw_idx in ranked_indices:
+            idx = max(0, min(int(raw_idx) - 1, len(shortlist) - 1))
+            if idx not in seen:
+                seen.add(idx)
+                c = shortlist[idx]
+                c["scout_reason"] = scout_reason if not ordered else ""
+                ordered.append(c)
+            if len(ordered) >= top_n:
+                break
+
+        # Fill remaining slots from shortlist if Gemini returned fewer than top_n
+        for i, c in enumerate(shortlist):
+            if i not in seen and len(ordered) < top_n:
+                ordered.append(c)
+
+        logger.info(
+            "Secretary ranked %d candidates; top pick: '%s' — %s",
+            len(ordered), ordered[0]["title"] if ordered else "none", scout_reason,
+        )
+        return ordered
+
     except Exception as exc:
-        logger.warning("Gemini filter failed (%s), picking first candidate", type(exc).__name__)
-        return unattended[0]
+        logger.warning("Gemini ranking failed (%s), using first %d candidates", type(exc).__name__, top_n)
+        return unattended[:top_n]
 
 
 async def discover_event(
@@ -189,11 +217,14 @@ async def discover_event(
     custom_instructions: str | None = None,
 ) -> dict | None:
     """
-    Full Secretary workflow: search → dedup against Firestore history → Gemini filter.
+    Full Secretary workflow: search → dedup → Gemini rank top 3 → pick candidate
+    with available YouTube transcript (best wisdom quality), fall back to top pick.
     Returns selected video dict or None if nothing new found.
     """
+    import asyncio
     from core.database import get_db
     from google.cloud.firestore_v1.base_query import FieldFilter
+    from services.llm_service import _fetch_youtube_transcript
 
     # Fetch already-attended URLs for this agent
     db = get_db()
@@ -214,10 +245,37 @@ async def discover_event(
     if not candidates:
         return None
 
-    return await filter_best_candidate(
+    ranked = await rank_candidates(
         candidates=candidates,
         niche=niche,
         agent_name=agent_name,
         custom_instructions=custom_instructions,
         attended_urls=attended_urls,
+        top_n=3,
     )
+    if not ranked:
+        return None
+
+    # Try transcripts for top 3 in parallel — prefer a candidate with real transcript
+    # (richer context → more specific wisdom after minting)
+    transcripts = await asyncio.gather(
+        *[_fetch_youtube_transcript(c["url"]) for c in ranked],
+        return_exceptions=True,
+    )
+
+    for candidate, transcript in zip(ranked, transcripts):
+        if isinstance(transcript, str) and transcript:
+            candidate["has_transcript"] = True
+            logger.info(
+                "Secretary selected (has transcript): '%s' — %s",
+                candidate["title"], candidate.get("scout_reason", ""),
+            )
+            return candidate
+
+    # No transcript found among top 3 — return Gemini's top pick anyway
+    ranked[0]["has_transcript"] = False
+    logger.info(
+        "Secretary selected (no transcript): '%s' — %s",
+        ranked[0]["title"], ranked[0].get("scout_reason", ""),
+    )
+    return ranked[0]

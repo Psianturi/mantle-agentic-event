@@ -45,6 +45,7 @@ export interface Agent {
   autoScoutEnabled?: boolean
   customAgenda?: string
   scoutedOpportunities?: ScoutedEvent[]
+  autonomousSignatures?: number
 }
 
 export interface ScoutedEvent {

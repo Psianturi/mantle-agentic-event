@@ -446,6 +446,7 @@ export const cloudRunService = {
         customInstructions: r.custom_instructions,
         autoScoutEnabled: r.auto_scout_enabled,
         customAgenda: r.custom_agenda,
+        autonomousSignatures: r.autonomous_signatures ?? 0,
         generation: r.generation,
         parentIds: r.parent_ids,
         breedingCount: r.breeding_count,

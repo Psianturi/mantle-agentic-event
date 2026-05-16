@@ -71,6 +71,7 @@ class SpawnResponse(BaseModel):
     breeding_cooldown_hours: int | None = None
     scout_interval_hours: int = 4
     last_scout_at: float | None = None
+    autonomous_signatures: int = 0
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,6 +106,7 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         genetic_traits=data.get("genetic_traits"),
         last_breeding_time=data.get("last_breeding_time"),
         breeding_cooldown_hours=data.get("breeding_cooldown_hours"),
+        autonomous_signatures=data.get("autonomous_signatures", 0),
     )
 
 
