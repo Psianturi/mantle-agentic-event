@@ -166,6 +166,10 @@ function App() {
   const blockchain = useBlockchain()
 
   useEffect(() => {
+    if (!useMockData) {
+      return
+    }
+
     const interval = setInterval(() => {
       if (agents && agents.length > 0) {
         const activeAgents = agents.filter(a => a.status !== 'idle')
@@ -196,7 +200,7 @@ function App() {
     }, 2500 + Math.random() * 2000)
     
     return () => clearInterval(interval)
-  }, [agents])
+  }, [agents, useMockData])
   
   const [spawnDialogOpen, setSpawnDialogOpen] = useState(false)
   const [wisdomDialogOpen, setWisdomDialogOpen] = useState(false)

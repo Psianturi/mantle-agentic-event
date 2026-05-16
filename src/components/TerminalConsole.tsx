@@ -35,8 +35,19 @@ const subAgentColors = {
 
 export function TerminalConsole({ logs, className }: TerminalConsoleProps) {
   const [isMinimized, setIsMinimized] = useState(false)
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem('maef-mission-console-open')
+    if (saved === 'true') {
+      setIsOpen(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem('maef-mission-console-open', String(isOpen))
+  }, [isOpen])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -44,7 +55,19 @@ export function TerminalConsole({ logs, className }: TerminalConsoleProps) {
     }
   }, [logs])
 
-  if (!isOpen) return null
+  if (!isOpen) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setIsOpen(true)}
+        className="fixed left-3 bottom-6 z-50 h-9 px-2.5 rounded-full border-primary/40 bg-background/80 backdrop-blur-md text-primary hover:bg-primary/10"
+      >
+        <Terminal size={14} className="mr-1" weight="fill" />
+        Log
+      </Button>
+    )
+  }
 
   return (
     <motion.div
