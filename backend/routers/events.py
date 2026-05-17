@@ -4,8 +4,14 @@ POST /api/v1/event/attend  — Core agentic workflow.
 Flow:
   A) Validate & sanitise event URL (SSRF guard)
   B) Gemini generates a Wisdom Summary from event metadata
-  C) Backend signs & sends mintAttendanceNFT() to Mantle Sepolia
+  C) Agent self-signs mintAttendanceNFT() with its own key (Mode B)
+     OR MINTER_SERVICE signs for admin/explicit Mode A operations
   D) Return tx hash + token ID + wisdom summary to frontend
+
+Signing modes:
+  Mode B (mode_b=True):  agent wallet signs + pays gas — true autonomy.
+                         Requires isAgentSpawned=true on V4 contract.
+  Mode A (mode_b=False): MINTER_SERVICE signs — for admin ops only.
 """
 
 import logging
@@ -20,6 +26,7 @@ from web3 import Web3
 
 from core.config import settings
 from core.database import get_db
+from core.kms_service import decrypt_private_key
 from services.llm_service import summarize_event
 from services.web3_service import web3_service
 
@@ -202,11 +209,12 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     """
     Autonomous event-attendance workflow.
 
-    Mode A (mode_b=False): Backend (MINTER_ROLE) signs and broadcasts tx.
-    Mode B (mode_b=True): Agent signs its own transaction (true autonomy).
+    Mode B (mode_b=True): Agent decrypts its own key and self-signs the TX.
+                          Agent wallet pays gas. Requires isAgentSpawned=true on V4.
+    Mode A (mode_b=False): MINTER_SERVICE signs (admin / explicit fallback).
 
     Step A — AI: Gemini generates a Wisdom Summary for the event.
-    Step B — Web3: Signs mintAttendanceNFT() (Mode A: backend, Mode B: agent).
+    Step B — Web3: Agent signs mintAttendanceNFT() with its own key (Mode B).
     Step C — Return: tx hash, token ID, explorer link, and wisdom text.
     """
     # Guard: contract must be deployed before minting
@@ -228,11 +236,12 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 
-    # ── If Mode B: check funded status for autonomous_signatures tracking ─
-    # V4 contract uses onlyRole(MINTER_ROLE) + isAgentSpawned dual-auth.
-    # Old agents (spawned on V3) are not registered on V4 — their wallet
-    # cannot pass _enforceMintAuth. Minting always goes via MINTER_SERVICE_PRIVATE_KEY
-    # so both old and new agents work. Mode B = conceptual autonomous tracking only.
+    # ── Mode B: load agent private key for true autonomous signing ────────
+    # V4 dual-auth: hasRole(MINTER_ROLE, msg.sender) OR isAgentSpawned[msg.sender].
+    # Mode B = agent self-signs with its own key → agent wallet pays gas.
+    # Mode A = MINTER_SERVICE signs → only for explicit Mode A or admin ops.
+    # Agents must be registered via spawnAgent() on V4 for Mode B to work.
+    agent_private_key: str | None = None
     agent_is_funded = False
     if req.mode_b:
         db = get_db()
@@ -242,18 +251,30 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 raise HTTPException(status_code=404, detail=f"Agent '{req.agent_id}' not found")
             agent_data = agent_doc.to_dict() or {}
             agent_is_funded = bool(agent_data.get("funded", False))
+            stored_key = agent_data.get("private_key_enc") or agent_data.get("private_key")
+            if not stored_key:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Agent has no private key stored (re-spawn agent to fix)",
+                )
+            try:
+                agent_private_key = decrypt_private_key(stored_key)
+            except Exception as kms_exc:
+                logger.warning("KMS decrypt failed, using plaintext key: %s", kms_exc)
+                agent_private_key = stored_key
             logger.info(
-                "Mode B (funded=%s): minting via MINTER_SERVICE_PRIVATE_KEY — V4 MINTER_ROLE required",
-                agent_is_funded,
+                "Mode B: agent %s will self-sign (funded=%s)",
+                req.agent_id, agent_is_funded,
             )
         except HTTPException:
             raise
         except Exception as exc:
-            logger.error("Failed to check agent funded status for Mode B: %s", exc)
-            raise HTTPException(status_code=503, detail="Failed to retrieve agent status")
+            logger.error("Failed to load agent key for Mode B: %s", exc)
+            raise HTTPException(status_code=503, detail="Failed to retrieve agent credentials")
 
     # ── Steps B + C: Mint on Mantle ────────────────────────────────────────
-    # Always signed by MINTER_SERVICE_PRIVATE_KEY (holds MINTER_ROLE on V4).
+    # Mode B: agent signs with own key, agent pays gas (no fallback to minter).
+    # Mode A: MINTER_SERVICE signs (admin ops, recordExecutedProposal, explicit Mode A).
     try:
         mint_result = await web3_service.mint_attendance_nft(
             agent_wallet=req.agent_wallet,
@@ -263,6 +284,8 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             agent_name=req.agent_name,
             summary=wisdom_summary,
             niche=req.niche,
+            agent_private_key=agent_private_key,
+            allow_mode_b_fallback=False,  # strict: agent must pay own gas, no silent minter fallback
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -298,8 +321,8 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     tx_hash = mint_result.get("tx_hash")
     success = mint_result.get("status") == "success"
     level_up = mint_result.get("level_up", False)
-    # Mode B = agent-triggered autonomous attendance; TX always signed by MINTER_SERVICE on V4
-    signing_mode = "B" if (req.mode_b and agent_is_funded) else "A"
+    # signing_mode from web3_service reflects what actually signed (agent vs minter service)
+    signing_mode = mint_result.get("signing_mode", "B" if req.mode_b else "A")
     explorer_base = _resolve_explorer_base()
 
     # ── Update agent stats in Firestore ───────────────────────────────────
