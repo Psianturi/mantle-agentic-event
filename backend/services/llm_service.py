@@ -334,11 +334,14 @@ async def chat_with_agent(
     message: str,
     conversation_history: list[str],
     event_summaries: list[str] | None = None,
+    genetic_traits: list[str] | None = None,
+    parent_wisdom: list[str] | None = None,
 ) -> str:
     """
     Generate a contextual chat reply from the agent using Gemini.
     Falls back to a canned reply if the API is unavailable.
     event_summaries: list of "EventTitle: wisdom_summary" strings from Firestore.
+    genetic_traits / parent_wisdom: populated for bred offspring with wisdom-inheritance traits.
     """
     history_text = "\n\n".join(conversation_history[-6:]) if conversation_history else ""
 
@@ -351,10 +354,23 @@ async def chat_with_agent(
             "Draw on these specific learnings when answering questions about your experience.\n"
         )
 
+    # Superior Knowledge Base / Legendary Wisdom Heritage: inject inherited parent wisdom
+    _wisdom_traits = {"Superior Knowledge Base", "Legendary Wisdom Heritage"}
+    if parent_wisdom and _wisdom_traits & set(genetic_traits or []):
+        parent_formatted = "\n".join(f"  - {s}" for s in parent_wisdom[:6])
+        event_knowledge += (
+            f"\nInherited wisdom from your parent agents:\n{parent_formatted}\n\n"
+            "You carry this inherited knowledge from your lineage — reference it when relevant.\n"
+        )
+
+    traits_note = ""
+    if genetic_traits:
+        traits_note = f"Your genetic traits from breeding: {', '.join(genetic_traits)}. "
+
     prompt = (
         f"You are {agent_name}, an autonomous AI agent with a {personality.lower()} personality "
         f"specializing in {niche}. You have attended {events_attended} events on-chain "
-        f"and gained deep insights recorded as NFT wisdom.\n"
+        f"and gained deep insights recorded as NFT wisdom. {traits_note}\n"
         + event_knowledge
         + (f"Previous conversation:\n{history_text}\n\n" if history_text else "")
         + f"User: {message}\n\n"

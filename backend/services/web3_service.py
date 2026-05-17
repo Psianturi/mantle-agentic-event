@@ -65,6 +65,29 @@ MAEF_ABI: list[dict] = [
         "name": "WisdomUnlocked",
         "type": "event",
     },
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "internalType": "address", "name": "user", "type": "address"},
+            {"indexed": True, "internalType": "bytes32", "name": "offspringKey", "type": "bytes32"},
+            {"indexed": False, "internalType": "address", "name": "parent1Wallet", "type": "address"},
+            {"indexed": False, "internalType": "address", "name": "parent2Wallet", "type": "address"},
+            {"indexed": False, "internalType": "uint256", "name": "cost", "type": "uint256"},
+        ],
+        "name": "AgentsBred",
+        "type": "event",
+    },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "parent1Wallet", "type": "address"},
+            {"internalType": "address", "name": "parent2Wallet", "type": "address"},
+            {"internalType": "bytes32", "name": "offspringId", "type": "bytes32"},
+        ],
+        "name": "breedAgents",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function",
+    },
 ]
 
 
@@ -293,6 +316,90 @@ class Web3Service:
             raise ConnectionError(f"Failed to fetch native balance from Mantle RPC: {exc}") from exc
 
         return float(Web3.from_wei(wei_balance, "ether"))
+
+    async def verify_breed_tx(
+        self,
+        tx_hash: str,
+        expected_user_wallet: str,
+        max_age_seconds: int = 3600,
+    ) -> dict[str, Any]:
+        """
+        Verify an on-chain breedAgents() transaction.
+        Returns metadata dict if valid; raises ValueError with human-readable reason if not.
+        """
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self._sync_verify_breed_tx,
+            tx_hash,
+            expected_user_wallet,
+            max_age_seconds,
+        )
+
+    def _sync_verify_breed_tx(
+        self,
+        tx_hash: str,
+        expected_user_wallet: str,
+        max_age_seconds: int = 3600,
+    ) -> dict[str, Any]:
+        import time as _time
+        w3 = self._init_w3()
+
+        # 1. Fetch receipt
+        try:
+            receipt = w3.eth.get_transaction_receipt(tx_hash)
+        except Exception as exc:
+            raise ValueError(f"Cannot fetch transaction: {exc}") from exc
+
+        if receipt is None:
+            raise ValueError("Transaction not found — it may not be mined yet")
+
+        if receipt.get("status") != 1:
+            raise ValueError("Transaction was reverted")
+
+        # 2. Verify destination is MAEF contract
+        contract_addr = Web3.to_checksum_address(settings.contract_address)
+        tx_to = receipt.get("to") or ""
+        if not tx_to or Web3.to_checksum_address(tx_to) != contract_addr:
+            raise ValueError("Transaction was not sent to the MAEF contract")
+
+        # 3. Parse AgentsBred event
+        contract = self._init_contract()
+        try:
+            events = contract.events.AgentsBred().process_receipt(receipt, errors=DISCARD)
+        except Exception as exc:
+            raise ValueError(f"Could not parse contract events: {exc}") from exc
+
+        if not events:
+            raise ValueError("AgentsBred event not found — did the breedAgents() call succeed?")
+
+        event = events[0]
+        tx_user = event["args"].get("user", "")
+
+        if Web3.to_checksum_address(tx_user) != Web3.to_checksum_address(expected_user_wallet):
+            raise ValueError("Transaction sender does not match your wallet address")
+
+        # 4. Check recency — prevent replaying old breed transactions
+        try:
+            block = w3.eth.get_block(receipt["blockNumber"])
+            age = _time.time() - block["timestamp"]
+            if age > max_age_seconds:
+                raise ValueError(f"Transaction is too old ({int(age / 3600)}h). Use a fresh breed transaction.")
+        except ValueError:
+            raise
+        except Exception:
+            pass  # Block timestamp check is best-effort
+
+        cost_wei = event["args"].get("cost", 0)
+        return {
+            "tx_hash": tx_hash,
+            "user": tx_user,
+            "cost_wei": cost_wei,
+            "cost_mnt": float(Web3.from_wei(cost_wei, "ether")),
+            "block_number": receipt["blockNumber"],
+            "offspring_key": event["args"].get("offspringKey", b"").hex(),
+        }
 
 
 # Singleton — re-used across all requests

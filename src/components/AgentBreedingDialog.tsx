@@ -11,6 +11,24 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
 import { cloudRunService } from '@/services/cloudRunService'
+import { BrowserProvider, Contract, parseEther, keccak256, toUtf8Bytes } from 'ethers'
+import { CONTRACT_ADDRESSES } from '@/lib/blockchain/config'
+
+const BREED_ABI = [
+  {
+    inputs: [
+      { name: 'parent1Wallet', type: 'address' },
+      { name: 'parent2Wallet', type: 'address' },
+      { name: 'offspringId', type: 'bytes32' },
+    ],
+    name: 'breedAgents',
+    outputs: [],
+    stateMutability: 'payable',
+    type: 'function',
+  },
+] as const
+
+type BreedStep = 'idle' | 'awaiting-wallet' | 'confirming-tx' | 'creating-offspring'
 
 interface AgentBreedingDialogProps {
   open: boolean
@@ -34,6 +52,7 @@ export function AgentBreedingDialog({
   const [offspringName, setOffspringName] = useState('')
   const [isBreeding, setIsBreeding] = useState(false)
   const [breedingProgress, setBreedingProgress] = useState(0)
+  const [breedStep, setBreedStep] = useState<BreedStep>('idle')
   const [showResult, setShowResult] = useState(false)
   const [breedingResult, setBreedingResult] = useState<BreedingResult | null>(null)
 
@@ -67,10 +86,57 @@ export function AgentBreedingDialog({
 
     setIsBreeding(true)
     setBreedingProgress(0)
+    setBreedStep('awaiting-wallet')
 
-    // Animate progress while backend call runs
+    let breedTxHash: string | undefined
+
+    // ── Phase 1: On-chain payment via MetaMask ─────────────────────────────
+    if (window.ethereum) {
+      try {
+        const provider = new BrowserProvider(window.ethereum as Parameters<typeof BrowserProvider>[0])
+        const signer = await provider.getSigner()
+        const contractAddress = CONTRACT_ADDRESSES.sepolia.MAEF_NFT
+        const contract = new Contract(contractAddress, BREED_ABI, signer)
+
+        // Unique key per breed attempt (timestamp prevents on-chain replay)
+        const offspringKey = keccak256(
+          toUtf8Bytes(`${selectedParent1.id}:${selectedParent2.id}:${offspringName}:${Date.now()}`)
+        )
+
+        toast.info('Confirm the 2.5 MNT transaction in MetaMask...')
+        const tx = await contract.breedAgents(
+          selectedParent1.walletAddress,
+          selectedParent2.walletAddress,
+          offspringKey,
+          { value: parseEther('2.5') }
+        )
+
+        setBreedingProgress(20)
+        setBreedStep('confirming-tx')
+        toast.info('Transaction submitted — waiting for on-chain confirmation...')
+
+        await tx.wait()
+        breedTxHash = tx.hash
+        setBreedingProgress(50)
+        toast.success(`Paid 2.5 MNT on-chain ✓`)
+      } catch (error) {
+        setIsBreeding(false)
+        setBreedingProgress(0)
+        setBreedStep('idle')
+        const msg = error instanceof Error ? error.message : 'Unknown error'
+        if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('user denied')) {
+          toast.error('Transaction cancelled')
+        } else {
+          toast.error('On-chain payment failed', { description: msg.slice(0, 120) })
+        }
+        return
+      }
+    }
+
+    // ── Phase 2: Backend creates offspring ─────────────────────────────────
+    setBreedStep('creating-offspring')
     const tick = setInterval(() => {
-      setBreedingProgress(prev => (prev < 85 ? prev + 12 : prev))
+      setBreedingProgress(prev => (prev < 90 ? prev + 8 : prev))
     }, 600)
 
     try {
@@ -79,12 +145,12 @@ export function AgentBreedingDialog({
         parent1Id: selectedParent1.id,
         parent2Id: selectedParent2.id,
         offspringName,
+        breedTxHash,
       })
 
       clearInterval(tick)
       setBreedingProgress(100)
 
-      // Reconstruct display-only data from backend response + parent attributes
       const inheritedTraits = getInheritedTraits(selectedParent1, selectedParent2)
       const result: BreedingResult = {
         offspring,
@@ -99,13 +165,18 @@ export function AgentBreedingDialog({
 
       setBreedingResult(result)
       setIsBreeding(false)
+      setBreedStep('idle')
       setShowResult(true)
     } catch (error) {
       clearInterval(tick)
       setIsBreeding(false)
       setBreedingProgress(0)
+      setBreedStep('idle')
       const msg = error instanceof Error ? error.message : 'Unknown error'
       toast.error('Breeding failed', { description: msg })
+      if (breedTxHash) {
+        toast.info(`Note: 2.5 MNT was paid (tx: ${breedTxHash.slice(0, 10)}…). Retry to complete breeding.`)
+      }
     }
   }
 
@@ -123,6 +194,7 @@ export function AgentBreedingDialog({
     setOffspringName('')
     setIsBreeding(false)
     setBreedingProgress(0)
+    setBreedStep('idle')
     setShowResult(false)
     setBreedingResult(null)
   }
@@ -386,7 +458,9 @@ export function AgentBreedingDialog({
                     </div>
                     <Progress value={breedingProgress} className="h-4 mb-3" />
                     <p className="text-sm text-center text-muted-foreground font-mono">
-                      [{breedingProgress}%] Synthesizing genetic traits and knowledge matrices...
+                      {breedStep === 'awaiting-wallet' && '[1/3] Waiting for MetaMask signature...'}
+                      {breedStep === 'confirming-tx' && '[2/3] Confirming 2.5 MNT on-chain payment...'}
+                      {breedStep === 'creating-offspring' && '[3/3] Synthesizing genetic traits and knowledge matrices...'}
                     </p>
                   </Card>
                 </motion.div>

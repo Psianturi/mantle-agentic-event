@@ -15,6 +15,24 @@ contract MAEFNFT is ERC721URIStorage, Ownable, AccessControl {
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
     uint256 private _tokenIdCounter;
+    uint256 public breedCost = 2.5 ether; // 2.5 MNT; owner can update via setBreedCost()
+
+    struct BreedRecord {
+        address parent1Wallet;
+        address parent2Wallet;
+        uint256 cost;
+        uint256 timestamp;
+    }
+
+    mapping(bytes32 => BreedRecord) public breedRecords; // keccak256(offspringId) → record
+
+    event AgentsBred(
+        address indexed user,
+        bytes32 indexed offspringKey,
+        address parent1Wallet,
+        address parent2Wallet,
+        uint256 cost
+    );
 
     struct EventAttendance {
         string eventTitle;
@@ -126,6 +144,51 @@ contract MAEFNFT is ERC721URIStorage, Ownable, AccessControl {
     function getEventDetails(uint256 tokenId) public view returns (EventAttendance memory) {
         require(_ownerOf(tokenId) != address(0), "Token does not exist");
         return tokenIdToEvent[tokenId];
+    }
+
+    /**
+     * @dev Pay the breed cost to create an offspring agent.
+     *      Backend verifies this tx_hash before creating the offspring in Firestore.
+     * @param parent1Wallet Wallet address of first parent agent
+     * @param parent2Wallet Wallet address of second parent agent
+     * @param offspringId   Deterministic offspring ID (bytes16 from backend, zero-padded to bytes32)
+     */
+    function breedAgents(
+        address parent1Wallet,
+        address parent2Wallet,
+        bytes32 offspringId
+    ) external payable {
+        require(msg.value >= breedCost, "Insufficient MNT: send at least 2.5 MNT");
+        require(parent1Wallet != parent2Wallet, "Parents must be different agents");
+        require(breedRecords[offspringId].timestamp == 0, "Offspring already bred on-chain");
+
+        breedRecords[offspringId] = BreedRecord({
+            parent1Wallet: parent1Wallet,
+            parent2Wallet: parent2Wallet,
+            cost: msg.value,
+            timestamp: block.timestamp
+        });
+
+        emit AgentsBred(msg.sender, offspringId, parent1Wallet, parent2Wallet, msg.value);
+
+        // Refund excess MNT if overpaid
+        if (msg.value > breedCost) {
+            payable(msg.sender).transfer(msg.value - breedCost);
+        }
+    }
+
+    /**
+     * @dev Update the breed cost. Only owner.
+     */
+    function setBreedCost(uint256 newCost) external onlyOwner {
+        breedCost = newCost;
+    }
+
+    /**
+     * @dev Withdraw accumulated breed fees to owner wallet.
+     */
+    function withdraw() external onlyOwner {
+        payable(owner()).transfer(address(this).balance);
     }
 
     /**

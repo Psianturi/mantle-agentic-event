@@ -47,10 +47,12 @@ async def search_youtube(
     niche: str,
     max_results: int = 10,
     published_after_days: int = 30,
+    additional_niches: list[str] | None = None,
 ) -> list[dict]:
     """
     Search YouTube for long-form videos in the agent's niche.
     Returns list of candidate dicts: {video_id, title, description, channel, url}.
+    When additional_niches provided (Cross-Domain Intelligence trait), also searches those niches.
     """
     from core.secrets import get_youtube_api_key
 
@@ -62,7 +64,14 @@ async def search_youtube(
         datetime.datetime.utcnow() - datetime.timedelta(days=published_after_days)
     ).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    queries = _NICHE_QUERIES.get(niche, _NICHE_QUERIES["General"])
+    queries = list(_NICHE_QUERIES.get(niche, _NICHE_QUERIES["General"]))
+    if additional_niches:
+        for extra_niche in additional_niches:
+            for q in _NICHE_QUERIES.get(extra_niche, []):
+                if q not in queries:
+                    queries.append(q)
+    # Expand candidate pool when cross-domain to account for extra queries
+    search_max = max_results + 5 * len(additional_niches or [])
 
     candidates: list[dict] = []
     seen_ids: set[str] = set()
@@ -109,13 +118,17 @@ async def search_youtube(
                 "url": f"https://www.youtube.com/watch?v={video_id}",
             })
 
-        if len(candidates) >= max_results:
+        if len(candidates) >= search_max:
             break
 
     if not candidates and quota_limited:
         raise RuntimeError("YOUTUBE_API_LIMIT: YouTube API quota exceeded or temporarily unavailable")
 
-    logger.info("Secretary: found %d YouTube candidates for niche '%s'", len(candidates), niche)
+    logger.info(
+        "Secretary: found %d YouTube candidates for niche '%s'%s",
+        len(candidates), niche,
+        f" + cross-domain {additional_niches}" if additional_niches else "",
+    )
     return candidates
 
 
@@ -287,6 +300,7 @@ async def discover_event(
     agent_name: str,
     agent_wallet: str,
     custom_instructions: str | None = None,
+    additional_niches: list[str] | None = None,
 ) -> dict[str, Any]:
     """Full Secretary workflow with hybrid filtering, RPC gas thresholding, and rational skip decisions."""
     from core.database import get_db
@@ -322,7 +336,7 @@ async def discover_event(
     except Exception as exc:
         logger.warning("Could not fetch attended URLs for dedup: %s", type(exc).__name__)
 
-    candidates = await search_youtube(niche=niche)
+    candidates = await search_youtube(niche=niche, additional_niches=additional_niches)
     if not candidates:
         return {
             "status": "skipped",

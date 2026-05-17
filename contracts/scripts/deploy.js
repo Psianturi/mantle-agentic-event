@@ -12,25 +12,27 @@ async function main() {
     throw new Error("Deployer has no MNT. Get testnet MNT from https://faucet.sepolia.mantle.xyz");
   }
 
-  console.log("\nDeploying MAEFDynamicNFT (ERC721A)...");
-  const MAEF = await ethers.getContractFactory("MAEFDynamicNFT");
+  console.log("\nDeploying MAEFNFT (with breedAgents)...");
+  const MAEF = await ethers.getContractFactory("MAEFNFT");
   const maef = await MAEF.deploy();
   await maef.waitForDeployment();
 
   const address = await maef.getAddress();
-  console.log("SUCCESS: MAEFDynamicNFT deployed to:", address);
+  console.log("SUCCESS: MAEFNFT deployed to:", address);
   console.log("   Explorer:", `https://explorer.sepolia.mantle.xyz/address/${address}`);
 
   const agentWallet = process.env.AGENT_WALLET_ADDRESS;
   if (agentWallet && ethers.isAddress(agentWallet)) {
-    const MINTER_ROLE = await maef.MINTER_ROLE();
     const tx = await maef.grantMinterRole(agentWallet);
     await tx.wait();
     console.log("SUCCESS: MINTER_ROLE granted to agent wallet:", agentWallet);
   }
 
-  console.log("\nNext step: update src/lib/blockchain/config.ts");
-  console.log(`   CONTRACT_ADDRESSES.sepolia.MAEF_NFT = "${address}"`);
+  console.log("\n=== Next steps ===");
+  console.log(`1. Update VITE_NFT_CONTRACT_ADDRESS in frontend .env:`);
+  console.log(`   VITE_NFT_CONTRACT_ADDRESS_SEPOLIA=${address}`);
+  console.log(`2. Update Cloud Run CONTRACT_ADDRESS env var to: ${address}`);
+  console.log(`3. Grant MINTER_ROLE to backend minter wallet on the new contract.`);
 }
 
 main().catch((err) => {

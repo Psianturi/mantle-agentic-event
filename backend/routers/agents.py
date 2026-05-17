@@ -25,6 +25,7 @@ from web3 import Web3
 from core.database import get_db
 from core.kms_service import decrypt_private_key, encrypt_private_key
 from services.llm_service import chat_with_agent, generate_wisdom_report
+from services.web3_service import web3_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/agent", tags=["agents"])
@@ -178,6 +179,7 @@ class BreedRequest(BaseModel):
     parent_1_id: str
     parent_2_id: str
     offspring_name: str
+    breed_tx_hash: str | None = None  # on-chain breedAgents() tx hash; required after contract upgrade
 
     @field_validator("user_wallet")
     @classmethod
@@ -407,6 +409,22 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
                     detail=f"Agent '{p_data.get('agent_name', p_id)}' is on cooldown for ~{remaining_h}h more",
                 )
 
+    # ── On-chain breed cost verification (guardrail #9) ──────────────────────
+    # When a breed_tx_hash is supplied, verify it on Mantle before creating offspring.
+    # This proves the user paid the 2.5 MNT fee via breedAgents() on the contract.
+    # Optional for backwards compat — will become required once contract is upgraded.
+    if req.breed_tx_hash:
+        try:
+            await web3_service.verify_breed_tx(
+                tx_hash=req.breed_tx_hash,
+                expected_user_wallet=req.user_wallet,
+            )
+            logger.info("Breed tx %s verified on-chain for wallet %s", req.breed_tx_hash, req.user_wallet)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=f"Breed transaction invalid: {exc}") from exc
+        except Exception as exc:
+            logger.warning("Breed tx verification failed (non-blocking): %s", exc.__class__.__name__)
+
     # ── Deterministic inheritance ─────────────────────────────────────────────
     # Seed: sorted parent IDs + offspring name (guardrail: sort already applied above)
     seed_base = f"{p1_id}:{p2_id}:{req.offspring_name}"
@@ -448,6 +466,9 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
     offspring_private_key = "0x" + secrets.token_hex(32)
     offspring_account = Account.from_key(offspring_private_key)
 
+    # Collect unique parent niches — used by Cross-Domain Intelligence trait during scouting
+    parent_niches = list({p1.get("niche", "General"), p2.get("niche", "General")})
+
     offspring_data: dict = {
         "agent_id": offspring_id,
         "agent_wallet": offspring_account.address,
@@ -463,10 +484,12 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
         "created_at": now,
         "generation": offspring_gen,
         "parent_ids": [p1_id, p2_id],
+        "parent_niches": parent_niches,
         "breeding_count": 0,
         "max_breedings": 3,
         "genetic_traits": genetic_traits,
         "ownership_status": "bred",
+        "breed_tx_hash": req.breed_tx_hash,  # None if pre-contract-upgrade; on-chain proof otherwise
         # Autonomous scout scheduling — disabled by default, user opts in per agent
         "auto_scout_enabled": False,
         "scout_interval_hours": 6,
@@ -501,6 +524,48 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
         "Bred offspring %s → wallet %s (gen %d, parents %s + %s)",
         offspring_id, offspring_account.address, offspring_gen, p1_id, p2_id,
     )
+
+    # ── Inherit real event docs from parents (fixes phantom events) ──────────
+    # Offspring gets `total_events > 0` but zero actual docs in agent_events,
+    # causing wisdom report crashes. We copy up to 2 real events per parent.
+    try:
+        to_inherit: list[dict] = []
+        for parent_id in [p1_id, p2_id]:
+            parent_evs: list[dict] = []
+            async for ev_doc in (
+                db.collection(EVENTS_COLLECTION)
+                .where(filter=FieldFilter("agent_id", "==", parent_id))
+                .stream()
+            ):
+                ev_data = ev_doc.to_dict() or {}
+                if ev_data.get("wisdom_summary") and ev_data.get("event_title"):
+                    parent_evs.append(ev_data)
+            # Most recent first (attended_at descending), take top 2
+            parent_evs.sort(key=lambda d: d.get("attended_at", 0), reverse=True)
+            to_inherit.extend(parent_evs[:2])
+
+        if to_inherit:
+            inherit_batch = db.batch()
+            for ev_data in to_inherit:
+                inherit_id = hashlib.sha256(
+                    f"inherited:{offspring_id}:{ev_data.get('event_url', ev_data.get('event_title', ''))}".encode()
+                ).hexdigest()[:16]
+                inherit_ref = db.collection(EVENTS_COLLECTION).document(inherit_id)
+                inherit_batch.set(inherit_ref, {
+                    **ev_data,
+                    "agent_id": offspring_id,
+                    "agent_wallet": offspring_account.address,
+                    "is_inherited": True,
+                    "inherited_from": ev_data.get("agent_id"),
+                })
+            await inherit_batch.commit()
+            logger.info("Inherited %d event docs for offspring %s", len(to_inherit), offspring_id)
+    except Exception as exc:
+        logger.warning(
+            "Event inheritance failed for offspring %s (non-fatal): %s",
+            offspring_id, exc.__class__.__name__,
+        )
+
     return _to_response(offspring_data, needs_funding=True)
 
 
@@ -710,6 +775,27 @@ async def agent_chat(agent_id: str, req: ChatRequest) -> dict:
     except Exception as exc:
         logger.warning("Could not fetch event history for chat grounding: %s", exc.__class__.__name__)
 
+    # For offspring with Superior Knowledge Base / Legendary Wisdom Heritage,
+    # also pull parent agents' event summaries as inherited context
+    genetic_traits: list[str] = data.get("genetic_traits") or []
+    parent_wisdom: list[str] = []
+    wisdom_traits = {"Superior Knowledge Base", "Legendary Wisdom Heritage"}
+    if wisdom_traits & set(genetic_traits):
+        parent_ids: list[str] = data.get("parent_ids") or []
+        for pid in parent_ids[:2]:
+            try:
+                async for ev_doc in (
+                    db.collection(EVENTS_COLLECTION)
+                    .where(filter=FieldFilter("agent_id", "==", pid))
+                    .stream()
+                ):
+                    ev = ev_doc.to_dict() or {}
+                    t, s = ev.get("event_title", ""), ev.get("wisdom_summary", "")
+                    if t and s:
+                        parent_wisdom.append(f"{t}: {s}")
+            except Exception:
+                pass
+
     reply = await chat_with_agent(
         agent_name=data.get("agent_name", "Agent"),
         personality=data.get("personality", "Analytical"),
@@ -718,6 +804,8 @@ async def agent_chat(agent_id: str, req: ChatRequest) -> dict:
         message=req.message,
         conversation_history=req.conversation_history,
         event_summaries=event_summaries,
+        genetic_traits=genetic_traits or None,
+        parent_wisdom=parent_wisdom or None,
     )
     return {"reply": reply}
 
@@ -812,14 +900,23 @@ async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> 
     if not agent_wallet:
         raise HTTPException(status_code=400, detail="Agent has no wallet address")
 
+    # Cross-Domain Intelligence: bred agents with two different-niche parents
+    # cast a wider net during YouTube discovery
+    scout_genetic_traits: list[str] = data.get("genetic_traits") or []
+    scout_parent_niches: list[str] = data.get("parent_niches") or []
+    additional_niches: list[str] | None = None
+    if "Cross-Domain Intelligence" in scout_genetic_traits and len(scout_parent_niches) > 1:
+        additional_niches = [n for n in scout_parent_niches if n != niche]
+
     # ── Secretary: discover best YouTube event ────────────────────────────
     from services.scout_service import discover_event
 
     run_at = time.time()
     logger.info(
-        "Auto Scout triggered for agent %s (niche=%s, scheduler_run_id=%s)",
+        "Auto Scout triggered for agent %s (niche=%s, cross_domain=%s, scheduler_run_id=%s)",
         agent_id,
         niche,
+        additional_niches or "none",
         scheduler_run_id or "manual",
     )
     try:
@@ -829,6 +926,7 @@ async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> 
             agent_name=agent_name,
             agent_wallet=agent_wallet,
             custom_instructions=custom_instructions,
+            additional_niches=additional_niches,
         )
     except RuntimeError as exc:
         msg = str(exc)

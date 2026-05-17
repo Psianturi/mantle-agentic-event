@@ -337,6 +337,7 @@ export const cloudRunService = {
     parent1Id: string
     parent2Id: string
     offspringName: string
+    breedTxHash?: string
   }): Promise<Agent> {
     const response = await fetchWithTimeout(
       `${GCP_BACKEND_URL}/api/v1/agent/breed`,
@@ -347,6 +348,7 @@ export const cloudRunService = {
           parent_1_id: request.parent1Id,
           parent_2_id: request.parent2Id,
           offspring_name: request.offspringName,
+          breed_tx_hash: request.breedTxHash ?? null,
         }),
       },
       30000
