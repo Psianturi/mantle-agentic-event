@@ -1415,7 +1415,7 @@ function App() {
                         {!walletConnected ? 'Connect & Attend' : 'Attend Event'}
                       </Button>
                     </div>
-                    {backendConnected && activeAgent && (
+                    {walletConnected && activeAgent && (
                       <div className="flex items-center gap-3 pt-2 border-t border-primary/10">
                         <span className="text-xs text-muted-foreground">Auto Scout</span>
                         <Button
