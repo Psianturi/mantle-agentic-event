@@ -168,6 +168,31 @@ function App() {
     }
   }, [mainView])
 
+  // Auto-reconnect on page load if MetaMask is already unlocked and site is authorized.
+  // Uses eth_accounts (no prompt) — security enforced by MetaMask itself: locked wallet returns [].
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.ethereum) return
+    const eth = window.ethereum as { request: (a: { method: string }) => Promise<string[]> }
+    eth.request({ method: 'eth_accounts' })
+      .then((accounts) => { if (accounts.length > 0) handleWalletConnect('') })
+      .catch(() => {})
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // React to wallet switches or lock events in MetaMask
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.ethereum) return
+    const eth = window.ethereum as { on: (e: string, cb: (a: string[]) => void) => void; removeListener: (e: string, cb: (a: string[]) => void) => void }
+    const onAccountsChanged = (accounts: string[]) => {
+      if (accounts.length === 0) {
+        handleWalletDisconnect()
+      } else if (accounts[0]?.toLowerCase() !== walletAddress?.toLowerCase()) {
+        handleWalletConnect('')
+      }
+    }
+    eth.on('accountsChanged', onAccountsChanged)
+    return () => eth.removeListener('accountsChanged', onAccountsChanged)
+  }, [walletAddress]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [lastSocialPost, setLastSocialPost] = useState<{ agentId: string; text: string; eventTitle: string } | null>(null)
 
   const [featuredWisdom, setFeaturedWisdom] = useState<WisdomFeedItem[]>([])
@@ -327,6 +352,11 @@ function App() {
       const connectedAddress = await blockchain.connectWallet()
       setWalletConnected(true)
       setWalletAddress(connectedAddress)
+      // Clear any previous wallet's data before loading new wallet's data
+      setAgents([])
+      setEvents([])
+      setNFTs([])
+      setLogs([])
       toast.success('Wallet connected successfully!', {
         description: `Connected to Mantle Network`
       })

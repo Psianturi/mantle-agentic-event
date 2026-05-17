@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, startTransition } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -225,7 +225,7 @@ export function AgentBreedingDialog({
                         }`}
                         onClick={() => {
                           if (selectedParent2?.id !== agent.id) {
-                            setSelectedParent1(agent)
+                            startTransition(() => setSelectedParent1(agent))
                           }
                         }}
                       >
@@ -272,7 +272,7 @@ export function AgentBreedingDialog({
                         }`}
                         onClick={() => {
                           if (selectedParent1?.id !== agent.id) {
-                            setSelectedParent2(agent)
+                            startTransition(() => setSelectedParent2(agent))
                           }
                         }}
                       >
