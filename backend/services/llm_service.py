@@ -373,8 +373,12 @@ async def chat_with_agent(
 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 1024, "topP": 0.9},
-        "thinkingConfig": {"thinkingBudget": 0},  # disable thinking for chat — faster + no token bleed
+        "generationConfig": {
+            "temperature": 0.8,
+            "maxOutputTokens": 1024,
+            "topP": 0.9,
+            "thinkingConfig": {"thinkingBudget": 0},  # nested here — disables thinking, all tokens go to response
+        },
     }
 
     try:

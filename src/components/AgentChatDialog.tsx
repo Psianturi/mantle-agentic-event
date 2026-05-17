@@ -22,18 +22,25 @@ interface AgentChatDialogProps {
   agent: Agent
 }
 
+function buildWelcome(agent: Agent): Message {
+  return {
+    id: 'welcome',
+    role: 'agent',
+    content: `Hello! I'm ${agent.name}, your ${agent.personality.toLowerCase()} AI agent specializing in ${agent.niche}. I've attended ${agent.eventsAttended} events and I'm here to help you with insights and recommendations. How can I assist you today?`,
+    timestamp: Date.now()
+  }
+}
+
 export function AgentChatDialog({ open, onOpenChange, agent }: AgentChatDialogProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'welcome',
-      role: 'agent',
-      content: `Hello! I'm ${agent.name}, your ${agent.personality.toLowerCase()} AI agent specializing in ${agent.niche}. I've attended ${agent.eventsAttended} events and I'm here to help you with insights and recommendations. How can I assist you today?`,
-      timestamp: Date.now()
-    }
-  ])
+  const [messages, setMessages] = useState<Message[]>(() => [buildWelcome(agent)])
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setMessages([buildWelcome(agent)])
+    setInput('')
+  }, [agent.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (scrollAreaRef.current) {
