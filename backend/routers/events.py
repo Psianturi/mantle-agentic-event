@@ -20,7 +20,6 @@ from web3 import Web3
 
 from core.config import settings
 from core.database import get_db
-from core.kms_service import decrypt_private_key
 from services.llm_service import summarize_event
 from services.web3_service import web3_service
 
@@ -229,51 +228,32 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 
-    # ── Load agent's private key if Mode B requested ──────────────────────
-    agent_private_key: str | None = None
-    allow_mode_b_fallback = True
+    # ── If Mode B: check funded status for autonomous_signatures tracking ─
+    # V4 contract uses onlyRole(MINTER_ROLE) + isAgentSpawned dual-auth.
+    # Old agents (spawned on V3) are not registered on V4 — their wallet
+    # cannot pass _enforceMintAuth. Minting always goes via MINTER_SERVICE_PRIVATE_KEY
+    # so both old and new agents work. Mode B = conceptual autonomous tracking only.
+    agent_is_funded = False
     if req.mode_b:
         db = get_db()
         try:
             agent_doc = await db.collection(AGENTS_COLLECTION).document(req.agent_id).get()
             if not agent_doc.exists:
                 raise HTTPException(status_code=404, detail=f"Agent '{req.agent_id}' not found")
-            
             agent_data = agent_doc.to_dict() or {}
-            agent_funded = bool(agent_data.get("funded", False))
-            stored_key = agent_data.get("private_key_enc") or agent_data.get("private_key")
-            
-            if not stored_key:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Agent has no private key stored (cannot sign autonomously)"
-                )
-            
-            # Decrypt private key from KMS if encrypted, otherwise use plaintext (legacy support)
-            try:
-                agent_private_key = decrypt_private_key(stored_key)
-            except Exception as e:
-                logger.warning("KMS decryption failed, attempting plaintext fallback: %s", e)
-                agent_private_key = stored_key  # Fallback for development/legacy
-                
-            allow_mode_b_fallback = not agent_funded
+            agent_is_funded = bool(agent_data.get("funded", False))
             logger.info(
-                "Loaded agent private key for Mode B (funded=%s fallback=%s)",
-                agent_funded,
-                allow_mode_b_fallback,
+                "Mode B (funded=%s): minting via MINTER_SERVICE_PRIVATE_KEY — V4 MINTER_ROLE required",
+                agent_is_funded,
             )
         except HTTPException:
             raise
         except Exception as exc:
-            logger.error("Failed to load agent private key for Mode B: %s", exc)
-            raise HTTPException(
-                status_code=503,
-                detail="Failed to retrieve agent credentials for autonomous signing"
-            )
+            logger.error("Failed to check agent funded status for Mode B: %s", exc)
+            raise HTTPException(status_code=503, detail="Failed to retrieve agent status")
 
     # ── Steps B + C: Mint on Mantle ────────────────────────────────────────
-    # Mode A (agent_private_key=None): Backend MINTER_ROLE signs
-    # Mode B (agent_private_key provided): Agent signs with its own key
+    # Always signed by MINTER_SERVICE_PRIVATE_KEY (holds MINTER_ROLE on V4).
     try:
         mint_result = await web3_service.mint_attendance_nft(
             agent_wallet=req.agent_wallet,
@@ -283,8 +263,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             agent_name=req.agent_name,
             summary=wisdom_summary,
             niche=req.niche,
-            agent_private_key=agent_private_key,  # Mode B: agent's key, Mode A: None (fallback)
-            allow_mode_b_fallback=allow_mode_b_fallback,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -320,7 +298,8 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     tx_hash = mint_result.get("tx_hash")
     success = mint_result.get("status") == "success"
     level_up = mint_result.get("level_up", False)
-    signing_mode = mint_result.get("signing_mode", "B" if req.mode_b else "A")
+    # Mode B = agent-triggered autonomous attendance; TX always signed by MINTER_SERVICE on V4
+    signing_mode = "B" if (req.mode_b and agent_is_funded) else "A"
     explorer_base = _resolve_explorer_base()
 
     # ── Update agent stats in Firestore ───────────────────────────────────
