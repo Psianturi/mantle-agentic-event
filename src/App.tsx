@@ -263,6 +263,7 @@ function App() {
   const [isProcessingEvent, setIsProcessingEvent] = useState(false)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [healthCheckOpen, setHealthCheckOpen] = useState(false) // no auto-popup
+  const [nftPage, setNftPage] = useState(0)
   const [backendConnected, setBackendConnected] = useState(false)
   const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'error'>('checking')
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
@@ -1856,23 +1857,56 @@ function App() {
                     Go to Dashboard
                   </Button>
                 </Card>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {displayedNFTs.map((nft, idx) => (
-                    <motion.div
-                      key={nft.id}
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: idx * 0.06 }}
-                    >
-                      <NFTCard
-                        nft={nft}
-                        onClick={() => { setSelectedNFT(nft); setNFTMetadataDialogOpen(true) }}
-                      />
-                    </motion.div>
-                  ))}
-                </div>
-              )}
+              ) : (() => {
+                const NFT_PAGE_SIZE = 12
+                const totalPages = Math.ceil(displayedNFTs.length / NFT_PAGE_SIZE)
+                const effectivePage = Math.min(nftPage, Math.max(0, totalPages - 1))
+                const pagedNFTs = displayedNFTs.slice(effectivePage * NFT_PAGE_SIZE, (effectivePage + 1) * NFT_PAGE_SIZE)
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {pagedNFTs.map((nft, idx) => (
+                        <motion.div
+                          key={nft.id}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: idx * 0.04 }}
+                        >
+                          <NFTCard
+                            nft={nft}
+                            onClick={() => { setSelectedNFT(nft); setNFTMetadataDialogOpen(true) }}
+                          />
+                        </motion.div>
+                      ))}
+                    </div>
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-center gap-3 pt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setNftPage(p => Math.max(0, p - 1))}
+                          disabled={effectivePage === 0}
+                          className="border-primary/30 hover:border-primary/60 px-3"
+                        >
+                          ← Prev
+                        </Button>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          Page {effectivePage + 1} / {totalPages} &nbsp;·&nbsp; {displayedNFTs.length} NFTs
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setNftPage(p => Math.min(totalPages - 1, p + 1))}
+                          disabled={effectivePage >= totalPages - 1}
+                          className="border-primary/30 hover:border-primary/60 px-3"
+                        >
+                          Next →
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* ── Contract Verification History ─────── */}
               {verificationData && verificationData.length > 0 && (

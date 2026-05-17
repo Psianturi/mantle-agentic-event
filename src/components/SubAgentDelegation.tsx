@@ -641,7 +641,7 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
                   <CheckCircle size={14} className="text-green-500" weight="fill" />
                   Recent Autonomous Activity
                 </h4>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar pr-1">
                   {historyTasks.map(task => {
                     const config = subAgentConfig[task.subAgentType]
                     return (
