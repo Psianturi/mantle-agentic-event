@@ -48,6 +48,7 @@ export interface Agent {
   autonomousSignatures?: number
   wisdomHeritageScore?: number
   parentNames?: { parent_1: string; parent_2: string }
+  lineageBiography?: string
 }
 
 export interface ScoutLogEntry {

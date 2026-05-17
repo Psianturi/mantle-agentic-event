@@ -358,6 +358,18 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
             )}
           </div>
 
+          {agent.lineageBiography && (agent.generation ?? 1) >= 2 && (
+            <div className="mt-3 p-3 rounded-lg bg-secondary/5 border border-secondary/20" onClick={onClick}>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 font-semibold flex items-center gap-1.5">
+                <Dna size={12} className="text-secondary" weight="duotone" />
+                Lineage Biography
+              </p>
+              <p className="text-xs text-muted-foreground/80 leading-relaxed italic whitespace-pre-line">
+                {agent.lineageBiography}
+              </p>
+            </div>
+          )}
+
           <div className="pt-5 border-t border-border/30 mb-5" onClick={onClick}>
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3 font-semibold">Sub-Agent Status</p>
             <TooltipProvider>

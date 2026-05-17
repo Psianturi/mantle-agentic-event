@@ -24,7 +24,7 @@ from web3 import Web3
 
 from core.database import get_db
 from core.kms_service import decrypt_private_key, encrypt_private_key
-from services.llm_service import chat_with_agent, generate_wisdom_report
+from services.llm_service import chat_with_agent, generate_lineage_biography, generate_wisdom_report
 from services.web3_service import web3_service
 
 logger = logging.getLogger(__name__)
@@ -138,6 +138,7 @@ class SpawnResponse(BaseModel):
     last_scout_at: float | None = None
     autonomous_signatures: int = 0
     wisdom_heritage_score: int | None = None
+    lineage_biography: str | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -175,6 +176,7 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         autonomous_signatures=data.get("autonomous_signatures", 0),
         wisdom_heritage_score=data.get("wisdom_heritage_score"),
         parent_names=data.get("parent_names"),
+        lineage_biography=data.get("lineage_biography"),
     )
 
 
@@ -317,6 +319,57 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         agent_account.address,
     )
     return _to_response(agent_data, needs_funding=True)
+
+
+async def _generate_and_save_biography(
+    db,
+    offspring_id: str,
+    offspring_name: str,
+    offspring_gen: int,
+    p1_id: str,
+    p2_id: str,
+    p1_name: str,
+    p2_name: str,
+    p1_niche: str,
+    p2_niche: str,
+    genetic_traits: list[str],
+) -> None:
+    """Fire-and-forget: fetch parent wisdom, generate biography via Gemini, save to Firestore."""
+    try:
+        p1_summaries: list[str] = []
+        p2_summaries: list[str] = []
+        for pid, target in [(p1_id, p1_summaries), (p2_id, p2_summaries)]:
+            async for ev_doc in (
+                db.collection(EVENTS_COLLECTION)
+                .where(filter=FieldFilter("agent_id", "==", pid))
+                .stream()
+            ):
+                ev = ev_doc.to_dict() or {}
+                t, s = ev.get("event_title", ""), ev.get("wisdom_summary", "")
+                if t and s:
+                    target.append(f"{t}: {s}")
+
+        biography = await generate_lineage_biography(
+            offspring_name=offspring_name,
+            offspring_gen=offspring_gen,
+            p1_name=p1_name,
+            p2_name=p2_name,
+            p1_niche=p1_niche,
+            p2_niche=p2_niche,
+            p1_summaries=p1_summaries[:4],
+            p2_summaries=p2_summaries[:4],
+            genetic_traits=genetic_traits,
+        )
+
+        await db.collection(AGENTS_COLLECTION).document(offspring_id).update({
+            "lineage_biography": biography
+        })
+        logger.info("Lineage biography saved for offspring %s (%d chars)", offspring_id, len(biography))
+    except Exception as exc:
+        logger.warning(
+            "Lineage biography failed for %s (non-fatal): %s",
+            offspring_id, exc.__class__.__name__,
+        )
 
 
 def _calculate_heritage_score(p1: dict, p2: dict, genetic_traits: list[str]) -> int:
@@ -617,6 +670,25 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
             "Event inheritance failed for offspring %s (non-fatal): %s",
             offspring_id, exc.__class__.__name__,
         )
+
+    # ── Lineage Biography (non-blocking) ─────────────────────────────────────
+    # Gemini generates a unique 2-paragraph biography from parent wisdom.
+    # Saved to Firestore async — offspring is returned immediately without waiting.
+    asyncio.create_task(
+        _generate_and_save_biography(
+            db=db,
+            offspring_id=offspring_id,
+            offspring_name=req.offspring_name,
+            offspring_gen=offspring_gen,
+            p1_id=p1_id,
+            p2_id=p2_id,
+            p1_name=parent_names["parent_1"],
+            p2_name=parent_names["parent_2"],
+            p1_niche=p1.get("niche", "General"),
+            p2_niche=p2.get("niche", "General"),
+            genetic_traits=genetic_traits,
+        )
+    )
 
     return _to_response(offspring_data, needs_funding=True)
 

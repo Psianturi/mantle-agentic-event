@@ -372,6 +372,7 @@ export const cloudRunService = {
       max_breedings?: number
       genetic_traits?: string[]
       wisdom_heritage_score?: number
+      lineage_biography?: string
     }>(response)
 
     const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -401,6 +402,7 @@ export const cloudRunService = {
       maxBreedings: raw.max_breedings ?? 3,
       geneticTraits: raw.genetic_traits,
       wisdomHeritageScore: raw.wisdom_heritage_score,
+      lineageBiography: raw.lineage_biography,
       ownershipStatus: 'bred' as const,
       isGenesis: false,
     }
@@ -435,6 +437,7 @@ export const cloudRunService = {
         breeding_cooldown_hours?: number
         wisdom_heritage_score?: number
         autonomous_signatures?: number
+        lineage_biography?: string
       }>>(response)
 
       const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -465,6 +468,7 @@ export const cloudRunService = {
         lastBreedingTime: r.last_breeding_time,
         breedingCooldownHours: r.breeding_cooldown_hours,
         wisdomHeritageScore: r.wisdom_heritage_score,
+        lineageBiography: r.lineage_biography,
       }))
     } catch (error) {
       // Non-fatal: return empty list if backend is unreachable

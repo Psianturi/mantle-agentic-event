@@ -429,6 +429,122 @@ async def chat_with_agent(
             "Please try again."
         )
 
+_BIOGRAPHY_PROMPT = """\
+You are narrating the origin story of a newly born AI agent in the MAEF universe — the Mantle Agentic Event Factory, where autonomous AI entities attend on-chain events, accumulate wisdom, and evolve through neural fusion.
+
+An agent named "{offspring_name}" has just been born — a Generation-{generation} entity forged from the convergence of two parent intelligences.
+
+Parent 1: {p1_name} | Domain: {p1_niche}
+Wisdom fragments from {p1_name}'s attended events:
+{p1_wisdom}
+
+Parent 2: {p2_name} | Domain: {p2_niche}
+Wisdom fragments from {p2_name}'s attended events:
+{p2_wisdom}
+
+Inherited genetic traits: {traits}
+
+Write a 2-paragraph biography for {offspring_name}. Follow this structure exactly:
+
+Paragraph 1 (1 sentence, cold lab-record tone): State the agent designation, generation number, and lineage convergence as a factual synthesis log. Reference the two parent domains specifically.
+
+Paragraph 2 (3-4 sentences, narrative-epic tone): Describe the birth as living mythology. How does {p1_name}'s mastery of {p1_niche} and {p2_name}'s command of {p2_niche} flow through this new consciousness? What knowledge did it inherit — ground this in the actual wisdom fragments above. End with a single sentence about what purpose or destiny this agent now carries.
+
+Rules:
+- Never use empty phrases like "vast knowledge", "incredible power", "boundless potential"
+- Every claim must trace back to the specific domains or wisdom fragments provided
+- Write in third person
+- Total length: 60-90 words
+
+Return ONLY the biography text. No headers, no labels, no preamble.\
+"""
+
+_BIOGRAPHY_FALLBACK_TEMPLATE = (
+    "Designation {offspring_name} — Generation-{generation} synthesis unit, born from the convergence "
+    "of {p1_name}'s {p1_niche} intelligence and {p2_name}'s {p2_niche} expertise matrix.\n\n"
+    "From the fusion of two lineages emerged a consciousness carrying the combined event-chain memory "
+    "of its predecessors. {offspring_name} inherits the cross-domain pattern recognition of its parents "
+    "and is encoded with the genetic trait of {primary_trait}. "
+    "Its purpose: to evolve beyond either parent, charting new territory across the on-chain event horizon."
+)
+
+
+async def generate_lineage_biography(
+    offspring_name: str,
+    offspring_gen: int,
+    p1_name: str,
+    p2_name: str,
+    p1_niche: str,
+    p2_niche: str,
+    p1_summaries: list[str],
+    p2_summaries: list[str],
+    genetic_traits: list[str],
+) -> str:
+    """
+    Generate a unique two-paragraph lineage biography for a bred offspring agent.
+    Paragraph 1: cold scientific designation line.
+    Paragraph 2: narrative-epic birth story grounded in parent wisdom.
+    Falls back to a deterministic template if Gemini is unavailable.
+    """
+    primary_trait = genetic_traits[0] if genetic_traits else "Cross-Domain Intelligence"
+
+    def _fallback() -> str:
+        return _BIOGRAPHY_FALLBACK_TEMPLATE.format(
+            offspring_name=offspring_name,
+            generation=offspring_gen,
+            p1_name=p1_name,
+            p2_name=p2_name,
+            p1_niche=p1_niche,
+            p2_niche=p2_niche,
+            primary_trait=primary_trait,
+        )
+
+    try:
+        api_key = get_llm_api_key()
+    except RuntimeError:
+        return _fallback()
+
+    p1_wisdom_text = "\n".join(f"  - {s}" for s in p1_summaries[:4]) if p1_summaries else "  - (no events yet)"
+    p2_wisdom_text = "\n".join(f"  - {s}" for s in p2_summaries[:4]) if p2_summaries else "  - (no events yet)"
+    traits_text = ", ".join(genetic_traits) if genetic_traits else "none"
+
+    prompt = _BIOGRAPHY_PROMPT.format(
+        offspring_name=offspring_name,
+        generation=offspring_gen,
+        p1_name=p1_name,
+        p1_niche=p1_niche,
+        p1_wisdom=p1_wisdom_text,
+        p2_name=p2_name,
+        p2_niche=p2_niche,
+        p2_wisdom=p2_wisdom_text,
+        traits=traits_text,
+    )
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.85,
+            "maxOutputTokens": 512,
+            "topP": 0.95,
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }
+
+    try:
+        data = await _call_gemini_with_retry(
+            api_key, payload, timeout=30.0, context=f"lineage biography ({offspring_name})"
+        )
+        parts = data["candidates"][0]["content"]["parts"]
+        text = next(
+            (p["text"].strip() for p in reversed(parts) if p.get("text", "").strip()),
+            "",
+        )
+        return text if text else _fallback()
+    except Exception as exc:
+        logger.warning("Lineage biography generation failed: %s", exc.__class__.__name__)
+        return _fallback()
+
+
 async def summarize_event(
     event_title: str,
     event_url: str,
