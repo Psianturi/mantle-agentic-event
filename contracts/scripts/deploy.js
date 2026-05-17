@@ -12,13 +12,13 @@ async function main() {
     throw new Error("Deployer has no MNT. Get testnet MNT from https://faucet.sepolia.mantle.xyz");
   }
 
-  console.log("\nDeploying MAEFNFT (with breedAgents)...");
-  const MAEF = await ethers.getContractFactory("MAEFNFT");
+  console.log("\nDeploying MAEFDynamicNFTV4 (V4 master contract)...");
+  const MAEF = await ethers.getContractFactory("MAEFDynamicNFTV4");
   const maef = await MAEF.deploy();
   await maef.waitForDeployment();
 
   const address = await maef.getAddress();
-  console.log("SUCCESS: MAEFNFT deployed to:", address);
+  console.log("SUCCESS: MAEFDynamicNFTV4 deployed to:", address);
   console.log("   Explorer:", `https://explorer.sepolia.mantle.xyz/address/${address}`);
 
   const agentWallet = process.env.AGENT_WALLET_ADDRESS;

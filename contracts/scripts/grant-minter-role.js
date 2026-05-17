@@ -1,15 +1,15 @@
 /**
- * Grant MINTER_ROLE on deployed V3 contract to the dedicated backend minter wallet.
+ * Grant MINTER_ROLE on deployed V4 contract to the dedicated backend minter wallet.
  *
  * Usage:
  *   MINTER_WALLET=0x... npx hardhat run scripts/grant-minter-role.js --network mantleSepolia
  *
- * Requires DEPLOYER_PRIVATE_KEY in contracts/.env (deployer of V3 has DEFAULT_ADMIN_ROLE).
+ * Requires DEPLOYER_PRIVATE_KEY in contracts/.env (deployer has DEFAULT_ADMIN_ROLE).
  */
 
 import { network } from "hardhat";
 
-const CONTRACT_ADDRESS = "0x460b794FD0afaA04bf3BFFfc6c29386c1Be8C334";
+const CONTRACT_ADDRESS = "0x66fD8b5411856D42c08D9356e879a6e7dF0c9419"; // V4
 
 const ABI = [
   "function grantMinterRole(address minter) external",
