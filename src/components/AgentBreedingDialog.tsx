@@ -20,6 +20,8 @@ const BREED_ABI = [
       { name: 'parent1Wallet', type: 'address' },
       { name: 'parent2Wallet', type: 'address' },
       { name: 'offspringId', type: 'bytes32' },
+      { name: 'generation', type: 'uint256' },
+      { name: 'heritageScore', type: 'uint256' },
     ],
     name: 'breedAgents',
     outputs: [],
@@ -103,11 +105,23 @@ export function AgentBreedingDialog({
           toUtf8Bytes(`${selectedParent1.id}:${selectedParent2.id}:${offspringName}:${Date.now()}`)
         )
 
+        // V4 breedAgents() requires 5 params: p1, p2, offspringId, generation, heritageScore
+        const offspringGeneration = BigInt(
+          Math.max(selectedParent1.generation ?? 1, selectedParent2.generation ?? 1) + 1
+        )
+        const offspringHeritageScore = BigInt(
+          Math.min(100, Math.round(
+            ((selectedParent1.wisdomHeritageScore ?? 0) + (selectedParent2.wisdomHeritageScore ?? 0)) / 2
+          ))
+        )
+
         toast.info('Confirm the 2.5 MNT transaction in MetaMask...')
         const tx = await contract.breedAgents(
           selectedParent1.walletAddress,
           selectedParent2.walletAddress,
           offspringKey,
+          offspringGeneration,
+          offspringHeritageScore,
           { value: parseEther('2.5') }
         )
 

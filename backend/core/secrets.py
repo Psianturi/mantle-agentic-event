@@ -55,7 +55,7 @@ def _get_secret(secret_id: str) -> str:
 
     env_val = os.environ.get(secret_id)
     if env_val:
-        return env_val
+        return env_val.strip()
 
     if not settings.use_secret_manager:
         raise RuntimeError(
@@ -68,8 +68,7 @@ def _get_secret(secret_id: str) -> str:
 @lru_cache(maxsize=None)
 def get_agent_private_key() -> str:
     """Return AGENT_PRIVATE_KEY (the backend minting wallet's private key)."""
-    key = _get_secret("AGENT_PRIVATE_KEY")
-    # Normalise: ensure 0x prefix is present for eth_account
+    key = _get_secret("AGENT_PRIVATE_KEY").strip()
     return key if key.startswith("0x") else f"0x{key}"
 
 
@@ -83,13 +82,13 @@ def get_minter_service_private_key() -> str:
       - minter service wallet (hot, operational Mode A)
     """
     try:
-        key = _get_secret("MINTER_SERVICE_PRIVATE_KEY")
+        key = _get_secret("MINTER_SERVICE_PRIVATE_KEY").strip()
     except RuntimeError:
         logger.warning(
             "MINTER_SERVICE_PRIVATE_KEY not set, falling back to AGENT_PRIVATE_KEY. "
             "Configure MINTER_SERVICE_PRIVATE_KEY for safer wallet separation."
         )
-        key = _get_secret("AGENT_PRIVATE_KEY")
+        key = _get_secret("AGENT_PRIVATE_KEY").strip()
     return key if key.startswith("0x") else f"0x{key}"
 
 

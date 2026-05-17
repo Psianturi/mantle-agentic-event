@@ -72,6 +72,8 @@ MAEF_ABI: list[dict] = [
             {"indexed": True, "internalType": "bytes32", "name": "offspringKey", "type": "bytes32"},
             {"indexed": False, "internalType": "address", "name": "parent1Wallet", "type": "address"},
             {"indexed": False, "internalType": "address", "name": "parent2Wallet", "type": "address"},
+            {"indexed": False, "internalType": "uint256", "name": "generation", "type": "uint256"},
+            {"indexed": False, "internalType": "uint256", "name": "heritageScore", "type": "uint256"},
             {"indexed": False, "internalType": "uint256", "name": "cost", "type": "uint256"},
         ],
         "name": "AgentsBred",
@@ -82,6 +84,8 @@ MAEF_ABI: list[dict] = [
             {"internalType": "address", "name": "parent1Wallet", "type": "address"},
             {"internalType": "address", "name": "parent2Wallet", "type": "address"},
             {"internalType": "bytes32", "name": "offspringId", "type": "bytes32"},
+            {"internalType": "uint256", "name": "generation", "type": "uint256"},
+            {"internalType": "uint256", "name": "heritageScore", "type": "uint256"},
         ],
         "name": "breedAgents",
         "outputs": [],
@@ -399,6 +403,8 @@ class Web3Service:
             "cost_mnt": float(Web3.from_wei(cost_wei, "ether")),
             "block_number": receipt["blockNumber"],
             "offspring_key": event["args"].get("offspringKey", b"").hex(),
+            "generation": int(event["args"].get("generation", 2)),
+            "heritage_score": int(event["args"].get("heritageScore", 0)),
         }
 
 

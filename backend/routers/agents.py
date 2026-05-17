@@ -508,13 +508,22 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
     # When a breed_tx_hash is supplied, verify it on Mantle before creating offspring.
     # This proves the user paid the 2.5 MNT fee via breedAgents() on the contract.
     # Optional for backwards compat — will become required once contract is upgraded.
+    # on-chain generation/heritageScore — set by the verified event, fallback to None
+    onchain_generation: int | None = None
+    onchain_heritage_score: int | None = None
+
     if req.breed_tx_hash:
         try:
-            await web3_service.verify_breed_tx(
+            breed_tx_data = await web3_service.verify_breed_tx(
                 tx_hash=req.breed_tx_hash,
                 expected_user_wallet=req.user_wallet,
             )
-            logger.info("Breed tx %s verified on-chain for wallet %s", req.breed_tx_hash, req.user_wallet)
+            onchain_generation = breed_tx_data.get("generation")
+            onchain_heritage_score = breed_tx_data.get("heritage_score")
+            logger.info(
+                "Breed tx %s verified on-chain: gen=%s heritage=%s",
+                req.breed_tx_hash, onchain_generation, onchain_heritage_score,
+            )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=f"Breed transaction invalid: {exc}") from exc
         except Exception as exc:
@@ -535,7 +544,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
     total_parent_events = (p1.get("total_events") or 0) + (p2.get("total_events") or 0)
     inherited_events = total_parent_events // 3 + ((p1.get("level", 1) + p2.get("level", 1)) // 4)
     inherited_level = max(1, inherited_events // 3 + 1)
-    offspring_gen = max(p1.get("generation") or 1, p2.get("generation") or 1) + 1
+    offspring_gen = onchain_generation if onchain_generation is not None else max(p1.get("generation") or 1, p2.get("generation") or 1) + 1
 
     # Genetic traits — fully deterministic from parent attributes (no randomness)
     genetic_traits: list[str] = []
@@ -570,7 +579,11 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
         "parent_2": p2.get("agent_name", "Unknown Agent"),
     }
 
-    wisdom_heritage_score = _calculate_heritage_score(p1, p2, genetic_traits)
+    wisdom_heritage_score = (
+        onchain_heritage_score
+        if onchain_heritage_score is not None
+        else _calculate_heritage_score(p1, p2, genetic_traits)
+    )
 
     offspring_data: dict = {
         "agent_id": offspring_id,
