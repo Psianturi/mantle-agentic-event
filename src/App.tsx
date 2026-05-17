@@ -363,6 +363,50 @@ function App() {
       setEvents(restoredEvents)
       setNFTs(restoredNFTs)
 
+      // Seed Mission Control terminal with real event history from backend
+      if (cloudHistory.length > 0) {
+        const agentNameMap: Record<string, string> = {}
+        for (const a of cloudAgents) agentNameMap[a.id] = a.name
+        const recent = [...cloudHistory]
+          .sort((a, b) => b.attendedAt - a.attendedAt)
+          .slice(0, 15)
+          .reverse()
+        const historyLogs: TerminalLog[] = []
+        for (const item of recent) {
+          const agentName = agentNameMap[item.agentId] || 'Agent'
+          const ts = item.attendedAt > 0 ? item.attendedAt * 1000 : Date.now()
+          historyLogs.push({
+            id: `hist-sec-${item.id}`,
+            agentId: item.agentId,
+            subAgentType: 'secretary' as SubAgentType,
+            message: `[${agentName} - Secretary] Attended: "${item.eventTitle}"`,
+            timestamp: ts,
+            type: 'info',
+          })
+          if (item.wisdomSummary) {
+            historyLogs.push({
+              id: `hist-scribe-${item.id}`,
+              agentId: item.agentId,
+              subAgentType: 'scribe' as SubAgentType,
+              message: `[${agentName} - Scribe] "${item.wisdomSummary.slice(0, 90)}${item.wisdomSummary.length > 90 ? '...' : ''}"`,
+              timestamp: ts + 1000,
+              type: 'success',
+            })
+          }
+          if (item.txHash) {
+            historyLogs.push({
+              id: `hist-mint-${item.id}`,
+              agentId: item.agentId,
+              subAgentType: 'mint-master' as SubAgentType,
+              message: `[${agentName} - Mint-Master] NFT minted on Mantle. TX: ${item.txHash.slice(0, 18)}...`,
+              timestamp: ts + 2000,
+              type: 'success',
+            })
+          }
+        }
+        setLogs(historyLogs.slice(-50))
+      }
+
       if (cloudAgents.length > 0) {
         // Enrich with live gas balance from RPC (best-effort, non-blocking)
         const enriched = await Promise.all(

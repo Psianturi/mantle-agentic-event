@@ -219,20 +219,23 @@ async def _fetch_youtube_transcript(url: str) -> str | None:
 _WISDOM_PROMPT = """\
 You are an AI analyst specializing in {niche}.
 
-Analyze these {count} event summaries attended by an autonomous AI agent:
+An autonomous AI agent attended {count} events. Here are the event titles and learnings:
 
 {summaries}
 
-Generate a comprehensive wisdom report grounded in the specific events above.
-Each insight must reference or be inspired by specific content from the events listed.
+Generate a wisdom report strictly grounded in the events listed above. Rules:
+- Each insight MUST reference at least one specific event title from the list.
+- Do NOT produce generic statements like "Market momentum shows growth" — be event-specific.
+- strategic_tips must recommend concrete actions inspired by what was learned in these exact events.
+
 Return a JSON object with exactly this structure:
 {{
   "insights": ["insight1", "insight2", "insight3", "insight4", "insight5"],
   "strategic_tips": ["tip1", "tip2", "tip3", "tip4"]
 }}
 
-insights: 5 specific, data-driven observations drawn from the actual events above.
-strategic_tips: 4 actionable forward-looking recommendations based on what the agent learned.\
+insights: 5 specific observations, each naming or referencing a concrete event title or concept from the summaries above.
+strategic_tips: 4 forward-looking actionable recommendations grounded in the {niche} domain and the specific events attended.\
 """
 
 _WISDOM_FALLBACK = {
@@ -278,7 +281,7 @@ async def generate_wisdom_report(niche: str, event_summaries: list[str]) -> dict
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
             "temperature": 0.62,
-            "maxOutputTokens": 1024,
+            "maxOutputTokens": 2048,
             "topP": 0.9,
             "responseMimeType": "application/json",  # Force raw JSON output, no markdown fences
         },
@@ -357,7 +360,7 @@ async def chat_with_agent(
         + f"User: {message}\n\n"
         "Respond in the same language as the user's message (Indonesian or English). "
         "Be specific — reference the actual events you attended when relevant. "
-        "Keep the response conversational but informative, under 150 words."
+        "Keep the response conversational but informative, 2-4 paragraphs."
     )
 
     try:
@@ -370,7 +373,8 @@ async def chat_with_agent(
 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 300, "topP": 0.9},
+        "generationConfig": {"temperature": 0.8, "maxOutputTokens": 1024, "topP": 0.9},
+        "thinkingConfig": {"thinkingBudget": 0},  # disable thinking for chat — faster + no token bleed
     }
 
     try:
