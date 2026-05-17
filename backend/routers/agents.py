@@ -139,6 +139,7 @@ class SpawnResponse(BaseModel):
     autonomous_signatures: int = 0
     wisdom_heritage_score: int | None = None
     lineage_biography: str | None = None
+    spawned_on_v4: bool = False
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -177,6 +178,7 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         wisdom_heritage_score=data.get("wisdom_heritage_score"),
         parent_names=data.get("parent_names"),
         lineage_biography=data.get("lineage_biography"),
+        spawned_on_v4=data.get("spawned_on_v4", False),
     )
 
 
@@ -368,6 +370,44 @@ async def _generate_and_save_biography(
     except Exception as exc:
         logger.warning(
             "Lineage biography failed for %s (non-fatal): %s",
+            offspring_id, exc.__class__.__name__,
+        )
+
+
+async def _spawn_bred_agent_on_chain(
+    db,
+    offspring_id: str,
+    offspring_wallet: str,
+) -> None:
+    """
+    Fire-and-forget: call spawnBredAgent() on V4 signed by MINTER_SERVICE.
+    Sets isAgentSpawned[offspringWallet]=true on-chain, then updates Firestore.
+    Runs after the breed response is already sent to the client.
+    """
+    try:
+        result = await web3_service.send_spawn_bred_agent_tx(
+            offspring_wallet=offspring_wallet,
+            offspring_id=offspring_id,
+        )
+        if result.get("status") == "success":
+            await db.collection(AGENTS_COLLECTION).document(offspring_id).update(
+                {
+                    "spawned_on_v4": True,
+                    "funded": True,
+                    "spawn_tx_hash": result.get("tx_hash"),
+                }
+            )
+            logger.info(
+                "Offspring %s registered on V4 (tx: %s)", offspring_id, result.get("tx_hash")
+            )
+        else:
+            logger.warning(
+                "spawnBredAgent returned non-success for offspring %s: %s",
+                offspring_id, result,
+            )
+    except Exception as exc:
+        logger.warning(
+            "spawnBredAgent failed for offspring %s (non-fatal): %s",
             offspring_id, exc.__class__.__name__,
         )
 
@@ -608,6 +648,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
         "genetic_traits": genetic_traits,
         "ownership_status": "bred",
         "breed_tx_hash": req.breed_tx_hash,  # None if pre-contract-upgrade; on-chain proof otherwise
+        "spawned_on_v4": False,  # set to True by _spawn_bred_agent_on_chain background task
         # Autonomous scout scheduling — disabled by default, user opts in per agent
         "auto_scout_enabled": False,
         "scout_interval_hours": 6,
@@ -700,6 +741,18 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
             p1_niche=p1.get("niche", "General"),
             p2_niche=p2.get("niche", "General"),
             genetic_traits=genetic_traits,
+        )
+    )
+
+    # ── spawnBredAgent on V4 (non-blocking) ──────────────────────────────────
+    # MINTER_SERVICE calls spawnBredAgent(offspringWallet, offspringId) on V4,
+    # setting isAgentSpawned=true so the offspring can self-sign (Mode B).
+    # Firestore is updated (spawned_on_v4=True, funded=True) when tx confirms.
+    asyncio.create_task(
+        _spawn_bred_agent_on_chain(
+            db=db,
+            offspring_id=offspring_id,
+            offspring_wallet=offspring_account.address,
         )
     )
 

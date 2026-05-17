@@ -153,6 +153,11 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                     <Crown className="text-accent" weight="fill" size={16} />
                     <span className="text-xs font-semibold text-accent uppercase tracking-wider">Original Creator</span>
                   </>
+                ) : agent.ownershipStatus === 'bred' ? (
+                  <>
+                    <Dna className="text-secondary" weight="duotone" size={16} />
+                    <span className="text-xs font-semibold text-secondary uppercase tracking-wider">Neural Fusion Offspring</span>
+                  </>
                 ) : (
                   <>
                     <ShoppingCart className="text-secondary" weight="fill" size={16} />
@@ -160,6 +165,29 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                   </>
                 )}
               </div>
+            </div>
+          )}
+
+          {agent.ownershipStatus === 'bred' && (
+            <div className="mb-4 p-2 rounded-lg border flex items-center gap-2"
+              style={agent.spawnedOnV4
+                ? { background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.3)' }
+                : { background: 'rgba(234,179,8,0.08)', borderColor: 'rgba(234,179,8,0.3)' }
+              }
+            >
+              {agent.spawnedOnV4 ? (
+                <>
+                  <Lightning size={13} className="text-emerald-400" weight="fill" />
+                  <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Sovereign Mode Active</span>
+                </>
+              ) : (
+                <>
+                  <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
+                    <GearSix size={13} className="text-yellow-400" weight="duotone" />
+                  </motion.div>
+                  <span className="text-xs font-semibold text-yellow-400 uppercase tracking-wider">Activating on V4...</span>
+                </>
+              )}
             </div>
           )}
 

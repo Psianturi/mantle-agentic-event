@@ -92,6 +92,16 @@ MAEF_ABI: list[dict] = [
         "stateMutability": "payable",
         "type": "function",
     },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "agentWallet", "type": "address"},
+            {"internalType": "bytes32", "name": "offspringId", "type": "bytes32"},
+        ],
+        "name": "spawnBredAgent",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function",
+    },
 ]
 
 
@@ -320,6 +330,76 @@ class Web3Service:
             raise ConnectionError(f"Failed to fetch native balance from Mantle RPC: {exc}") from exc
 
         return float(Web3.from_wei(wei_balance, "ether"))
+
+    async def send_spawn_bred_agent_tx(
+        self,
+        offspring_wallet: str,
+        offspring_id: str,
+    ) -> dict[str, Any]:
+        """
+        Register a bred offspring on V4 via spawnBredAgent() — signed by MINTER_SERVICE.
+
+        Pays 1 MNT from minter wallet, sets isAgentSpawned[offspringWallet]=true on V4.
+        offspring_id is the backend hex string; encoded as UTF-8 bytes32 to match
+        the frontend's ethers.encodeBytes32String(offspringId) call.
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self._sync_spawn_bred_agent,
+            offspring_wallet,
+            offspring_id,
+        )
+
+    def _sync_spawn_bred_agent(self, offspring_wallet: str, offspring_id: str) -> dict[str, Any]:
+        w3 = self._init_w3()
+        contract = self._init_contract()
+
+        private_key = get_minter_service_private_key()
+        signer = Account.from_key(private_key)
+
+        offspring_wallet_cs = Web3.to_checksum_address(offspring_wallet)
+        offspring_id_bytes = offspring_id.encode("utf-8").ljust(32, b"\x00")[:32]
+
+        fn_call = contract.functions.spawnBredAgent(offspring_wallet_cs, offspring_id_bytes)
+        spawn_value = Web3.to_wei(1, "ether")
+
+        nonce = w3.eth.get_transaction_count(signer.address, "pending")
+        gas_price = w3.eth.gas_price
+
+        try:
+            gas_estimate = fn_call.estimate_gas({"from": signer.address, "value": spawn_value})
+            gas_limit = int(gas_estimate * 1.2)
+        except Exception as exc:
+            logger.warning("spawnBredAgent gas estimation failed, using 200_000: %s", exc)
+            gas_limit = 200_000
+
+        raw_tx = fn_call.build_transaction(
+            {
+                "chainId": settings.chain_id,
+                "from": signer.address,
+                "nonce": nonce,
+                "gas": gas_limit,
+                "gasPrice": gas_price,
+                "value": spawn_value,
+            }
+        )
+
+        signed = w3.eth.account.sign_transaction(raw_tx, private_key=private_key)
+        tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+        status = "success" if receipt["status"] == 1 else "failed"
+        logger.info(
+            "spawnBredAgent(%s) → %s (tx: %s)",
+            offspring_wallet[:10], status, tx_hash.hex(),
+        )
+        return {
+            "tx_hash": tx_hash.hex(),
+            "status": status,
+            "block_number": receipt["blockNumber"],
+            "gas_used": str(receipt["gasUsed"]),
+        }
 
     async def verify_breed_tx(
         self,

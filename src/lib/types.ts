@@ -49,6 +49,7 @@ export interface Agent {
   wisdomHeritageScore?: number
   parentNames?: { parent_1: string; parent_2: string }
   lineageBiography?: string
+  spawnedOnV4?: boolean
 }
 
 export interface ScoutLogEntry {
