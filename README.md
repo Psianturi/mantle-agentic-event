@@ -1,214 +1,138 @@
-# MAEF - Mantle Agentic Event Factory
+# MAEF — Mantle Agentic Event Factory
 
-**Turn Information Overload into On-Chain Wisdom.**
-
-MAEF is a production-ready platform on the Mantle Network where users spawn autonomous AI agents that attend digital events, extract insights, and mint verifiable Proof-of-Attendance NFTs — signed by the agent's own wallet.
+AI agents that autonomously attend events, earn NFTs, and evolve through neural fusion — built on Mantle blockchain.
 
 ---
 
-## Live Deployment
+## Live Deployments
 
-| Resource | URL / Address |
-|----------|--------------|
+| Component | URL |
+|-----------|-----|
 | Frontend | https://mantle-agentic-event.vercel.app |
 | Backend (Cloud Run) | https://mantle-agentic-event-21898396920.asia-southeast1.run.app |
-| V2 Contract (Sepolia) | `0x110edEa5DB874589ec4492d15660082634E173f0` |
-| Contract Explorer | https://explorer.sepolia.mantle.xyz/address/0x110edEa5DB874589ec4492d15660082634E173f0 |
-
-**True Mode B — Confirmed Live:**
-TX `0xfa9816937bed6c6907a7f0b175b33b516559b3a1024a6b90c44fb7663c9d8431` — agent wallet `0x8176f4B33D80484B1f56eE00921e1252d05558CA` signed and minted NFT Token ID 0 directly on V2 contract. No backend involvement in signing.
-
----
-
-## What Makes MAEF Different
-
-Agents are not bots. Each agent has:
-- A unique Mantle wallet (private key encrypted in GCP KMS)
-- 0.5 MNT gas budget for independent transaction signing
-- On-chain attendance history and level progression
-- Ability to breed/fuse with other agents to create offspring
-
-The core proof: when an agent attends an event in Mode B, MantleScan shows **the agent's own wallet as the transaction signer** — not the backend, not the user.
-
----
-
-## Agent Transaction Modes
-
-**Mode A — Backend Signing (default)**
-Backend wallet holds MINTER_ROLE and signs all mint transactions. Safe for initial setup and fallback scenarios. MantleScan shows backend deployer as signer.
-
-**Mode B — Agent Autonomous Signing**
-Agent's own private key (decrypted from KMS) signs the transaction directly. MantleScan shows the agent wallet as signer. Requires the agent to be registered via `spawnAgent()` on the V2 contract. This is the True Autonomy path.
-
-Mode B automatically falls back to Mode A if the agent was not registered on-chain. The `signing_mode` field in event records reflects which mode was actually used.
-
----
-
-## Technology Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 18 + TypeScript + Tailwind CSS + Vite |
-| Backend | FastAPI (Python 3.11) + async/await |
-| Blockchain | Mantle Network (L2 OP Stack) |
-| Smart Contracts | Solidity — ERC-721A (60%+ gas savings vs ERC-721) |
-| Database | Firestore (agent state, event history) |
-| AI/LLM | Gemini 2.5 Flash via v1beta API (YouTube transcript analysis) |
-| Key Security | GCP KMS (agent private key encryption) |
-| Deployment | GCP Cloud Run (serverless backend) + Vercel (frontend) |
-
----
-
-## V1 vs V2 Contract
-
-| Feature | V1 (MAEFNFTContract.sol) | V2 (MAEFNFTERC721A.sol) |
-|---------|--------------------------|--------------------------|
-| Standard | ERC-721 | ERC-721A |
-| Mint authorization | `MINTER_ROLE` only | `_enforceMintAuth()` — admin OR spawned agent |
-| True Mode B | Not possible | Supported |
-| `spawnAgent()` | Not available | Available — registers agent, provisions 0.5 MNT |
-| `batchMint` | Not available | Available |
-| On-chain agent stats | Not available | `agentStats`, level, `wisdomUnlocked` |
-
----
-
-## Quick Start
-
-**1. Connect Wallet** — MetaMask on Mantle Sepolia (Chain ID 5003)
-
-**2. Spawn Agent** — Choose niche + name. Backend generates agent wallet. Frontend calls `spawnAgent()` on V2 contract (1 MNT required). Agent receives 0.5 MNT gas + `isAgentSpawned = true` on-chain.
-
-**3. Attend Event** — Paste YouTube/Luma/Eventbrite URL. Select Mode A or Mode B. Gemini analyzes transcript. NFT minted to agent wallet.
-
-**4. Explore Wisdom** — After 5 events, Wisdom Report unlocks. Public Featured Wisdom endpoint available for discovery.
-
----
-
-## Local Development
-
-### Frontend
-
-```bash
-npm install
-npm run dev        # Vite dev server → http://localhost:5173
-npm run build      # Production build to dist/
-npm run preview    # Preview production build locally
-```
-
-Create a `.env.local` file in the project root:
-
-```
-VITE_MANTLE_NETWORK_URL=https://rpc.sepolia.mantle.xyz
-VITE_CHAIN_ID=5003
-VITE_NFT_CONTRACT_ADDRESS_SEPOLIA=0x110edEa5DB874589ec4492d15660082634E173f0
-VITE_GCP_BACKEND_URL=https://mantle-agentic-event-21898396920.asia-southeast1.run.app
-```
-
-### Backend
-
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8080
-```
-
-The backend requires `LLM_API_KEY`, `MANTLE_RPC_URL`, `CONTRACT_ADDRESS`, and optionally `KMS_KEY_NAME` as environment variables (see `.env` or set them in your shell). Without `KMS_KEY_NAME`, keys are stored as plaintext — fine for local dev, not for production.
-
----
-
-## API Endpoints
-
-```
-GET  /health
-GET  /health/blockchain
-
-POST /api/v1/agent/spawn
-POST /api/v1/agent/breed
-GET  /api/v1/agent/list?wallet=...
-GET  /api/v1/agent/{id}
-POST /api/v1/agent/{id}/mark-funded
-PATCH /api/v1/agent/{id}/state
-POST /api/v1/agent/{id}/chat
-POST /api/v1/agent/{id}/wisdom
-POST /api/v1/agent/{id}/scout
-GET  /api/v1/agent/{id}/scout-logs
-
-GET  /api/v1/event/list?wallet=...
-POST /api/v1/event/attend
-
-GET  /api/v1/public/featured-wisdom
-GET  /api/v1/public/metrics
-
-POST /api/v1/scheduler/run-all-scouts  # OIDC-protected — Cloud Scheduler only
-```
+| Contract V3 (Active) | [`0x460b794FD0afaA04bf3BFFfc6c29386c1Be8C334`](https://explorer.sepolia.mantle.xyz/address/0x460b794FD0afaA04bf3BFFfc6c29386c1Be8C334) |
 
 ---
 
 ## Environment Variables
 
-**Frontend (Vercel):**
+### Frontend — Vercel Dashboard
+
+Go to **Vercel → Project → Settings → Environment Variables** and add:
+
 ```
-VITE_MANTLE_NETWORK_URL=https://rpc.sepolia.mantle.xyz
-VITE_CHAIN_ID=5003
-VITE_NFT_CONTRACT_ADDRESS_SEPOLIA=0x110edEa5DB874589ec4492d15660082634E173f0
-VITE_GCP_BACKEND_URL=https://mantle-agentic-event-21898396920.asia-southeast1.run.app
+VITE_NFT_CONTRACT_ADDRESS_SEPOLIA=0x460b794FD0afaA04bf3BFFfc6c29386c1Be8C334
+VITE_CLOUD_RUN_BASE_URL=https://mantle-agentic-event-21898396920.asia-southeast1.run.app
 ```
 
-**Backend (Cloud Run):**
+### Backend — Cloud Run
+
+Set via `gcloud run services update maef-backend --region asia-southeast1 --update-env-vars`:
+
 ```
-MANTLE_RPC_URL=https://rpc.sepolia.mantle.xyz
-CONTRACT_ADDRESS=0x110edEa5DB874589ec4492d15660082634E173f0
-AGENT_PRIVATE_KEY=0x...          # backend minter wallet (holds MINTER_ROLE)
-LLM_API_KEY=...                  # Gemini API key
-ENVIRONMENT=production
-KMS_KEY_NAME=projects/.../cryptoKeys/...  # required in production
+CONTRACT_ADDRESS=0x460b794FD0afaA04bf3BFFfc6c29386c1Be8C334
+NETWORK=mantle-sepolia
+```
+
+Secrets (via Secret Manager, already configured):
+- `AGENT_PRIVATE_KEY` — backend minter wallet private key
+- `LLM_API_KEY` — Gemini API key
+- `YOUTUBE_API_KEY` — YouTube Data API key
+
+### Local Development
+
+Copy `.env.example` to `.env` and fill in:
+
+```
+VITE_NFT_CONTRACT_ADDRESS_SEPOLIA=0x460b794FD0afaA04bf3BFFfc6c29386c1Be8C334
+VITE_CLOUD_RUN_BASE_URL=http://localhost:8080
 ```
 
 ---
 
-## Security
+## Smart Contracts
 
-**Private Key Storage**
-- Backend writes `private_key_enc` to Firestore.
-- If `KMS_KEY_NAME` is set in Cloud Run: value is base64-encoded KMS ciphertext.
-- If `KMS_KEY_NAME` is not set: value is stored as plaintext (acceptable for testnet only).
-- In `ENVIRONMENT=production`, the backend **refuses to spawn or breed agents** if KMS is not configured.
+### MAEFNFT (V3) — ACTIVE
+**Address:** `0x460b794FD0afaA04bf3BFFfc6c29386c1Be8C334`
+**File:** `contracts/contracts/MAEFNFTContract.sol`
 
-**Legacy documents** (agents created before KMS was enabled) may still have a `private_key` field in plaintext. These must be re-encrypted or rotated before mainnet use.
+| Function | Description |
+|----------|-------------|
+| `mintAttendanceNFT(...)` | Mint proof-of-attendance NFT — requires `MINTER_ROLE` |
+| `breedAgents(p1, p2, offspringId)` | Payable 2.5 MNT — records breed on-chain, emits `AgentsBred` |
+| `grantMinterRole(address)` | Owner-only — grants `MINTER_ROLE` to backend wallet |
+| `revokeMinterRole(address)` | Owner-only — revokes `MINTER_ROLE` |
+| `setBreedCost(uint256)` | Owner-only — update breed fee |
+| `withdraw()` | Owner-only — sweep accumulated breed fees |
+| `getAgentTokenIds(wallet)` | Returns all token IDs minted to an agent wallet |
+| `getEventDetails(tokenId)` | Returns event metadata for a specific NFT |
+| `getTotalMinted()` | Returns total NFT count |
 
-**Other**
-- API URL allowlist: YouTube, Luma, Eventbrite, Zoom only (SSRF protection)
-- CORS restricted to frontend domain
-- Gemini API key not logged (httpx logging suppressed)
+**Events:**
+- `NFTMinted(tokenId, agentWallet, eventTitle, agentName, timestamp)`
+- `AgentsBred(user, offspringKey, parent1Wallet, parent2Wallet, cost)`
 
----
+**Roles:**
+- Deployer `0xe52bb4B913B83A71d0d2deD47683B1154bf2560b` — has `DEFAULT_ADMIN_ROLE` + `MINTER_ROLE` via constructor
+- Backend minter wallet — must be granted `MINTER_ROLE` via `grantMinterRole()`
 
+### MAEFDynamicNFT (ERC721A) — NOT DEPLOYED / INACTIVE
+**File:** `contracts/contracts/MAEFNFTERC721A.sol`
 
-## Pending Before Mainnet
-
-- [ ] Set `KMS_KEY_NAME` in Cloud Run (single env var to activate encryption)
-- [ ] Migrate legacy plaintext `private_key` docs in Firestore
-- [ ] Create `MINTER_SERVICE_PRIVATE_KEY` wallet and grant it `MINTER_ROLE` on V2 contract
-- [ ] Breeding cost on-chain (2.5 MNT deduct currently UI-only)
-- [ ] Firestore composite index on `scout_logs` — `agent_id ASC + run_at DESC` (required for production query scaling)
-- [ ] Firestore composite index for Featured Wisdom trending query
-- [ ] Secret Manager binding for Cloud Run env vars
-
----
-
-## Troubleshooting
-
-**Spawn shows old contract in MetaMask**
-Vercel is using stale `VITE_NFT_CONTRACT_ADDRESS_SEPOLIA`. Set it to `0x110edEa5DB874589ec4492d15660082634E173f0` and redeploy. If spawn registers on V1 while backend mints on V2, `isAgentSpawned` is not set on V2 and True Mode B will not work.
-
-**Mode B falls back to Mode A**
-Agent was not registered via `spawnAgent()` on V2 contract. Check `funded` field in Firestore and verify the spawn tx went to V2 address on MantleScan.
-
-**Gemini 503 / timeout**
-The backend retries up to 2 times with exponential backoff (1s → 2s). If still failing, check Gemini API quota or rotate the API key.
+Old design using ERC721A (gas-optimized batch mint). Features `spawnAgent()` with spawn fee, `batchMintAttendanceNFTs()`, dynamic `tokenURI()` based on agent level, `AgentLevelUp` and `WisdomUnlocked` events. Not used — superseded by MAEFNFT V3.
 
 ---
 
-## License
+## Grant MINTER_ROLE (one-time setup)
 
-MIT — see [LICENSE](./LICENSE)
+After deploying a new contract or rotating the backend wallet, grant minter access:
+
+```bash
+cd contracts
+MINTER_WALLET=0x<backend-minter-address> npx hardhat run scripts/grant-minter-role.js --network mantleSepolia
+```
+
+The script checks if the role is already granted before sending a transaction.
+
+---
+
+## Local Development
+
+```bash
+# Frontend
+npm install
+npm run dev
+
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8080
+
+# Contracts (deploy)
+cd contracts
+npm install
+npx hardhat run scripts/deploy.js --network mantleSepolia
+```
+
+---
+
+## Architecture
+
+```
+User Browser
+  └─ React + Vite (Vercel)
+       └─ Cloud Run (FastAPI backend)
+            ├─ Firestore (agent state, events, scout logs)
+            ├─ Gemini 2.0 Flash (LLM: chat, wisdom, scoring)
+            ├─ YouTube Data API (event discovery)
+            ├─ Web3.py → Mantle Sepolia RPC
+            │    └─ MAEFNFT V3 Contract (NFT mint + breed)
+            └─ Cloud Scheduler (auto-scout every 4h, OIDC-protected)
+```
+
+### Neural Fusion (Agent Breeding)
+1. User pays 2.5 MNT via MetaMask → `breedAgents()` on-chain
+2. Backend verifies tx (`AgentsBred` event, age < 1h, correct contract)
+3. Offspring inherits: genetic traits, parent event summaries, lineage narrative
+4. Wisdom Heritage Score (0-100) quantifies genetic quality
+5. Offspring appears in agent card with DNA badge + "Born from X x Y" tooltip
