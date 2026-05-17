@@ -128,6 +128,7 @@ class SpawnResponse(BaseModel):
     custom_agenda: str | None = None
     generation: int | None = None
     parent_ids: list[str] | None = None
+    parent_names: dict | None = None
     breeding_count: int | None = None
     max_breedings: int | None = None
     genetic_traits: list[str] | None = None
@@ -136,6 +137,7 @@ class SpawnResponse(BaseModel):
     scout_interval_hours: int = 6
     last_scout_at: float | None = None
     autonomous_signatures: int = 0
+    wisdom_heritage_score: int | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -171,6 +173,8 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         last_breeding_time=data.get("last_breeding_time"),
         breeding_cooldown_hours=data.get("breeding_cooldown_hours"),
         autonomous_signatures=data.get("autonomous_signatures", 0),
+        wisdom_heritage_score=data.get("wisdom_heritage_score"),
+        parent_names=data.get("parent_names"),
     )
 
 
@@ -313,6 +317,44 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         agent_account.address,
     )
     return _to_response(agent_data, needs_funding=True)
+
+
+def _calculate_heritage_score(p1: dict, p2: dict, genetic_traits: list[str]) -> int:
+    """
+    0–100 score quantifying the genetic quality of an offspring.
+    Used as a rarity/value metric visible to users and judges.
+
+    Breakdown (max 100):
+      40 — Event depth (combined parent wisdom pool)
+      20 — Level legacy (parent agent seniority)
+      25 — Trait rarity (legendary > superior > cross-domain > specialized)
+      15 — Generation multiplier (higher-gen parents = rarer offspring)
+    """
+    p1_events = p1.get("total_events") or 0
+    p2_events = p2.get("total_events") or 0
+    event_score = min(40, (p1_events + p2_events) * 2)
+
+    p1_level = p1.get("level", 1)
+    p2_level = p2.get("level", 1)
+    level_score = min(20, (p1_level + p2_level) * 3)
+
+    trait_score = 0
+    if "Legendary Wisdom Heritage" in genetic_traits:
+        trait_score += 20
+    elif "Superior Knowledge Base" in genetic_traits:
+        trait_score += 12
+    if "Cross-Domain Intelligence" in genetic_traits:
+        trait_score += 5
+    elif "Specialized Niche Mastery" in genetic_traits:
+        trait_score += 3
+    if "Multi-Generation Evolution" in genetic_traits:
+        trait_score += 5
+    trait_score = min(25, trait_score)
+
+    max_gen = max(p1.get("generation") or 1, p2.get("generation") or 1)
+    gen_score = min(15, max_gen * 5)
+
+    return min(100, event_score + level_score + trait_score + gen_score)
 
 
 @router.post("/breed", response_model=SpawnResponse, status_code=201)
@@ -469,6 +511,14 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
     # Collect unique parent niches — used by Cross-Domain Intelligence trait during scouting
     parent_niches = list({p1.get("niche", "General"), p2.get("niche", "General")})
 
+    # Parent identity — stored for Memory Echoes in chat + Lineage Biography
+    parent_names = {
+        "parent_1": p1.get("agent_name", "Unknown Agent"),
+        "parent_2": p2.get("agent_name", "Unknown Agent"),
+    }
+
+    wisdom_heritage_score = _calculate_heritage_score(p1, p2, genetic_traits)
+
     offspring_data: dict = {
         "agent_id": offspring_id,
         "agent_wallet": offspring_account.address,
@@ -484,7 +534,9 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
         "created_at": now,
         "generation": offspring_gen,
         "parent_ids": [p1_id, p2_id],
+        "parent_names": parent_names,
         "parent_niches": parent_niches,
+        "wisdom_heritage_score": wisdom_heritage_score,
         "breeding_count": 0,
         "max_breedings": 3,
         "genetic_traits": genetic_traits,
@@ -806,6 +858,8 @@ async def agent_chat(agent_id: str, req: ChatRequest) -> dict:
         event_summaries=event_summaries,
         genetic_traits=genetic_traits or None,
         parent_wisdom=parent_wisdom or None,
+        parent_names=data.get("parent_names"),
+        generation=data.get("generation"),
     )
     return {"reply": reply}
 

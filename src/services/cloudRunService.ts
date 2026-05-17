@@ -367,9 +367,11 @@ export const cloudRunService = {
       needs_funding: boolean
       generation?: number
       parent_ids?: string[]
+      parent_names?: { parent_1: string; parent_2: string }
       breeding_count?: number
       max_breedings?: number
       genetic_traits?: string[]
+      wisdom_heritage_score?: number
     }>(response)
 
     const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -394,9 +396,11 @@ export const cloudRunService = {
       mantleBalance: 0,
       generation: raw.generation,
       parentIds: raw.parent_ids,
+      parentNames: raw.parent_names,
       breedingCount: raw.breeding_count ?? 0,
       maxBreedings: raw.max_breedings ?? 3,
       geneticTraits: raw.genetic_traits,
+      wisdomHeritageScore: raw.wisdom_heritage_score,
       ownershipStatus: 'bred' as const,
       isGenesis: false,
     }
@@ -423,11 +427,14 @@ export const cloudRunService = {
         custom_agenda?: string
         generation?: number
         parent_ids?: string[]
+        parent_names?: { parent_1: string; parent_2: string }
         breeding_count?: number
         max_breedings?: number
         genetic_traits?: string[]
         last_breeding_time?: number
         breeding_cooldown_hours?: number
+        wisdom_heritage_score?: number
+        autonomous_signatures?: number
       }>>(response)
 
       const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -451,11 +458,13 @@ export const cloudRunService = {
         autonomousSignatures: r.autonomous_signatures ?? 0,
         generation: r.generation,
         parentIds: r.parent_ids,
+        parentNames: r.parent_names,
         breedingCount: r.breeding_count,
         maxBreedings: r.max_breedings,
         geneticTraits: r.genetic_traits,
         lastBreedingTime: r.last_breeding_time,
         breedingCooldownHours: r.breeding_cooldown_hours,
+        wisdomHeritageScore: r.wisdom_heritage_score,
       }))
     } catch (error) {
       // Non-fatal: return empty list if backend is unreachable

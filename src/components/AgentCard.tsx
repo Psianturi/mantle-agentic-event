@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature } from '@phosphor-icons/react'
+import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature, Dna } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
 
@@ -329,6 +329,28 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                   <TooltipContent side="top" className="bg-card border-green-500/30">
                     <p className="text-xs text-muted-foreground">
                       <span className="font-bold text-green-400">{agent.autonomousSignatures}</span> autonomous on-chain signature{(agent.autonomousSignatures ?? 0) !== 1 ? 's' : ''} — Mode B
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {agent.wisdomHeritageScore !== undefined && (agent.generation ?? 1) >= 2 && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-secondary/10 border border-secondary/30 cursor-help">
+                      <Dna size={13} className="text-secondary" weight="duotone" />
+                      <span className="text-xs font-bold text-secondary font-mono">{agent.wisdomHeritageScore}</span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-card border-secondary/30">
+                    <p className="text-xs text-muted-foreground">
+                      Wisdom Heritage Score: <span className="font-bold text-secondary">{agent.wisdomHeritageScore}/100</span>
+                      {agent.parentNames && (
+                        <span className="block mt-0.5 text-muted-foreground/70">
+                          Born from {agent.parentNames.parent_1} × {agent.parentNames.parent_2}
+                        </span>
+                      )}
                     </p>
                   </TooltipContent>
                 </Tooltip>

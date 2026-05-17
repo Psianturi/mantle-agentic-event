@@ -46,6 +46,8 @@ export interface Agent {
   customAgenda?: string
   scoutedOpportunities?: ScoutedEvent[]
   autonomousSignatures?: number
+  wisdomHeritageScore?: number
+  parentNames?: { parent_1: string; parent_2: string }
 }
 
 export interface ScoutLogEntry {

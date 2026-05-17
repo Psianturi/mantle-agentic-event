@@ -336,16 +336,32 @@ async def chat_with_agent(
     event_summaries: list[str] | None = None,
     genetic_traits: list[str] | None = None,
     parent_wisdom: list[str] | None = None,
+    parent_names: dict | None = None,
+    generation: int | None = None,
 ) -> str:
     """
     Generate a contextual chat reply from the agent using Gemini.
     Falls back to a canned reply if the API is unavailable.
     event_summaries: list of "EventTitle: wisdom_summary" strings from Firestore.
-    genetic_traits / parent_wisdom: populated for bred offspring with wisdom-inheritance traits.
+    genetic_traits / parent_wisdom / parent_names: populated for bred offspring.
     """
     history_text = "\n\n".join(conversation_history[-6:]) if conversation_history else ""
 
-    # Build event knowledge section if available
+    # ── Memory Echoes: lineage identity injection ─────────────────────────────
+    # Offspring agents carry their origin story in the system prompt.
+    lineage_intro = ""
+    if parent_names and generation and generation >= 2:
+        p1_name = parent_names.get("parent_1", "Unknown Agent")
+        p2_name = parent_names.get("parent_2", "Unknown Agent")
+        traits_desc = f" You carry genetic traits: {', '.join(genetic_traits)}." if genetic_traits else ""
+        lineage_intro = (
+            f"You are a Generation-{generation} agent, born from the neural fusion of "
+            f"{p1_name} and {p2_name}.{traits_desc} "
+            f"You honor their legacy and carry their combined wisdom into every interaction. "
+            f"When asked about your origins, identity, or lineage, share this background naturally.\n"
+        )
+
+    # ── Event knowledge ────────────────────────────────────────────────────────
     event_knowledge = ""
     if event_summaries:
         events_formatted = "\n".join(f"  - {s}" for s in event_summaries[:8])
@@ -363,14 +379,11 @@ async def chat_with_agent(
             "You carry this inherited knowledge from your lineage — reference it when relevant.\n"
         )
 
-    traits_note = ""
-    if genetic_traits:
-        traits_note = f"Your genetic traits from breeding: {', '.join(genetic_traits)}. "
-
     prompt = (
         f"You are {agent_name}, an autonomous AI agent with a {personality.lower()} personality "
         f"specializing in {niche}. You have attended {events_attended} events on-chain "
-        f"and gained deep insights recorded as NFT wisdom. {traits_note}\n"
+        f"and gained deep insights recorded as NFT wisdom.\n"
+        + (lineage_intro if lineage_intro else "")
         + event_knowledge
         + (f"Previous conversation:\n{history_text}\n\n" if history_text else "")
         + f"User: {message}\n\n"
