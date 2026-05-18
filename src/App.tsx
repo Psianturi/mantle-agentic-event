@@ -1977,21 +1977,15 @@ function App() {
                 </Card>
               ) : (
                 <div className="relative">
-                  {/* Marketplace card grid — blurred behind overlay */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 blur-sm pointer-events-none select-none opacity-40">
-                    {filteredAndSortedMarketplace().map((agent, idx) => (
-                      <motion.div
+                  {/* Marketplace card grid — lightly blurred behind overlay */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pointer-events-none select-none opacity-55" style={{ filter: 'blur(2px)' }}>
+                    {filteredAndSortedMarketplace().map((agent) => (
+                      <MarketplaceAgentCard
                         key={agent.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                      >
-                        <MarketplaceAgentCard 
-                          agent={agent} 
-                          onBuy={handleBuyAgent}
-                          isPurchasing={purchasingAgentId === agent.id}
-                        />
-                      </motion.div>
+                        agent={agent}
+                        onBuy={handleBuyAgent}
+                        isPurchasing={false}
+                      />
                     ))}
                   </div>
 
@@ -2011,23 +2005,15 @@ function App() {
                       />
 
                       {/* Lock icon with pulse */}
-                      <motion.div
-                        animate={{ y: [0, -4, 0] }}
-                        transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-                        className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/40 flex items-center justify-center"
-                      >
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/40 flex items-center justify-center">
                         <LockKey size={28} weight="duotone" className="text-primary" />
-                      </motion.div>
+                      </div>
 
                       {/* "Coming Soon" text */}
                       <div>
-                        <motion.p
-                          animate={{ opacity: [0.7, 1, 0.7] }}
-                          transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
-                          className="text-xs font-mono text-muted-foreground tracking-[0.3em] uppercase mb-1"
-                        >
+                        <p className="text-xs font-mono text-muted-foreground tracking-[0.3em] uppercase mb-1">
                           On-chain P2P Marketplace
-                        </motion.p>
+                        </p>
                         <h3 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(0,243,255,0.5)]">
                           Coming Soon
                         </h3>
