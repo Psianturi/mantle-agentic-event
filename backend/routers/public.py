@@ -116,7 +116,7 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
             item = FeaturedWisdomItem(
                 event_title=event.get("event_title", "Event"),
                 wisdom_summary=event.get("wisdom_summary", ""),
-                agent_name=agent_cache.get(agent_id, "Anonymous Agent"),
+                agent_name=agent_cache.get(agent_id) or event.get("agent_name") or "Anonymous Agent",
                 agent_id=agent_id,
                 niche=agent_niche_cache.get(agent_id) or event.get("niche") or "General",
                 platform=event.get("platform", "YouTube"),

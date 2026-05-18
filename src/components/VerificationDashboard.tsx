@@ -73,10 +73,10 @@ export function VerificationDashboard({ verifications }: VerificationDashboardPr
 
   if (verifications.length === 0) {
     return (
-      <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-primary/30">
-        <ShieldCheck size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
-        <h3 className="text-lg font-semibold mb-2">No Verifications Yet</h3>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+      <Card className="glass-card-hover p-6 text-center border-2 border-dashed border-primary/30">
+        <ShieldCheck size={40} className="mx-auto mb-3 text-muted-foreground animate-float" weight="duotone" />
+        <h3 className="text-sm font-semibold mb-1">No Verifications Yet</h3>
+        <p className="text-xs text-muted-foreground max-w-md mx-auto">
           Contract verifications will appear here once agents deploy their smart contracts
         </p>
       </Card>
@@ -84,63 +84,63 @@ export function VerificationDashboard({ verifications }: VerificationDashboardPr
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="glass-card-hover p-6 border-2 border-primary/20">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/30 to-accent/30 border border-primary/40 flex items-center justify-center">
-              <ShieldCheck className="text-primary" weight="duotone" size={26} />
+    <div className="space-y-3">
+      <Card className="glass-card-hover p-4 border-2 border-primary/20">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary/30 to-accent/30 border border-primary/40 flex items-center justify-center">
+              <ShieldCheck className="text-primary" weight="duotone" size={18} />
             </div>
             <div>
-              <h2 className="text-xl font-bold">Contract Verification Dashboard</h2>
-              <p className="text-sm text-muted-foreground">Track all agent contract verifications</p>
+              <h2 className="text-sm font-bold">Contract Verification Dashboard</h2>
+              <p className="text-xs text-muted-foreground">Track all agent contract verifications</p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-5 gap-2 mb-3">
           {(['all', 'verified', 'verifying', 'pending', 'failed'] as const).map((status) => (
             <button
               key={status}
               onClick={() => setFilterStatus(status)}
-              className={`p-3 rounded-lg border transition-all ${
+              className={`p-2 rounded-lg border transition-all ${
                 filterStatus === status
                   ? 'border-primary bg-primary/10'
                   : 'border-border hover:border-primary/50'
               }`}
             >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs uppercase tracking-wide font-semibold text-muted-foreground">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[9px] uppercase tracking-wide font-semibold text-muted-foreground">
                   {status}
                 </span>
                 {status !== 'all' && getStatusIcon(status as VerificationStatus)}
               </div>
-              <p className="text-2xl font-bold">{statusCounts[status]}</p>
+              <p className="text-base font-bold">{statusCounts[status]}</p>
             </button>
           ))}
         </div>
 
-        <div className="relative mb-4">
-          <MagnifyingGlass 
-            size={18} 
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" 
+        <div className="relative">
+          <MagnifyingGlass
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             weight="bold"
           />
           <Input
             placeholder="Search by agent name or contract address..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 border-primary/30"
+            className="pl-8 h-8 text-xs border-primary/30"
           />
         </div>
       </Card>
 
-      <ScrollArea className="h-[600px]">
-        <div className="space-y-4 pr-4">
+      <ScrollArea className="h-[400px]">
+        <div className="space-y-2 pr-4">
           {filteredVerifications.length === 0 ? (
-            <Card className="glass-card-hover p-8 text-center">
-              <FunnelSimple size={48} className="mx-auto mb-3 text-muted-foreground" weight="duotone" />
-              <p className="text-sm text-muted-foreground">No verifications match your filters</p>
+            <Card className="glass-card-hover p-4 text-center">
+              <FunnelSimple size={32} className="mx-auto mb-2 text-muted-foreground" weight="duotone" />
+              <p className="text-xs text-muted-foreground">No verifications match your filters</p>
             </Card>
           ) : (
             filteredVerifications.map((verification, idx) => (
@@ -150,15 +150,15 @@ export function VerificationDashboard({ verifications }: VerificationDashboardPr
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.05 }}
               >
-                <Card className="glass-card-hover p-5 border border-primary/20 hover:border-primary/40 transition-all">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-start gap-3 flex-1">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                <Card className="glass-card-hover p-3 border border-primary/20 hover:border-primary/40 transition-all">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-start gap-2 flex-1">
+                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
                         {getStatusIcon(verification.verificationStatus)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm mb-1">{verification.agentName}</h3>
-                        <p className="text-xs text-muted-foreground font-mono truncate">
+                        <h3 className="font-semibold text-xs mb-0.5">{verification.agentName}</h3>
+                        <p className="text-[10px] text-muted-foreground font-mono truncate">
                           {verification.contractAddress}
                         </p>
                       </div>
@@ -168,17 +168,17 @@ export function VerificationDashboard({ verifications }: VerificationDashboardPr
                     </Badge>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="p-2 rounded bg-background/50 border border-border">
-                      <p className="text-xs text-muted-foreground mb-1">Attempts</p>
-                      <p className="text-sm font-mono font-semibold">
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="p-1.5 rounded bg-background/50 border border-border">
+                      <p className="text-[10px] text-muted-foreground mb-0.5">Attempts</p>
+                      <p className="text-xs font-mono font-semibold">
                         {verification.verificationAttempts}/20
                       </p>
                     </div>
-                    <div className="p-2 rounded bg-background/50 border border-border">
-                      <p className="text-xs text-muted-foreground mb-1">Last Check</p>
-                      <p className="text-sm font-mono font-semibold">
-                        {verification.lastAttemptTimestamp 
+                    <div className="p-1.5 rounded bg-background/50 border border-border">
+                      <p className="text-[10px] text-muted-foreground mb-0.5">Last Check</p>
+                      <p className="text-xs font-mono font-semibold">
+                        {verification.lastAttemptTimestamp
                           ? new Date(verification.lastAttemptTimestamp).toLocaleTimeString()
                           : 'N/A'
                         }
@@ -187,21 +187,21 @@ export function VerificationDashboard({ verifications }: VerificationDashboardPr
                   </div>
 
                   {verification.verificationStatus === 'verified' && verification.verificationTimestamp && (
-                    <div className="p-3 rounded-lg bg-green-500/5 border border-green-500/20 mb-3">
-                      <p className="text-xs text-green-500 font-semibold flex items-center gap-2">
-                        <CheckCircle size={14} weight="fill" />
+                    <div className="p-2 rounded-lg bg-green-500/5 border border-green-500/20 mb-2">
+                      <p className="text-[10px] text-green-500 font-semibold flex items-center gap-1.5">
+                        <CheckCircle size={12} weight="fill" />
                         Verified at {new Date(verification.verificationTimestamp).toLocaleString()}
                       </p>
                     </div>
                   )}
 
                   {verification.verificationStatus === 'failed' && verification.errorMessage && (
-                    <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20 mb-3">
-                      <p className="text-xs text-destructive font-semibold flex items-center gap-2 mb-1">
-                        <XCircle size={14} weight="fill" />
+                    <div className="p-2 rounded-lg bg-destructive/5 border border-destructive/20 mb-2">
+                      <p className="text-[10px] text-destructive font-semibold flex items-center gap-1.5 mb-0.5">
+                        <XCircle size={12} weight="fill" />
                         Verification Failed
                       </p>
-                      <p className="text-xs text-muted-foreground">{verification.errorMessage}</p>
+                      <p className="text-[10px] text-muted-foreground">{verification.errorMessage}</p>
                     </div>
                   )}
 
@@ -210,9 +210,9 @@ export function VerificationDashboard({ verifications }: VerificationDashboardPr
                       variant="outline"
                       size="sm"
                       onClick={() => window.open(verification.explorerUrl, '_blank')}
-                      className="flex-1 border-primary/30 hover:border-primary/50"
+                      className="flex-1 h-7 text-xs border-primary/30 hover:border-primary/50"
                     >
-                      <ArrowSquareOut size={16} className="mr-2" weight="duotone" />
+                      <ArrowSquareOut size={12} className="mr-1" weight="duotone" />
                       View Contract
                     </Button>
                     <Button
@@ -222,7 +222,7 @@ export function VerificationDashboard({ verifications }: VerificationDashboardPr
                         verificationService.getExplorerTxUrl(verification.deploymentTxHash),
                         '_blank'
                       )}
-                      className="flex-1 border-primary/30 hover:border-primary/50"
+                      className="flex-1 h-7 text-xs border-primary/30 hover:border-primary/50"
                     >
                       View Deployment
                     </Button>

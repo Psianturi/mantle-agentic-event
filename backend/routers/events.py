@@ -370,6 +370,8 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             event_doc = {
                 "agent_id": req.agent_id,
                 "agent_wallet": req.agent_wallet,
+                "agent_name": req.agent_name,
+                "niche": req.niche,
                 "event_url": req.event_url,
                 "event_title": req.event_title,
                 "platform": req.platform,
@@ -379,7 +381,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "gas_used": str(mint_result.get("gas_used", "")),
                 "block_number": mint_result.get("block_number"),
                 "attended_at": time.time(),
-                "mode": signing_mode,  # Track the actual signing mode used
+                "mode": signing_mode,
             }
             await db.collection(EVENTS_COLLECTION).add(event_doc)
         except Exception as exc:
