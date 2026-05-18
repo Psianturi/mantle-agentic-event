@@ -1,7 +1,7 @@
 import { Agent, EvolutionLevel } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { motion } from 'framer-motion'
-import { CheckCircle, Lock, Sparkle, Brain, Robot, Trophy } from '@phosphor-icons/react'
+import { CheckCircle, Lock, Sparkle, Brain, Robot, Trophy, Lightbulb } from '@phosphor-icons/react'
 
 interface AgentEvolutionPathProps {
   agent: Agent
@@ -37,41 +37,41 @@ const getEvolutionLevels = (agent: Agent): EvolutionLevel[] => {
     },
     {
       level: 3,
-      title: 'Cross-Event Pattern Recognition',
-      description: 'Advanced analytical capabilities across multiple events',
+      title: 'Strategic Consult (HITL)',
+      description: 'Gemini generates on-chain strategic proposals for human approval — live feature',
       eventsRequired: 4,
       unlocked: agent.level >= 3,
       features: [
-        'Identify trends across events',
-        'Pattern recognition algorithms',
-        'Strategic insight generation',
-        'Predictive event recommendations'
+        'AI generates context-aware strategic proposals',
+        'Approve on Mantle: +5 Heritage Score per proposal',
+        'Reject to refine — agent learns from feedback',
+        'Cross-event pattern recognition & trend analysis'
       ]
     },
     {
       level: 4,
-      title: 'Strategic Decision Making',
-      description: 'Generate actionable strategic proposals based on accumulated knowledge',
+      title: 'Wisdom Synthesis & Neural Fusion',
+      description: 'Full Wisdom Report after 5 events + ability to breed with other agents',
       eventsRequired: 6,
       unlocked: agent.level >= 4,
       features: [
-        'Generate strategic proposals',
-        'Risk assessment capabilities',
-        'Multi-event consensus building',
-        'Value opportunity identification'
+        'Wisdom Report — niche-specific strategic insights',
+        'Neural Fusion eligibility (breed with another agent)',
+        'Offspring inherits wisdom heritage score',
+        'Cross-event consensus & opportunity identification'
       ]
     },
     {
       level: 5,
       title: 'Semi-Autonomous Action Execution',
-      description: 'Propose and execute complex actions with user approval',
+      description: 'Future: agent executes approved proposals autonomously on-chain',
       eventsRequired: 8,
       unlocked: agent.level >= 5,
       features: [
-        'Autonomous proposal generation',
-        'Transaction execution capability',
-        'Advanced risk management',
-        'Full strategic autonomy mode'
+        'Autonomous proposal execution (no human click)',
+        'Full on-chain transaction authority',
+        'Advanced risk management circuits',
+        'Self-sustaining agentic economy participant'
       ]
     }
   ]
@@ -84,9 +84,9 @@ const getLevelIcon = (level: number) => {
     case 2:
       return Sparkle
     case 3:
-      return Brain
+      return Lightbulb
     case 4:
-      return Trophy
+      return Brain
     case 5:
       return Trophy
     default:
