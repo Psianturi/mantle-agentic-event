@@ -1297,7 +1297,8 @@ function App() {
                 <img
                   src={maefLogo}
                   alt="MAEF"
-                  className="h-9 w-auto object-contain drop-shadow-[0_0_8px_rgba(0,243,255,0.4)]"
+                  className="h-11 w-auto object-contain"
+                  style={{ mixBlendMode: 'screen' }}
                 />
                 <p className="text-[10px] text-muted-foreground font-mono hidden sm:block leading-none">Mantle Agentic Event Factory</p>
               </div>

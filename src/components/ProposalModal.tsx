@@ -19,6 +19,7 @@ import {
   GraduationCap,
   Users,
   Warning,
+  ArrowClockwise,
 } from '@phosphor-icons/react'
 
 interface ProposalModalProps {
@@ -206,10 +207,12 @@ function ProposalCard({
 }
 
 const HERITAGE_XP = 5
+const FETCH_TIMEOUT_MS = 12_000
 
 export function ProposalModal({ open, onOpenChange, agent, onProposalCountChange }: ProposalModalProps) {
   const [proposals, setProposals] = useState<BackendProposal[]>([])
   const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [generating, setGenerating] = useState(false)
   const [actioningId, setActioningId] = useState<string | null>(null)
 
@@ -221,20 +224,36 @@ export function ProposalModal({ open, onOpenChange, agent, onProposalCountChange
 
   const fetchProposals = useCallback(async () => {
     setLoading(true)
+    setFetchError(null)
     try {
-      const data = await cloudRunService.getAgentProposals(agent.id)
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), FETCH_TIMEOUT_MS)
+      )
+      const data = await Promise.race([
+        cloudRunService.getAgentProposals(agent.id),
+        timeout,
+      ])
       setProposals(data)
       notifyCount(data)
-    } catch {
-      toast.error('Failed to load proposals')
+    } catch (err) {
+      const isTimeout = err instanceof Error && err.message === 'timeout'
+      setFetchError(
+        isTimeout
+          ? 'Backend is cold-starting — please try again in a moment'
+          : 'Could not reach the server. Check your connection and try again.'
+      )
     } finally {
       setLoading(false)
     }
   }, [agent.id, notifyCount])
 
   useEffect(() => {
-    if (open) fetchProposals()
-    else setProposals([])
+    if (open) {
+      fetchProposals()
+    } else {
+      setProposals([])
+      setFetchError(null)
+    }
   }, [open, fetchProposals])
 
   const handleGenerate = async () => {
@@ -311,6 +330,21 @@ export function ProposalModal({ open, onOpenChange, agent, onProposalCountChange
             <div className="flex flex-col items-center justify-center py-16 gap-3">
               <SpinnerGap size={32} className="animate-spin text-primary" />
               <p className="text-sm text-muted-foreground">Loading proposals...</p>
+              <p className="text-[10px] text-muted-foreground/50">Timeout in {FETCH_TIMEOUT_MS / 1000}s</p>
+            </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-destructive/10 border border-destructive/30 flex items-center justify-center">
+                <Warning size={28} className="text-destructive/70" weight="duotone" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm mb-1 text-destructive/80">Connection failed</p>
+                <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">{fetchError}</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={fetchProposals} className="gap-1.5">
+                <ArrowClockwise size={13} weight="bold" />
+                Try Again
+              </Button>
             </div>
           ) : proposals.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
