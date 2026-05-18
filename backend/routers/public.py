@@ -11,6 +11,7 @@ driving engagement and conversion to wallet-connected state.
 """
 
 import logging
+import re
 import time
 from datetime import datetime, timedelta
 
@@ -85,6 +86,11 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
                 agent_cache[agent_data["agent_id"]] = agent_data.get("agent_name", "Anonymous")
                 agent_niche_cache[agent_data["agent_id"]] = agent_data.get("niche", "General")
         
+        def _extract_name_from_summary(summary: str) -> str | None:
+            """Parse agent name from legacy wisdom summaries: "Agent 'Name' attended ..." """
+            m = re.search(r"Agent '([^']+)' attended", summary)
+            return m.group(1) if m else None
+
         # Calculate wisdom quality score (based on summary length + keyword presence)
         def score_wisdom_quality(summary: str) -> float:
             """Simple heuristic: longer + key phrases = higher quality."""
@@ -116,7 +122,12 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
             item = FeaturedWisdomItem(
                 event_title=event.get("event_title", "Event"),
                 wisdom_summary=event.get("wisdom_summary", ""),
-                agent_name=agent_cache.get(agent_id) or event.get("agent_name") or "Anonymous Agent",
+                agent_name=(
+                    agent_cache.get(agent_id)
+                    or event.get("agent_name")
+                    or _extract_name_from_summary(event.get("wisdom_summary", ""))
+                    or "Anonymous Agent"
+                ),
                 agent_id=agent_id,
                 niche=agent_niche_cache.get(agent_id) or event.get("niche") or "General",
                 platform=event.get("platform", "YouTube"),

@@ -73,7 +73,7 @@ export function ArchitectureFlow({ currentPhase = 0 }: ArchitectureFlowProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-lg font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+          <h2 className="text-sm font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
             How It Works
           </h2>
           <p className="text-xs text-muted-foreground">
@@ -152,10 +152,10 @@ export function ArchitectureFlow({ currentPhase = 0 }: ArchitectureFlowProps) {
       </div>
 
       {/* Live Pipeline Visualization */}
-      <Card className="glass-card-hover p-8 border-2 border-primary/20">
-        <h3 className="text-xl font-bold mb-6 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-            <Robot className="text-primary" weight="duotone" size={22} />
+      <Card className="glass-card-hover p-4 border border-primary/20">
+        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+            <Robot className="text-primary" weight="duotone" size={15} />
           </div>
           <span>Live Pipeline</span>
         </h3>
@@ -183,16 +183,16 @@ function PipelineStage({ title, subtitle, active }: { title: string; subtitle: s
       animate={active ? { scale: [1, 1.05, 1] } : {}}
       transition={{ duration: 2, repeat: Infinity }}
     >
-      <div className={`w-16 h-16 rounded-xl flex items-center justify-center border-2 transition-all ${
-        active 
-          ? 'bg-gradient-to-br from-primary/30 to-secondary/30 border-primary/60 shadow-lg shadow-primary/30' 
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-all ${
+        active
+          ? 'bg-gradient-to-br from-primary/30 to-secondary/30 border-primary/60 shadow-md shadow-primary/20'
           : 'bg-card/30 border-border'
       }`}>
-        <div className={`w-3 h-3 rounded-full ${active ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
+        <div className={`w-2 h-2 rounded-full ${active ? 'bg-primary animate-pulse' : 'bg-muted-foreground'}`} />
       </div>
       <div className="text-center">
-        <p className="text-xs font-semibold">{title}</p>
-        <p className="text-xs text-muted-foreground">{subtitle}</p>
+        <p className="text-[11px] font-semibold">{title}</p>
+        <p className="text-[10px] text-muted-foreground">{subtitle}</p>
       </div>
     </motion.div>
   )

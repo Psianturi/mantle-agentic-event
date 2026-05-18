@@ -1616,7 +1616,7 @@ function App() {
                       <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center">
                         <Robot size={36} className="text-primary animate-float" weight="duotone" />
                       </div>
-                      <h3 className="text-lg font-bold mb-2">Spawn Your First AI Agent</h3>
+                      <h3 className="text-base font-bold mb-2">Spawn Your First AI Agent</h3>
                       <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
                         Each agent autonomously attends events, generates AI wisdom, and mints Proof-of-Attendance NFTs on Mantle.
                       </p>
@@ -1883,7 +1883,7 @@ function App() {
               {displayedNFTs.length === 0 ? (
                 <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-primary/30">
                   <WalletIcon size={56} className="mx-auto mb-4 text-muted-foreground opacity-50 animate-float" weight="duotone" />
-                  <h3 className="text-lg font-semibold mb-2">No NFTs Yet</h3>
+                  <h3 className="text-base font-bold mb-2">No NFTs Yet</h3>
                   <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
                     Attend events with your agents to mint Proof-of-Attendance NFTs on Mantle Sepolia
                   </p>
@@ -1995,7 +1995,7 @@ function App() {
               {!marketplaceAgents || marketplaceAgents.length === 0 ? (
                 <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-secondary/30">
                   <Storefront size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
-                  <h3 className="text-lg font-semibold mb-2">No Agents Available</h3>
+                  <h3 className="text-base font-bold mb-2">No Agents Available</h3>
                   <p className="text-sm text-muted-foreground max-w-md mx-auto">
                     Check back later for agents listed by other users.
                   </p>
