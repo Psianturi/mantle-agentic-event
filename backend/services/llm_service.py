@@ -545,6 +545,109 @@ async def generate_lineage_biography(
         return _fallback()
 
 
+_PROPOSAL_CATEGORIES = ["defi", "governance", "education", "community"]
+
+_PROPOSAL_FALLBACKS = [
+    {
+        "title": "Deploy Capital in Yield Optimization Protocol",
+        "description": "Based on your recent DeFi event attendance, consider allocating a portion of your gas reserve into a yield-bearing vault on Mantle. This would generate passive returns while maintaining liquidity for autonomous operations.",
+        "category": "defi",
+    },
+    {
+        "title": "Propose Cross-Agent Knowledge Sharing Summit",
+        "description": "Your wisdom heritage suggests strong cross-domain intelligence. Initiating a structured knowledge exchange with agents from different niches could unlock new scoring opportunities and expand your event discovery network.",
+        "category": "governance",
+    },
+]
+
+
+async def generate_agent_proposal(
+    agent_name: str,
+    niche: str,
+    level: int,
+    generation: int,
+    genetic_traits: list[str],
+    event_summaries: list[str],
+) -> dict:
+    """
+    Gemini generates a strategic proposal for the agent based on its history.
+    Returns: { title, description, category }
+    Falls back to deterministic proposals if LLM is unavailable.
+    """
+    import hashlib
+    fallback_idx = int(hashlib.md5(f"{agent_name}{niche}".encode()).hexdigest(), 16) % len(_PROPOSAL_FALLBACKS)
+
+    try:
+        api_key = get_llm_api_key()
+    except RuntimeError:
+        return _PROPOSAL_FALLBACKS[fallback_idx]
+
+    traits_text = ", ".join(genetic_traits) if genetic_traits else "none"
+    events_text = "\n".join(f"  - {s}" for s in event_summaries) if event_summaries else "  - (no events attended yet)"
+
+    prompt = f"""You are a strategic advisor for an autonomous AI agent on the Mantle blockchain.
+
+Agent Profile:
+  Name: {agent_name}
+  Niche: {niche}
+  Level: {level}
+  Generation: {generation}
+  Genetic Traits: {traits_text}
+
+Recent Wisdom (events attended):
+{events_text}
+
+Generate ONE strategic proposal this agent should present to its human owner for approval.
+The proposal must be actionable, specific to the agent's niche, and executable within 7 days.
+
+Respond ONLY with valid JSON in this exact format:
+{{
+  "title": "Short action-oriented title (max 60 chars)",
+  "description": "2-3 sentence description of the proposal and its expected impact on the agent's growth and heritage score.",
+  "category": "defi" | "governance" | "education" | "community"
+}}"""
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 300,
+            "topP": 0.9,
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }
+
+    try:
+        data = await _call_gemini_with_retry(
+            api_key, payload, timeout=20.0, context=f"proposal ({agent_name})"
+        )
+        parts = data["candidates"][0]["content"]["parts"]
+        raw = next(
+            (p["text"].strip() for p in reversed(parts) if p.get("text", "").strip()),
+            "",
+        )
+        # Strip markdown code fences if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+            raw = raw.strip()
+
+        import json as _json
+        parsed = _json.loads(raw)
+        category = parsed.get("category", "education")
+        if category not in _PROPOSAL_CATEGORIES:
+            category = "education"
+        return {
+            "title": str(parsed.get("title", "Strategic Proposal"))[:80],
+            "description": str(parsed.get("description", "")),
+            "category": category,
+        }
+    except Exception as exc:
+        logger.warning("Proposal generation failed (%s), using fallback", exc.__class__.__name__)
+        return _PROPOSAL_FALLBACKS[fallback_idx]
+
+
 async def summarize_event(
     event_title: str,
     event_url: str,

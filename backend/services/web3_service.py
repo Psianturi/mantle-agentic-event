@@ -102,6 +102,27 @@ MAEF_ABI: list[dict] = [
         "stateMutability": "payable",
         "type": "function",
     },
+    {
+        "inputs": [
+            {"internalType": "address", "name": "agentWallet", "type": "address"},
+            {"internalType": "bytes32", "name": "proposalHash", "type": "bytes32"},
+        ],
+        "name": "recordExecutedProposal",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function",
+    },
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True,  "internalType": "address", "name": "agentWallet",           "type": "address"},
+            {"indexed": True,  "internalType": "bytes32", "name": "proposalHash",           "type": "bytes32"},
+            {"indexed": False, "internalType": "uint256", "name": "proposalsApprovedTotal", "type": "uint256"},
+            {"indexed": False, "internalType": "uint256", "name": "heritageScoreAfter",     "type": "uint256"},
+        ],
+        "name": "ProposalExecuted",
+        "type": "event",
+    },
 ]
 
 
@@ -399,6 +420,93 @@ class Web3Service:
             "status": status,
             "block_number": receipt["blockNumber"],
             "gas_used": str(receipt["gasUsed"]),
+        }
+
+    async def send_record_executed_proposal_tx(
+        self,
+        agent_wallet: str,
+        proposal_hash_hex: str,
+    ) -> dict[str, Any]:
+        """
+        Call recordExecutedProposal(agentWallet, proposalHash) on V4.
+        Signed by MINTER_SERVICE (onlyRole(MINTER_ROLE)).
+        proposal_hash_hex: 0x-prefixed hex string from Web3.keccak(text=...).
+        Returns tx_hash, status, heritageScoreAfter from ProposalExecuted event.
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self._sync_record_executed_proposal,
+            agent_wallet,
+            proposal_hash_hex,
+        )
+
+    def _sync_record_executed_proposal(
+        self, agent_wallet: str, proposal_hash_hex: str
+    ) -> dict[str, Any]:
+        w3 = self._init_w3()
+        contract = self._init_contract()
+
+        private_key = get_minter_service_private_key()
+        signer = Account.from_key(private_key)
+
+        agent_wallet_cs = Web3.to_checksum_address(agent_wallet)
+        # Convert 0x hex string → raw bytes32 for the ABI encoder
+        proposal_hash_bytes = bytes.fromhex(proposal_hash_hex.removeprefix("0x"))
+
+        fn_call = contract.functions.recordExecutedProposal(
+            agent_wallet_cs, proposal_hash_bytes
+        )
+
+        nonce = w3.eth.get_transaction_count(signer.address, "pending")
+        gas_price = w3.eth.gas_price
+
+        try:
+            gas_estimate = fn_call.estimate_gas({"from": signer.address})
+            gas_limit = int(gas_estimate * 1.2)
+        except Exception as exc:
+            logger.warning("recordExecutedProposal gas estimation failed, using 80_000: %s", exc)
+            gas_limit = 80_000
+
+        raw_tx = fn_call.build_transaction(
+            {
+                "chainId": settings.chain_id,
+                "from": signer.address,
+                "nonce": nonce,
+                "gas": gas_limit,
+                "gasPrice": gas_price,
+            }
+        )
+
+        signed = w3.eth.account.sign_transaction(raw_tx, private_key=private_key)
+        tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
+
+        status = "success" if receipt["status"] == 1 else "failed"
+
+        # Parse ProposalExecuted event for heritageScoreAfter
+        heritage_score_after: int | None = None
+        proposals_approved_total: int | None = None
+        try:
+            logs = contract.events.ProposalExecuted().process_receipt(receipt)
+            if logs:
+                heritage_score_after = int(logs[0]["args"]["heritageScoreAfter"])
+                proposals_approved_total = int(logs[0]["args"]["proposalsApprovedTotal"])
+        except Exception as exc:
+            logger.warning("ProposalExecuted event parse failed: %s", exc)
+
+        logger.info(
+            "recordExecutedProposal(%s) → %s | heritage=%s proposals=%s (tx: %s)",
+            agent_wallet[:10], status, heritage_score_after,
+            proposals_approved_total, tx_hash.hex(),
+        )
+        return {
+            "tx_hash": tx_hash.hex(),
+            "status": status,
+            "block_number": receipt["blockNumber"],
+            "gas_used": str(receipt["gasUsed"]),
+            "heritage_score_after": heritage_score_after,
+            "proposals_approved_total": proposals_approved_total,
         }
 
     async def verify_breed_tx(
