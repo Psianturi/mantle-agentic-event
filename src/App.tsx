@@ -41,7 +41,7 @@ import { AgentBreedingDialog } from '@/components/AgentBreedingDialog'
 import { FusionCooldownTimer } from '@/components/FusionCooldownTimer'
 import { BreedingCooldownBoost } from '@/components/BreedingCooldownBoost'
 import { ProactiveScoutingPanel } from '@/components/ProactiveScoutingPanel'
-import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper } from '@phosphor-icons/react'
+import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, LockKey } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
@@ -169,12 +169,23 @@ function App() {
   }, [mainView])
 
   // Auto-reconnect on page load if MetaMask is already unlocked and site is authorized.
-  // Uses eth_accounts (no prompt) — security enforced by MetaMask itself: locked wallet returns [].
+  // TTL: session expires after 24h — user must manually reconnect after that.
+  const WALLET_SESSION_KEY = 'maef-wallet-session-at'
+  const WALLET_SESSION_TTL = 24 * 60 * 60 * 1000 // 24 hours
+
   useEffect(() => {
     if (typeof window === 'undefined' || !window.ethereum) return
     const eth = window.ethereum as { request: (a: { method: string }) => Promise<string[]> }
     eth.request({ method: 'eth_accounts' })
-      .then((accounts) => { if (accounts.length > 0) handleWalletConnect('') })
+      .then((accounts) => {
+        if (accounts.length === 0) return
+        const savedAt = parseInt(localStorage.getItem(WALLET_SESSION_KEY) || '0')
+        if (Date.now() - savedAt < WALLET_SESSION_TTL) {
+          handleWalletConnect('')
+        } else {
+          localStorage.removeItem(WALLET_SESSION_KEY)
+        }
+      })
       .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -353,6 +364,7 @@ function App() {
       const connectedAddress = await blockchain.connectWallet()
       setWalletConnected(true)
       setWalletAddress(connectedAddress)
+      localStorage.setItem(WALLET_SESSION_KEY, Date.now().toString())
       // Clear any previous wallet's data before loading new wallet's data
       setAgents([])
       setEvents([])
@@ -468,6 +480,7 @@ function App() {
 
   const handleWalletDisconnect = () => {
     blockchain.disconnectWallet()
+    localStorage.removeItem(WALLET_SESSION_KEY)
     setWalletConnected(false)
     setWalletAddress(undefined)
     setAgents([])
@@ -1864,7 +1877,7 @@ function App() {
                 const pagedNFTs = displayedNFTs.slice(effectivePage * NFT_PAGE_SIZE, (effectivePage + 1) * NFT_PAGE_SIZE)
                 return (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                       {pagedNFTs.map((nft, idx) => (
                         <motion.div
                           key={nft.id}
@@ -1963,21 +1976,80 @@ function App() {
                   </p>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredAndSortedMarketplace().map((agent, idx) => (
-                    <motion.div
-                      key={agent.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.1 }}
-                    >
-                      <MarketplaceAgentCard 
-                        agent={agent} 
-                        onBuy={handleBuyAgent}
-                        isPurchasing={purchasingAgentId === agent.id}
+                <div className="relative">
+                  {/* Marketplace card grid — blurred behind overlay */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 blur-sm pointer-events-none select-none opacity-40">
+                    {filteredAndSortedMarketplace().map((agent, idx) => (
+                      <motion.div
+                        key={agent.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                      >
+                        <MarketplaceAgentCard 
+                          agent={agent} 
+                          onBuy={handleBuyAgent}
+                          isPurchasing={purchasingAgentId === agent.id}
+                        />
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Coming Soon overlay */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                    className="absolute inset-0 flex flex-col items-center justify-center z-10"
+                  >
+                    <div className="relative flex flex-col items-center gap-4 px-8 py-8 rounded-2xl border border-primary/30 bg-background/80 backdrop-blur-md shadow-2xl shadow-primary/20 max-w-sm mx-auto text-center">
+                      {/* Pulsing outer glow ring */}
+                      <motion.div
+                        animate={{ scale: [1, 1.12, 1], opacity: [0.4, 0.15, 0.4] }}
+                        transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
+                        className="absolute inset-0 rounded-2xl border border-primary/50 bg-gradient-to-br from-primary/10 to-accent/10"
                       />
-                    </motion.div>
-                  ))}
+
+                      {/* Lock icon with pulse */}
+                      <motion.div
+                        animate={{ y: [0, -4, 0] }}
+                        transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+                        className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/40 flex items-center justify-center"
+                      >
+                        <LockKey size={28} weight="duotone" className="text-primary" />
+                      </motion.div>
+
+                      {/* "Coming Soon" text */}
+                      <div>
+                        <motion.p
+                          animate={{ opacity: [0.7, 1, 0.7] }}
+                          transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
+                          className="text-xs font-mono text-muted-foreground tracking-[0.3em] uppercase mb-1"
+                        >
+                          On-chain P2P Marketplace
+                        </motion.p>
+                        <h3 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(0,243,255,0.5)]">
+                          Coming Soon
+                        </h3>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground/80 leading-relaxed relative z-10">
+                        Decentralized agent trading — launching after mainnet deployment
+                      </p>
+
+                      {/* Animated dot row */}
+                      <div className="flex items-center gap-2 relative z-10">
+                        {[0, 0.3, 0.6].map((delay, i) => (
+                          <motion.div
+                            key={i}
+                            animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+                            transition={{ repeat: Infinity, duration: 1.2, delay, ease: 'easeInOut' }}
+                            className="w-2 h-2 rounded-full bg-primary"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
                 </div>
               )}
             </motion.div>

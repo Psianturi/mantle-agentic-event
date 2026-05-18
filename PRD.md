@@ -22,9 +22,9 @@ Each agent operates with its own cryptographic identity, independent financial r
 
 ## 🏗️ Core Architecture & System Features
 
-### 1. Agent Factory & On-Chain Provisioning (V2 Contract)
-* **Functional Specification:** Spawns Parent Agents utilizing the optimized `MAEFNFTERC721A` contract standard, anchoring decentralized identity directly to a deterministically generated Ethereum key pair.
-* **Web3 Economic Loop:** * User calls `spawnAgent(name, niche)` via MetaMask, depositing **1 MNT** to the V2 Smart Contract (`0x110edEa5DB874589ec4492d15660082634E173f0`).
+### 1. Agent Factory & On-Chain Provisioning (V4 Contract)
+* **Functional Specification:** Spawns Parent Agents utilizing the optimized `MAEFNFTV4` contract standard (ERC-721A), anchoring decentralized identity directly to a deterministically generated Ethereum key pair.
+* **Web3 Economic Loop:** * User calls `spawnAgent(name, niche)` via MetaMask, depositing **1 MNT** to the V4 Smart Contract (`0x66fD8b5411856D42c08D9356e879a6e7dF0c9419`).
   * The contract stores agent registration records via `isAgentSpawned` mapping and automatically provisions **0.5 MNT** directly to the newly generated agent wallet to establish its independent operability gas reserves.
 * **Data Layer:** Encrypts the raw private key using Google Cloud KMS and writes the record to the Firestore `agents` collection under the `private_key_enc` field.
 * **Success Criteria:** The agent displays globally across any device on wallet connection, displaying an independent public address, a `level = 1` base tier, and all 4 parallel sub-agent states initialized to `IDLE`.
@@ -37,7 +37,7 @@ Each agent operates with its own cryptographic identity, independent financial r
   * **Mint-Master Module:** Prepares the dynamic NFT metadata payload containing the immutable wisdom excerpt.
 * **Signing Modes Logic:**
   * **Mode B (Autonomous Core):** Retrieves the agent's ciphertext from Firestore, decrypts it in-memory via GCP KMS, signs the minting payload directly with the agent's key, and broadcasts the transaction.
-  * **Mode A (Administrative Fallback):** If the agent wallet lacks gas or is not registered via `spawnAgent()` on the active V2 contract, the system gracefully shifts execution to the backend Minter Service account (`MINTER_SERVICE_PRIVATE_KEY`) to prevent execution blocks, while delivering the asset to the agent's destination.
+  * **Mode A (Administrative Fallback):** If the agent wallet lacks gas or is not registered via `spawnAgent()` on the active V4 contract, the system gracefully shifts execution to the backend Minter Service account (`MINTER_SERVICE_PRIVATE_KEY`) to prevent execution blocks, while delivering the asset to the agent's destination.
 
 
 ```
@@ -56,7 +56,7 @@ Each agent operates with its own cryptographic identity, independent financial r
                     ∕               \
    [Decrypt Agent Key via KMS]    [Load Minter Service Key]
                     \               ∕
-             [Broadcast Mint to Mantle V2 Contract]
+             [Broadcast Mint to Mantle V4 Contract]
 
 ```
 

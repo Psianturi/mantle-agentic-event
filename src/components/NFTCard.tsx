@@ -28,7 +28,7 @@ export function NFTCard({ nft, onClick }: NFTCardProps) {
       className="cursor-pointer"
     >
       <Card className="glass-card-hover overflow-hidden group border-2">
-        <div className="aspect-square bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20 relative overflow-hidden">
+        <div className="h-32 bg-gradient-to-br from-primary/20 via-secondary/20 to-accent/20 relative overflow-hidden">
           {nft.imageUrl ? (
             <div className="relative w-full h-full">
               <img
@@ -42,7 +42,7 @@ export function NFTCard({ nft, onClick }: NFTCardProps) {
           ) : (
             <div className="w-full h-full flex items-center justify-center relative">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,243,255,0.1),transparent_70%)]" />
-              <Cube size={64} className="text-primary/60 animate-float" weight="duotone" />
+              <Cube size={40} className="text-primary/60 animate-float" weight="duotone" />
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-background/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -62,30 +62,30 @@ export function NFTCard({ nft, onClick }: NFTCardProps) {
           </div>
         </div>
 
-        <div className="p-5 space-y-3">
+        <div className="p-3 space-y-2">
           <div>
-            <h3 className="font-bold text-sm line-clamp-2 mb-2 group-hover:text-primary transition-colors">{nft.eventTitle}</h3>
-            <p className="text-xs text-muted-foreground line-clamp-3 leading-relaxed">{nft.summary}</p>
+            <h3 className="font-bold text-xs line-clamp-1 mb-1 group-hover:text-primary transition-colors">{nft.eventTitle}</h3>
+            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{nft.summary}</p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
-            <Calendar size={14} className="text-primary" weight="duotone" />
-            <span className="font-mono">{new Date(nft.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Calendar size={12} className="text-primary" weight="duotone" />
+            <span className="font-mono text-[10px]">{new Date(nft.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
           </div>
 
           <Button
             onClick={handleExplorerClick}
             variant="outline"
             size="sm"
-            className="w-full group/btn border-primary/30 hover:border-primary hover:bg-primary/10 transition-all duration-300"
+            className="w-full group/btn border-primary/30 hover:border-primary hover:bg-primary/10 transition-all duration-300 h-7 text-[10px]"
           >
-            <LinkIcon className="mr-2 group-hover/btn:animate-pulse" size={14} weight="duotone" />
-            <span className="font-semibold text-xs">View on Mantle Explorer</span>
+            <LinkIcon className="mr-1.5 group-hover/btn:animate-pulse" size={11} weight="duotone" />
+            <span className="font-semibold">View on Explorer</span>
           </Button>
 
-          <div className="pt-3 border-t border-border/30">
-            <p className="text-[10px] text-muted-foreground/80 font-mono truncate">
-              TX: {nft.transactionHash.slice(0, 12)}...{nft.transactionHash.slice(-10)}
+          <div className="pt-1 border-t border-border/30">
+            <p className="text-[9px] text-muted-foreground/70 font-mono truncate">
+              TX: {nft.transactionHash.slice(0, 10)}...{nft.transactionHash.slice(-8)}
             </p>
           </div>
         </div>
