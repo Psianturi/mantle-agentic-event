@@ -41,6 +41,7 @@ import { AgentBreedingDialog } from '@/components/AgentBreedingDialog'
 import { FusionCooldownTimer } from '@/components/FusionCooldownTimer'
 import { BreedingCooldownBoost } from '@/components/BreedingCooldownBoost'
 import { ProactiveScoutingPanel } from '@/components/ProactiveScoutingPanel'
+import { ProposalModal } from '@/components/ProposalModal'
 import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, LockKey } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -289,6 +290,8 @@ function App() {
   const [marketplaceAgents, setMarketplaceAgents] = useLocalStorage<MarketplaceAgent[]>('maef-marketplace', getMockMarketplaceAgents())
   const [purchasingAgentId, setPurchasingAgentId] = useState<string | null>(null)
   const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
+  const [proposalModalAgent, setProposalModalAgent] = useState<Agent | null>(null)
+  const [proposalCounts, setProposalCounts] = useState<Record<string, number>>({})
   const [platformMetrics, setPlatformMetrics] = useState<{ total_agents: number; total_wisdom_nfts: number; total_events_attended: number; average_agent_level: number } | null>(null)
   useEffect(() => {
     cloudRunService.getPublicMetrics()
@@ -1618,13 +1621,15 @@ function App() {
                         transition={{ delay: idx * 0.1 }}
                       >
                         <div className="space-y-3">
-                          <AgentCard 
-                            agent={agent} 
-                            onClick={() => agent.wisdomUnlocked && handleOpenWisdomReport(agent)} 
-                            onConfigure={handleConfigureAgent} 
-                            onChat={handleChatWithAgent} 
+                          <AgentCard
+                            agent={agent}
+                            onClick={() => agent.wisdomUnlocked && handleOpenWisdomReport(agent)}
+                            onConfigure={handleConfigureAgent}
+                            onChat={handleChatWithAgent}
                             onViewEvolution={handleViewEvolution}
                             onToggleAutoReplenish={handleToggleAutoReplenish}
+                            pendingProposalCount={proposalCounts[agent.id] ?? 0}
+                            onOpenProposals={(a) => setProposalModalAgent(a)}
                           />
                           {agent.wisdomUnlocked && (
                             <Button
@@ -1683,7 +1688,7 @@ function App() {
                         (Date.now() - agent.lastBreedingTime) < (agent.breedingCooldownHours * 60 * 60 * 1000)
                       return (
                         <motion.div key={agent.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.08 }} className="space-y-2">
-                          <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} onToggleAutoReplenish={handleToggleAutoReplenish} />
+                          <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} onToggleAutoReplenish={handleToggleAutoReplenish} pendingProposalCount={proposalCounts[agent.id] ?? 0} onOpenProposals={(a) => setProposalModalAgent(a)} />
                           {isOnCooldown && (
                             <div className="space-y-2">
                               <FusionCooldownTimer agent={agent} />
@@ -2123,6 +2128,17 @@ function App() {
           agent={selectedAgentForTopUp}
           userBalance={userBalance ?? 0}
           onTopUp={handleTopUpAgentGas}
+        />
+      )}
+
+      {proposalModalAgent && (
+        <ProposalModal
+          open={!!proposalModalAgent}
+          onOpenChange={(open) => { if (!open) setProposalModalAgent(null) }}
+          agent={proposalModalAgent}
+          onProposalCountChange={(agentId, count) =>
+            setProposalCounts(prev => ({ ...prev, [agentId]: count }))
+          }
         />
       )}
 

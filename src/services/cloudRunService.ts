@@ -1,4 +1,4 @@
-import { Agent, Event, Niche, Personality, SubAgentType } from '@/lib/types'
+import { Agent, BackendProposal, Event, Niche, Personality, SubAgentType } from '@/lib/types'
 import { config as appConfig } from '@/lib/config'
 
 const GCP_BACKEND_URL =
@@ -904,5 +904,39 @@ export const cloudRunService = {
       console.warn('[cloudRunService] getPublicFeaturedWisdom failed:', error)
       return []
     }
+  },
+
+  // ── HITL Proposals ──────────────────────────────────────────────────────────
+
+  async generateProposal(agentId: string): Promise<BackendProposal> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/propose`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    )
+    return handleAPIResponse<BackendProposal>(response)
+  },
+
+  async getAgentProposals(agentId: string): Promise<BackendProposal[]> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/proposals`,
+      { method: 'GET' },
+    )
+    return handleAPIResponse<BackendProposal[]>(response)
+  },
+
+  async approveProposal(proposalId: string): Promise<BackendProposal> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/proposals/${encodeURIComponent(proposalId)}/approve`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    )
+    return handleAPIResponse<BackendProposal>(response)
+  },
+
+  async rejectProposal(proposalId: string): Promise<BackendProposal> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/proposals/${encodeURIComponent(proposalId)}/reject`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    )
+    return handleAPIResponse<BackendProposal>(response)
   },
 }

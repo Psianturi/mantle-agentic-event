@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature, Dna } from '@phosphor-icons/react'
+import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature, Dna, Lightbulb } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
 
@@ -18,6 +18,8 @@ interface AgentCardProps {
   onTopUpGas?: (agent: Agent) => void
   onListMarketplace?: (agent: Agent) => void
   onToggleAutoReplenish?: (agent: Agent, enabled: boolean) => void
+  pendingProposalCount?: number
+  onOpenProposals?: (agent: Agent) => void
 }
 
 const statusColors = {
@@ -47,7 +49,7 @@ const subAgentLabels = {
   'mint-master': 'Mint-Master'
 }
 
-export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace, onToggleAutoReplenish }: AgentCardProps) {
+export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace, onToggleAutoReplenish, pendingProposalCount, onOpenProposals }: AgentCardProps) {
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
@@ -140,9 +142,25 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                 </p>
               </div>
             </div>
-            <Badge className={cn('text-xs font-mono', statusColors[agent.status])}>
-              {agent.status.toUpperCase()}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {(pendingProposalCount ?? 0) > 0 && (
+                <motion.div
+                  animate={{ scale: [1, 1.08, 1] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <Badge
+                    className="bg-amber-500/20 text-amber-400 border-amber-500/40 text-[10px] font-bold px-1.5 py-0 cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); onOpenProposals?.(agent) }}
+                  >
+                    <Lightbulb size={9} weight="fill" className="mr-0.5" />
+                    {pendingProposalCount}
+                  </Badge>
+                </motion.div>
+              )}
+              <Badge className={cn('text-xs font-mono', statusColors[agent.status])}>
+                {agent.status.toUpperCase()}
+              </Badge>
+            </div>
           </div>
 
           {agent.ownershipStatus && (
@@ -455,6 +473,30 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
           </div>
 
           <div className="space-y-2">
+            {onOpenProposals && (
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  startTransition(() => onOpenProposals(agent))
+                }}
+                variant="outline"
+                size="sm"
+                className={cn(
+                  'w-full transition-all font-semibold',
+                  (pendingProposalCount ?? 0) > 0
+                    ? 'border-amber-500/50 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/70 animate-glow-pulse-gold'
+                    : 'border-amber-500/20 text-amber-400/70 hover:bg-amber-500/10 hover:border-amber-500/40'
+                )}
+              >
+                <Lightbulb className="mr-1.5" weight="duotone" size={16} />
+                Strategic Consult
+                {(pendingProposalCount ?? 0) > 0 && (
+                  <Badge className="ml-auto bg-amber-500/30 text-amber-400 border-0 text-[10px] px-1.5 py-0">
+                    {pendingProposalCount}
+                  </Badge>
+                )}
+              </Button>
+            )}
             {onViewEvolution && (
               <Button
                 onClick={(e) => {

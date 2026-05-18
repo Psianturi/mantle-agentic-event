@@ -88,6 +88,22 @@ export interface EvolutionLevel {
   features: string[]
 }
 
+export interface BackendProposal {
+  proposal_id: string
+  agent_id: string
+  agent_wallet: string
+  title: string
+  description: string
+  category: 'defi' | 'governance' | 'education' | 'community'
+  proposal_hash: string
+  status: 'pending' | 'approved' | 'rejected' | 'expired'
+  created_at: number
+  expires_at: number
+  tx_hash?: string
+  heritage_score_after?: number
+  proposals_approved_total?: number
+}
+
 export interface AgentProposal {
   id: string
   agentId: string
