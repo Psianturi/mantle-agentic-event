@@ -1309,3 +1309,76 @@ async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> 
             "new_level": attend_result.new_level,
         },
     }
+
+
+# ── Delete Agent ──────────────────────────────────────────────────────────────
+
+EVENTS_COLLECTION = "agent_events"
+PROPOSALS_COLLECTION = "proposals"
+
+
+@router.delete("/{agent_id}", status_code=200)
+async def delete_agent(
+    agent_id: str,
+    wallet: str = Query(..., description="Owner wallet address — must match agent's user_wallet"),
+) -> dict:
+    """
+    Soft-delete an agent from Firestore.
+    Validates that the requesting wallet owns the agent before deleting.
+    Also cleans up associated events and proposals.
+    """
+    if not Web3.is_address(wallet):
+        raise HTTPException(status_code=400, detail="Invalid wallet address")
+    wallet = Web3.to_checksum_address(wallet)
+
+    db = get_db()
+
+    try:
+        doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    data = doc.to_dict() or {}
+    owner = data.get("user_wallet", "")
+    if owner.lower() != wallet.lower():
+        raise HTTPException(status_code=403, detail="Wallet does not own this agent")
+
+    # Delete agent doc
+    try:
+        await doc.reference.delete()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Failed to delete agent") from exc
+
+    # Best-effort cleanup of events and proposals (non-blocking)
+    deleted_events = 0
+    deleted_proposals = 0
+    try:
+        async for ev_doc in (
+            db.collection(EVENTS_COLLECTION)
+            .where(filter=FieldFilter("agent_id", "==", agent_id))
+            .stream()
+        ):
+            await ev_doc.reference.delete()
+            deleted_events += 1
+    except Exception as exc:
+        logger.warning("Could not clean up events for agent %s: %s", agent_id, exc)
+
+    try:
+        async for pr_doc in (
+            db.collection(PROPOSALS_COLLECTION)
+            .where(filter=FieldFilter("agent_id", "==", agent_id))
+            .stream()
+        ):
+            await pr_doc.reference.delete()
+            deleted_proposals += 1
+    except Exception as exc:
+        logger.warning("Could not clean up proposals for agent %s: %s", agent_id, exc)
+
+    logger.info(
+        "Agent %s deleted by wallet %s (events=%d proposals=%d)",
+        agent_id, wallet[:10], deleted_events, deleted_proposals,
+    )
+    return {"status": "deleted", "agent_id": agent_id}

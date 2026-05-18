@@ -906,6 +906,16 @@ export const cloudRunService = {
     }
   },
 
+  // ── Agent Management ────────────────────────────────────────────────────────
+
+  async deleteAgent(agentId: string, walletAddress: string): Promise<void> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}?wallet=${encodeURIComponent(walletAddress)}`,
+      { method: 'DELETE' },
+    )
+    await handleAPIResponse<{ status: string }>(response)
+  },
+
   // ── HITL Proposals ──────────────────────────────────────────────────────────
 
   async generateProposal(agentId: string): Promise<BackendProposal> {

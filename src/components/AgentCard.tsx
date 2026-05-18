@@ -1,11 +1,11 @@
-import { startTransition } from 'react'
+import { startTransition, useState } from 'react'
 import { Agent } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature, Dna, Lightbulb } from '@phosphor-icons/react'
+import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature, Dna, Lightbulb, Trash, Warning } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
 
@@ -20,6 +20,7 @@ interface AgentCardProps {
   onToggleAutoReplenish?: (agent: Agent, enabled: boolean) => void
   pendingProposalCount?: number
   onOpenProposals?: (agent: Agent) => void
+  onDeleteAgent?: (agent: Agent) => void
 }
 
 const statusColors = {
@@ -49,7 +50,8 @@ const subAgentLabels = {
   'mint-master': 'Mint-Master'
 }
 
-export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace, onToggleAutoReplenish, pendingProposalCount, onOpenProposals }: AgentCardProps) {
+export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace, onToggleAutoReplenish, pendingProposalCount, onOpenProposals, onDeleteAgent }: AgentCardProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
@@ -555,6 +557,42 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                 </Button>
               )}
             </div>
+
+            {onDeleteAgent && (
+              confirmDelete ? (
+                <div className="flex gap-2 p-2.5 rounded-lg bg-destructive/10 border border-destructive/30">
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    <Warning size={13} className="text-destructive flex-shrink-0" weight="fill" />
+                    <span className="text-[10px] text-destructive font-semibold">Remove from dashboard?</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); onDeleteAgent(agent) }}
+                    className="h-6 px-2 text-[10px] bg-destructive hover:bg-destructive/80 text-white font-bold flex-shrink-0"
+                  >
+                    Delete
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => { e.stopPropagation(); setConfirmDelete(false) }}
+                    className="h-6 px-2 text-[10px] flex-shrink-0"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={(e) => { e.stopPropagation(); setConfirmDelete(true) }}
+                  variant="ghost"
+                  size="sm"
+                  className="w-full h-7 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-all text-[10px]"
+                >
+                  <Trash size={12} className="mr-1" weight="duotone" />
+                  Remove Agent
+                </Button>
+              )
+            )}
           </div>
         </div>
       </Card>

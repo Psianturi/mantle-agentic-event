@@ -42,7 +42,8 @@ import { FusionCooldownTimer } from '@/components/FusionCooldownTimer'
 import { BreedingCooldownBoost } from '@/components/BreedingCooldownBoost'
 import { ProactiveScoutingPanel } from '@/components/ProactiveScoutingPanel'
 import { ProposalModal } from '@/components/ProposalModal'
-import { Sparkle, Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, LockKey } from '@phosphor-icons/react'
+import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, LockKey } from '@phosphor-icons/react'
+import maefLogo from '@/assets/maef-logo.png'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
@@ -1156,6 +1157,21 @@ function App() {
     }
   }
 
+  const handleDeleteAgent = async (agent: Agent) => {
+    if (!walletAddress) {
+      toast.error('Wallet not connected')
+      return
+    }
+    try {
+      await cloudRunService.deleteAgent(agent.id, walletAddress)
+      setAgents(current => (current ?? []).filter(a => a.id !== agent.id))
+      toast.success(`${agent.name} removed`, { description: 'Agent deleted from dashboard' })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Delete failed'
+      toast.error('Failed to remove agent', { description: msg })
+    }
+  }
+
   const handleBreedComplete = (result: import('@/lib/types').BreedingResult, offspringName: string) => {
     const newAgent = result.offspring
     const parent1 = displayedAgents.find(a => a.id === (newAgent.parentIds?.[0]))
@@ -1278,16 +1294,12 @@ function App() {
             <div className="flex items-center gap-3">
               {/* Logo — left */}
               <div className="flex items-center gap-2.5 flex-shrink-0">
-                <div className="relative">
-                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary via-accent to-secondary flex items-center justify-center animate-glow-pulse shadow-lg shadow-primary/50">
-                    <Sparkle size={20} className="text-background" weight="fill" />
-                  </div>
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-primary to-secondary blur-xl opacity-50 -z-10" />
-                </div>
-                <div>
-                  <h1 className="text-lg font-bold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent leading-none">MAEF</h1>
-                  <p className="text-[10px] text-muted-foreground font-mono hidden sm:block leading-none mt-0.5">Mantle Agentic Event Factory</p>
-                </div>
+                <img
+                  src={maefLogo}
+                  alt="MAEF"
+                  className="h-9 w-auto object-contain drop-shadow-[0_0_8px_rgba(0,243,255,0.4)]"
+                />
+                <p className="text-[10px] text-muted-foreground font-mono hidden sm:block leading-none">Mantle Agentic Event Factory</p>
               </div>
 
               {/* Nav — center */}
@@ -1630,6 +1642,7 @@ function App() {
                             onToggleAutoReplenish={handleToggleAutoReplenish}
                             pendingProposalCount={proposalCounts[agent.id] ?? 0}
                             onOpenProposals={(a) => setProposalModalAgent(a)}
+                            onDeleteAgent={handleDeleteAgent}
                           />
                           {agent.wisdomUnlocked && (
                             <Button
@@ -1688,7 +1701,7 @@ function App() {
                         (Date.now() - agent.lastBreedingTime) < (agent.breedingCooldownHours * 60 * 60 * 1000)
                       return (
                         <motion.div key={agent.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.08 }} className="space-y-2">
-                          <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} onToggleAutoReplenish={handleToggleAutoReplenish} pendingProposalCount={proposalCounts[agent.id] ?? 0} onOpenProposals={(a) => setProposalModalAgent(a)} />
+                          <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} onToggleAutoReplenish={handleToggleAutoReplenish} pendingProposalCount={proposalCounts[agent.id] ?? 0} onOpenProposals={(a) => setProposalModalAgent(a)} onDeleteAgent={handleDeleteAgent} />
                           {isOnCooldown && (
                             <div className="space-y-2">
                               <FusionCooldownTimer agent={agent} />
