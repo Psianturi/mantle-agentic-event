@@ -470,16 +470,16 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="delegation" className="space-y-6">
+          <TabsContent value="delegation" className="space-y-4">
             <div className="relative">
-              <div className="flex items-center justify-center mb-6">
+              <div className="flex items-center justify-center mb-4">
                 <motion.div
                   className="relative"
                   animate={isAgentActive ? { scale: [1, 1.05, 1] } : {}}
                   transition={{ duration: 2, repeat: Infinity }}
                 >
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary via-accent to-secondary border-2 border-primary/60 flex items-center justify-center shadow-2xl shadow-primary/50">
-                    <Robot size={36} className="text-background" weight="fill" />
+                  <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary via-accent to-secondary border-2 border-primary/60 flex items-center justify-center shadow-xl shadow-primary/40">
+                    <Robot size={26} className="text-background" weight="fill" />
                   </div>
                   {isAgentActive && (
                     <motion.div
@@ -494,7 +494,7 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
                 </motion.div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 {(Object.keys(subAgentConfig) as SubAgentType[]).map((type, index) => {
                   const config = subAgentConfig[type]
                   const Icon = config.icon
@@ -512,7 +512,7 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
                       className="relative"
                     >
                       <svg
-                        className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-16 w-1 h-16 pointer-events-none"
+                        className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-12 w-1 h-12 pointer-events-none"
                         style={{ zIndex: 0 }}
                       >
                         <motion.line
@@ -541,28 +541,28 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
                       </svg>
 
                       <motion.div
-                        animate={isHighlighted ? { 
+                        animate={isHighlighted ? {
                           scale: [1, 1.05, 1],
                           boxShadow: [
                             '0 0 0px rgba(0, 243, 255, 0)',
-                            '0 0 20px rgba(0, 243, 255, 0.4)',
+                            '0 0 16px rgba(0, 243, 255, 0.4)',
                             '0 0 0px rgba(0, 243, 255, 0)'
                           ]
                         } : {}}
                         transition={{ duration: 1.5 }}
                         className={cn(
-                          "relative glass-card-hover border-2 p-4 rounded-xl group",
+                          "relative glass-card-hover border-2 p-3 rounded-xl group",
                           isHighlighted && "border-primary/60",
                           !isHighlighted && config.borderColor
                         )}
                       >
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-start gap-2">
                           <div className={cn(
-                            "w-10 h-10 rounded-lg border-2 flex items-center justify-center flex-shrink-0",
+                            "w-8 h-8 rounded-lg border-2 flex items-center justify-center flex-shrink-0",
                             config.bgColor,
                             config.borderColor
                           )}>
-                            <Icon className={config.textColor} weight="duotone" size={20} />
+                            <Icon className={config.textColor} weight="duotone" size={16} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between mb-1">

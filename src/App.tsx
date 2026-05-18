@@ -1296,14 +1296,17 @@ function App() {
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3">
             <div className="flex items-center gap-3">
               {/* Logo — left */}
-              <div className="flex items-center gap-2.5 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <img
                   src={maefLogo}
                   alt="MAEF"
-                  className="h-11 w-auto object-contain"
-                  style={{ mixBlendMode: 'screen' }}
+                  className="h-12 w-auto object-contain"
+                  style={{ mixBlendMode: 'lighten' }}
                 />
-                <p className="text-[10px] text-muted-foreground font-mono hidden sm:block leading-none">Mantle Agentic Event Factory</p>
+                <div>
+                  <h1 className="text-sm font-black tracking-widest text-white leading-none">MAEF</h1>
+                  <p className="text-[9px] text-muted-foreground font-mono hidden sm:block leading-none mt-0.5">Mantle Agentic Event Factory</p>
+                </div>
               </div>
 
               {/* Nav — center */}

@@ -70,88 +70,76 @@ export function ArchitectureFlow({ currentPhase = 0 }: ArchitectureFlowProps) {
   ]
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
+          <h2 className="text-lg font-bold bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
             How It Works
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             From agent creation to strategic wisdom generation
           </p>
         </div>
       </div>
 
       <div className="relative">
-        {/* Progress Line */}
-        <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary via-secondary to-accent opacity-30 hidden md:block" />
+        <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-primary via-secondary to-accent opacity-30 hidden md:block" />
 
-        <div className="space-y-8">
+        <div className="space-y-3">
           {phases.map((phase, index) => {
             const isActive = currentPhase === phase.id
             const isCompleted = currentPhase > phase.id
-            
+
             return (
               <motion.div
                 key={phase.id}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.15, duration: 0.5 }}
+                transition={{ delay: index * 0.1, duration: 0.4 }}
               >
-                <Card className={`glass-card-hover p-6 relative ${isActive ? 'border-2 border-primary/50 shadow-2xl shadow-primary/20' : ''}`}>
-                  <div className="flex gap-6">
-                    {/* Phase Number Circle */}
+                <Card className={`glass-card-hover p-4 relative ${isActive ? 'border-2 border-primary/50 shadow-xl shadow-primary/20' : ''}`}>
+                  <div className="flex gap-4">
+                    {/* Phase Icon */}
                     <div className="hidden md:flex flex-col items-center relative z-10">
                       <motion.div
-                        className={`w-16 h-16 rounded-2xl flex items-center justify-center border-2 transition-all duration-500 ${
-                          isCompleted 
+                        className={`w-11 h-11 rounded-xl flex items-center justify-center border-2 transition-all duration-500 flex-shrink-0 ${
+                          isCompleted
                             ? 'bg-gradient-to-br from-green-500 to-emerald-600 border-green-400'
                             : isActive
                             ? `bg-gradient-to-br ${phase.color} border-primary animate-glow-pulse`
                             : 'bg-card/50 border-border'
                         }`}
-                        whileHover={{ scale: 1.1 }}
+                        whileHover={{ scale: 1.05 }}
                       >
                         {isCompleted ? (
-                          <CheckCircle size={32} className="text-white" weight="fill" />
+                          <CheckCircle size={20} className="text-white" weight="fill" />
                         ) : (
-                          <phase.icon 
-                            size={32} 
-                            className={isActive ? 'text-white' : 'text-muted-foreground'} 
-                            weight="duotone" 
+                          <phase.icon
+                            size={20}
+                            className={isActive ? 'text-white' : 'text-muted-foreground'}
+                            weight="duotone"
                           />
                         )}
                       </motion.div>
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className={`text-xs font-bold px-3 py-1 rounded-full bg-gradient-to-r ${phase.color} text-white`}>
-                              PHASE {phase.number}
-                            </span>
-                            <h3 className="text-xl font-bold">{phase.title}</h3>
-                          </div>
-                          <p className="text-sm text-primary font-semibold mb-2">{phase.subtitle}</p>
-                          <p className="text-muted-foreground">{phase.description}</p>
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r ${phase.color} text-white flex-shrink-0`}>
+                          PHASE {phase.number}
+                        </span>
+                        <h3 className="text-sm font-bold">{phase.title}</h3>
+                        <span className="text-xs text-primary font-semibold hidden sm:block">· {phase.subtitle}</span>
                       </div>
+                      <p className="text-xs text-muted-foreground mb-2">{phase.description}</p>
 
-                      {/* Key Metrics or Details */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                      <div className="grid grid-cols-2 gap-1">
                         {phase.details.map((detail, idx) => (
-                          <motion.div
-                            key={idx}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: (index * 0.15) + (idx * 0.1) }}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            <div className={`w-1.5 h-1.5 rounded-full bg-gradient-to-r ${phase.color}`} />
-                            <span className="text-muted-foreground">{detail}</span>
-                          </motion.div>
+                          <div key={idx} className="flex items-center gap-1.5 text-xs">
+                            <div className={`w-1 h-1 rounded-full bg-gradient-to-r ${phase.color} flex-shrink-0`} />
+                            <span className="text-muted-foreground truncate">{detail}</span>
+                          </div>
                         ))}
                       </div>
                     </div>

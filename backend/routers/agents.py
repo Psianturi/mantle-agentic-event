@@ -103,6 +103,7 @@ class SpawnRequest(BaseModel):
     user_wallet: str
     agent_name: str
     niche: str = "General"
+    personality: str = "Analytical"
 
     @field_validator("user_wallet")
     @classmethod
@@ -297,6 +298,8 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         "agent_wallet": agent_account.address,
         "agent_name": req.agent_name,
         "niche": req.niche,
+        "personality": req.personality,
+        "ownership_status": "original-creator",
         "user_wallet": req.user_wallet,
         "level": 1,
         "total_events": 0,
