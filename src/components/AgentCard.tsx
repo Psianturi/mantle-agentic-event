@@ -145,7 +145,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {(pendingProposalCount ?? 0) > 0 && (
+              {agent.level >= 3 && (pendingProposalCount ?? 0) > 0 && (
                 <motion.div
                   animate={{ scale: [1, 1.08, 1] }}
                   transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
@@ -475,7 +475,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
           </div>
 
           <div className="space-y-2">
-            {onOpenProposals && (
+            {onOpenProposals && agent.level >= 3 && (
               <Button
                 onClick={(e) => {
                   e.stopPropagation()

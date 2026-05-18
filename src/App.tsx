@@ -1,4 +1,4 @@
-import { useState, useEffect, startTransition } from 'react'
+import { useState, useEffect, useCallback, startTransition } from 'react'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -293,6 +293,9 @@ function App() {
   const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
   const [proposalModalAgent, setProposalModalAgent] = useState<Agent | null>(null)
   const [proposalCounts, setProposalCounts] = useState<Record<string, number>>({})
+  const handleProposalCountChange = useCallback((agentId: string, count: number) => {
+    setProposalCounts(prev => ({ ...prev, [agentId]: count }))
+  }, [])
   const [platformMetrics, setPlatformMetrics] = useState<{ total_agents: number; total_wisdom_nfts: number; total_events_attended: number; average_agent_level: number } | null>(null)
   useEffect(() => {
     cloudRunService.getPublicMetrics()
@@ -2150,9 +2153,7 @@ function App() {
           open={!!proposalModalAgent}
           onOpenChange={(open) => { if (!open) setProposalModalAgent(null) }}
           agent={proposalModalAgent}
-          onProposalCountChange={(agentId, count) =>
-            setProposalCounts(prev => ({ ...prev, [agentId]: count }))
-          }
+          onProposalCountChange={handleProposalCountChange}
         />
       )}
 

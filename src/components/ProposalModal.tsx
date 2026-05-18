@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -218,9 +218,13 @@ export function ProposalModal({ open, onOpenChange, agent, onProposalCountChange
 
   const pendingCount = proposals.filter(p => p.status === 'pending').length
 
+  // Stable ref so fetchProposals never re-creates due to parent callback identity changes
+  const onCountChangeRef = useRef(onProposalCountChange)
+  useEffect(() => { onCountChangeRef.current = onProposalCountChange })
+
   const notifyCount = useCallback((list: BackendProposal[]) => {
-    onProposalCountChange?.(agent.id, list.filter(p => p.status === 'pending').length)
-  }, [agent.id, onProposalCountChange])
+    onCountChangeRef.current?.(agent.id, list.filter(p => p.status === 'pending').length)
+  }, [agent.id])
 
   const fetchProposals = useCallback(async () => {
     setLoading(true)
