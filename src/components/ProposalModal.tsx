@@ -146,7 +146,7 @@ function ProposalCard({
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between"
+          className="mb-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between"
         >
           <div className="flex items-center gap-2">
             <Lightning size={14} className="text-emerald-400" weight="fill" />
@@ -164,6 +164,43 @@ function ProposalCard({
             MantleScan
             <ArrowSquareOut size={10} />
           </a>
+        </motion.div>
+      )}
+
+      {isApproved && proposal.category === 'defi' && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="mb-4 p-3 rounded-lg bg-violet-500/10 border border-violet-500/30"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Lightning size={14} className="text-violet-400" weight="fill" />
+              <span className="text-xs font-bold text-violet-300">Autonomous Execution</span>
+            </div>
+            {proposal.autonomous_transfer_tx ? (
+              <a
+                href={`https://explorer.sepolia.mantle.xyz/tx/${proposal.autonomous_transfer_tx}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[10px] text-violet-400 hover:text-violet-300 transition-colors font-mono"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {proposal.autonomous_transfer_status === 'success' ? 'View Transfer' : 'View Tx'}
+                <ArrowSquareOut size={10} />
+              </a>
+            ) : (
+              <span className="text-[10px] text-violet-400/60 font-mono">pending…</span>
+            )}
+          </div>
+          <p className="text-[11px] text-violet-300/70 mt-1 leading-relaxed">
+            {proposal.autonomous_transfer_status === 'success'
+              ? `Agent autonomously transferred ${proposal.autonomous_transfer_amount_mnt ?? 0.1} MNT to Autonomous Vault`
+              : proposal.autonomous_transfer_status === 'failed'
+              ? 'Transfer failed — check agent gas balance'
+              : 'Agent wallet signing native MNT transfer to Autonomous Vault…'}
+          </p>
         </motion.div>
       )}
 

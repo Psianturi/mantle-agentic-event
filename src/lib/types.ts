@@ -102,6 +102,10 @@ export interface BackendProposal {
   tx_hash?: string
   heritage_score_after?: number
   proposals_approved_total?: number
+  autonomous_execution_triggered?: boolean
+  autonomous_transfer_tx?: string
+  autonomous_transfer_status?: 'success' | 'failed'
+  autonomous_transfer_amount_mnt?: number
 }
 
 export interface AgentProposal {

@@ -511,6 +511,84 @@ class Web3Service:
             "proposals_approved_total": proposals_approved_total,
         }
 
+    async def execute_autonomous_transfer(
+        self,
+        agent_wallet: str,
+        agent_private_key: str,
+        amount_mnt: float = 0.1,
+        vault_address: str = "",
+    ) -> dict[str, Any]:
+        """
+        Agent signs a native MNT transfer from its own wallet to the autonomous vault.
+        Used by Option A: Semi-Autonomous Proposal Execution — no MINTER_ROLE needed.
+        agent_private_key must already be KMS-decrypted by the caller.
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            self._sync_autonomous_transfer,
+            agent_wallet,
+            agent_private_key,
+            amount_mnt,
+            vault_address,
+        )
+
+    def _sync_autonomous_transfer(
+        self,
+        agent_wallet: str,
+        agent_private_key: str,
+        amount_mnt: float,
+        vault_address: str,
+    ) -> dict[str, Any]:
+        w3 = self._init_w3()
+
+        signer = Account.from_key(agent_private_key)
+        from_address = signer.address
+        to_address = Web3.to_checksum_address(vault_address)
+        amount_wei = Web3.to_wei(amount_mnt, "ether")
+        buffer_wei = Web3.to_wei(0.05, "ether")  # 0.05 MNT reserved for gas
+
+        balance_wei = w3.eth.get_balance(from_address)
+        if balance_wei < amount_wei + buffer_wei:
+            balance_mnt = float(Web3.from_wei(balance_wei, "ether"))
+            raise RuntimeError(
+                f"Agent wallet balance too low: {balance_mnt:.4f} MNT "
+                f"(need {amount_mnt + 0.05:.2f} MNT including gas buffer)"
+            )
+
+        nonce = w3.eth.get_transaction_count(from_address, "pending")
+        gas_price = w3.eth.gas_price
+
+        raw_tx = {
+            "chainId": settings.chain_id,
+            "from": from_address,
+            "to": to_address,
+            "nonce": nonce,
+            "gas": 21_000,  # native transfer always costs exactly 21000 gas
+            "gasPrice": gas_price,
+            "value": amount_wei,
+            "data": b"",
+        }
+
+        signed = w3.eth.account.sign_transaction(raw_tx, private_key=agent_private_key)
+        tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
+
+        status = "success" if receipt["status"] == 1 else "failed"
+        logger.info(
+            "Autonomous transfer: %s MNT from %s → %s | %s (tx: %s)",
+            amount_mnt, from_address[:10], to_address[:10], status, tx_hash.hex(),
+        )
+        return {
+            "tx_hash": tx_hash.hex(),
+            "status": status,
+            "amount_mnt": amount_mnt,
+            "from_address": from_address,
+            "to_address": to_address,
+            "block_number": receipt["blockNumber"],
+            "gas_used": str(receipt["gasUsed"]),
+        }
+
     async def verify_breed_tx(
         self,
         tx_hash: str,

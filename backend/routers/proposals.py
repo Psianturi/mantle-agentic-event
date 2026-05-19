@@ -17,11 +17,13 @@ Flow:
 import logging
 import time
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 from web3 import Web3
 
+from core.config import settings
 from core.database import get_db
+from core.kms_service import decrypt_private_key
 from google.cloud.firestore_v1.base_query import FieldFilter
 from services.llm_service import generate_agent_proposal
 from services.web3_service import web3_service
@@ -54,6 +56,10 @@ class ProposalResponse(BaseModel):
     tx_hash: str | None = None
     heritage_score_after: int | None = None
     proposals_approved_total: int | None = None
+    autonomous_execution_triggered: bool | None = None
+    autonomous_transfer_tx: str | None = None
+    autonomous_transfer_status: str | None = None
+    autonomous_transfer_amount_mnt: float | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -79,7 +85,65 @@ def _doc_to_response(doc_id: str, data: dict) -> ProposalResponse:
         tx_hash=data.get("tx_hash"),
         heritage_score_after=data.get("heritage_score_after"),
         proposals_approved_total=data.get("proposals_approved_total"),
+        autonomous_execution_triggered=data.get("autonomous_execution_triggered"),
+        autonomous_transfer_tx=data.get("autonomous_transfer_tx"),
+        autonomous_transfer_status=data.get("autonomous_transfer_status"),
+        autonomous_transfer_amount_mnt=data.get("autonomous_transfer_amount_mnt"),
     )
+
+
+# ── Background task ───────────────────────────────────────────────────────────
+
+
+async def _bg_autonomous_transfer(
+    proposal_id: str,
+    agent_id: str,
+    agent_wallet: str,
+    agent_private_key: str,
+) -> None:
+    """
+    Semi-Autonomous Proposal Execution (Option A):
+    After a DeFi proposal is approved on-chain, the agent's own wallet
+    transfers 0.1 MNT to the autonomous vault — no human keystroke required.
+    """
+    vault_address = settings.autonomous_vault_address
+    if not vault_address or not Web3.is_address(vault_address):
+        logger.warning(
+            "Autonomous transfer skipped: AUTONOMOUS_VAULT_ADDRESS not configured (proposal %s)",
+            proposal_id,
+        )
+        return
+
+    db = get_db()
+    try:
+        result = await web3_service.execute_autonomous_transfer(
+            agent_wallet=agent_wallet,
+            agent_private_key=agent_private_key,
+            amount_mnt=0.1,
+            vault_address=vault_address,
+        )
+        logger.info(
+            "Autonomous transfer complete for proposal %s: tx=%s status=%s",
+            proposal_id, result.get("tx_hash"), result.get("status"),
+        )
+        await db.collection(PROPOSALS_COLLECTION).document(proposal_id).update({
+            "autonomous_transfer_tx": result.get("tx_hash"),
+            "autonomous_transfer_status": result.get("status"),
+            "autonomous_transfer_amount_mnt": result.get("amount_mnt"),
+            "autonomous_transfer_at": time.time(),
+        })
+    except Exception as exc:
+        logger.error(
+            "Autonomous transfer failed for proposal %s (agent %s): %s",
+            proposal_id, agent_id, exc,
+        )
+        try:
+            await db.collection(PROPOSALS_COLLECTION).document(proposal_id).update({
+                "autonomous_transfer_status": "failed",
+                "autonomous_transfer_error": str(exc)[:200],
+            })
+        except Exception:
+            pass
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -212,7 +276,7 @@ async def list_agent_proposals(agent_id: str) -> list[ProposalResponse]:
 
 
 @router.post("/api/v1/proposals/{proposal_id}/approve", response_model=ProposalResponse)
-async def approve_proposal(proposal_id: str) -> ProposalResponse:
+async def approve_proposal(proposal_id: str, background_tasks: BackgroundTasks) -> ProposalResponse:
     """
     Validate proposal → call recordExecutedProposal() on V4 via MINTER_ROLE.
     V4 emits ProposalExecuted: +5 heritageScore on-chain.
@@ -275,6 +339,42 @@ async def approve_proposal(proposal_id: str) -> ProposalResponse:
         "Proposal %s approved on-chain: tx=%s heritage=%s",
         proposal_id, result.get("tx_hash"), result.get("heritage_score_after"),
     )
+
+    # ── Option A: Semi-Autonomous Execution for DeFi proposals ───────────────
+    if data.get("category") == "defi":
+        agent_id = data.get("agent_id", "")
+        try:
+            agent_doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+            agent_data = (agent_doc.to_dict() or {}) if agent_doc.exists else {}
+            stored_key = agent_data.get("private_key_enc") or agent_data.get("private_key")
+            if stored_key:
+                agent_private_key = decrypt_private_key(stored_key)
+                background_tasks.add_task(
+                    _bg_autonomous_transfer,
+                    proposal_id,
+                    agent_id,
+                    agent_wallet,
+                    agent_private_key,
+                )
+                try:
+                    await doc.reference.update({"autonomous_execution_triggered": True})
+                except Exception:
+                    pass
+                logger.info(
+                    "Autonomous transfer queued for DeFi proposal %s (agent %s)",
+                    proposal_id, agent_id,
+                )
+            else:
+                logger.warning(
+                    "Agent %s has no private key — autonomous transfer skipped for proposal %s",
+                    agent_id, proposal_id,
+                )
+        except Exception as exc:
+            logger.warning(
+                "Could not queue autonomous transfer for proposal %s: %s — continuing",
+                proposal_id, exc,
+            )
+
     return _doc_to_response(proposal_id, data)
 
 

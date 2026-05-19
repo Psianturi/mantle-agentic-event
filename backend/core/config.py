@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Override in Cloud Run env vars if the URL changes.
     cloud_run_url: str = "https://mantle-agentic-event-21898396920.asia-southeast1.run.app"
 
+    # Option A: Semi-Autonomous Proposal Execution — treasury/vault address
+    autonomous_vault_address: str = ""
+
     # CORS — comma-separated origins or "*"
     # "*" is safe here because allow_credentials=False (no cookies/sessions)
     allowed_origins_raw: str = "*"
