@@ -21,6 +21,7 @@ interface AgentCardProps {
   pendingProposalCount?: number
   onOpenProposals?: (agent: Agent) => void
   onDeleteAgent?: (agent: Agent) => void
+  onRetrySpawn?: (agent: Agent) => void
 }
 
 const statusColors = {
@@ -50,7 +51,7 @@ const subAgentLabels = {
   'mint-master': 'Mint-Master'
 }
 
-export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace, onToggleAutoReplenish, pendingProposalCount, onOpenProposals, onDeleteAgent }: AgentCardProps) {
+export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace, onToggleAutoReplenish, pendingProposalCount, onOpenProposals, onDeleteAgent, onRetrySpawn }: AgentCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
@@ -189,25 +190,35 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
           )}
 
           {agent.ownershipStatus === 'bred' && (
-            <div className="mb-4 p-2 rounded-lg border flex items-center gap-2"
+            <div className="mb-4 rounded-lg border overflow-hidden"
               style={agent.spawnedOnV4
                 ? { background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.3)' }
                 : { background: 'rgba(234,179,8,0.08)', borderColor: 'rgba(234,179,8,0.3)' }
               }
             >
-              {agent.spawnedOnV4 ? (
-                <>
-                  <Lightning size={13} className="text-emerald-400" weight="fill" />
-                  <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Sovereign Mode Active</span>
-                </>
-              ) : (
-                <>
-                  <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
-                    <GearSix size={13} className="text-yellow-400" weight="duotone" />
-                  </motion.div>
-                  <span className="text-xs font-semibold text-yellow-400 uppercase tracking-wider">Activating on V4...</span>
-                </>
-              )}
+              <div className="flex items-center gap-2 p-2">
+                {agent.spawnedOnV4 ? (
+                  <>
+                    <Lightning size={13} className="text-emerald-400" weight="fill" />
+                    <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Sovereign Mode Active</span>
+                  </>
+                ) : (
+                  <>
+                    <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1.2, repeat: Infinity }}>
+                      <GearSix size={13} className="text-yellow-400" weight="duotone" />
+                    </motion.div>
+                    <span className="text-xs font-semibold text-yellow-400 uppercase tracking-wider flex-1">Activating on V4...</span>
+                    {onRetrySpawn && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onRetrySpawn(agent) }}
+                        className="text-[10px] font-bold text-yellow-400 hover:text-yellow-300 underline underline-offset-2 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
 

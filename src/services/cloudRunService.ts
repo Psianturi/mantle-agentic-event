@@ -916,6 +916,14 @@ export const cloudRunService = {
     await handleAPIResponse<{ status: string }>(response)
   },
 
+  async retrySpawnBredAgent(agentId: string, walletAddress: string): Promise<{ status: string }> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/retry-spawn?wallet=${encodeURIComponent(walletAddress)}`,
+      { method: 'POST' },
+    )
+    return handleAPIResponse<{ status: string }>(response)
+  },
+
   // ── HITL Proposals ──────────────────────────────────────────────────────────
 
   async generateProposal(agentId: string): Promise<BackendProposal> {

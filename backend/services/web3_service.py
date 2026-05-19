@@ -361,8 +361,8 @@ class Web3Service:
         Register a bred offspring on V4 via spawnBredAgent() — signed by MINTER_SERVICE.
 
         Pays 1 MNT from minter wallet, sets isAgentSpawned[offspringWallet]=true on V4.
-        offspring_id is the backend hex string; encoded as UTF-8 bytes32 to match
-        the frontend's ethers.encodeBytes32String(offspringId) call.
+        offspring_id must be the 64-char hex bytes32 parsed from the AgentsBred event
+        (breed_tx_data["offspring_key"]) — this is what the contract stored in breedRecords.
         """
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
@@ -380,7 +380,9 @@ class Web3Service:
         signer = Account.from_key(private_key)
 
         offspring_wallet_cs = Web3.to_checksum_address(offspring_wallet)
-        offspring_id_bytes = offspring_id.encode("utf-8").ljust(32, b"\x00")[:32]
+        # offspring_id is the raw bytes32 from the AgentsBred event (64-char hex)
+        # Strip 0x prefix defensively — web3.py .hex() returns without it, but be safe
+        offspring_id_bytes = bytes.fromhex(offspring_id.replace("0x", ""))
 
         fn_call = contract.functions.spawnBredAgent(offspring_wallet_cs, offspring_id_bytes)
         spawn_value = Web3.to_wei(1, "ether")
@@ -392,8 +394,8 @@ class Web3Service:
             gas_estimate = fn_call.estimate_gas({"from": signer.address, "value": spawn_value})
             gas_limit = int(gas_estimate * 1.2)
         except Exception as exc:
-            logger.warning("spawnBredAgent gas estimation failed, using 200_000: %s", exc)
-            gas_limit = 200_000
+            logger.warning("spawnBredAgent gas estimation failed, using 250_000: %s", exc)
+            gas_limit = 250_000
 
         raw_tx = fn_call.build_transaction(
             {

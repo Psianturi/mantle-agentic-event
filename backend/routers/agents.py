@@ -381,16 +381,27 @@ async def _spawn_bred_agent_on_chain(
     db,
     offspring_id: str,
     offspring_wallet: str,
+    onchain_offspring_key: str | None = None,
 ) -> None:
     """
     Fire-and-forget: call spawnBredAgent() on V4 signed by MINTER_SERVICE.
     Sets isAgentSpawned[offspringWallet]=true on-chain, then updates Firestore.
     Runs after the breed response is already sent to the client.
+
+    onchain_offspring_key is the bytes32 hex from the AgentsBred event — this is
+    what the V4 contract stored in its breedRecords mapping. Must match exactly.
     """
+    if not onchain_offspring_key:
+        logger.warning(
+            "spawnBredAgent skipped for offspring %s: no on-chain offspringKey available "
+            "(breed_tx_hash was not provided or not yet verified)",
+            offspring_id,
+        )
+        return
     try:
         result = await web3_service.send_spawn_bred_agent_tx(
             offspring_wallet=offspring_wallet,
-            offspring_id=offspring_id,
+            offspring_id=onchain_offspring_key,
         )
         if result.get("status") == "success":
             await db.collection(AGENTS_COLLECTION).document(offspring_id).update(
@@ -554,6 +565,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
     # on-chain generation/heritageScore — set by the verified event, fallback to None
     onchain_generation: int | None = None
     onchain_heritage_score: int | None = None
+    onchain_offspring_key: str | None = None  # bytes32 hex from AgentsBred event
 
     if req.breed_tx_hash:
         try:
@@ -563,9 +575,11 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
             )
             onchain_generation = breed_tx_data.get("generation")
             onchain_heritage_score = breed_tx_data.get("heritage_score")
+            onchain_offspring_key = breed_tx_data.get("offspring_key")
             logger.info(
-                "Breed tx %s verified on-chain: gen=%s heritage=%s",
+                "Breed tx %s verified on-chain: gen=%s heritage=%s offspring_key=%s",
                 req.breed_tx_hash, onchain_generation, onchain_heritage_score,
+                (onchain_offspring_key or "")[:16],
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=f"Breed transaction invalid: {exc}") from exc
@@ -756,6 +770,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
             db=db,
             offspring_id=offspring_id,
             offspring_wallet=offspring_account.address,
+            onchain_offspring_key=onchain_offspring_key,
         )
     )
 
@@ -810,6 +825,71 @@ async def get_agent(agent_id: str) -> SpawnResponse:
 
     data = doc.to_dict()
     return _to_response(data, needs_funding=not data.get("funded", False))
+
+
+@router.post("/{agent_id}/retry-spawn")
+async def retry_spawn_bred_agent(
+    agent_id: str,
+    wallet: str = Query(..., description="Owner wallet address"),
+) -> dict:
+    """
+    Re-trigger spawnBredAgent() for a bred offspring whose initial spawn failed.
+    Uses the breed_tx_hash stored in Firestore to look up the correct on-chain offspringKey.
+    The user does not need to pay again — the breed record already exists on V4.
+    """
+    if not Web3.is_address(wallet):
+        raise HTTPException(status_code=400, detail="Invalid wallet address")
+    wallet = Web3.to_checksum_address(wallet)
+
+    db = get_db()
+    try:
+        doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    data = doc.to_dict() or {}
+    if data.get("user_wallet") != wallet:
+        raise HTTPException(status_code=403, detail="Not your agent")
+    if data.get("spawned_on_v4"):
+        return {"status": "already_spawned"}
+    if data.get("ownership_status") != "bred":
+        raise HTTPException(status_code=400, detail="Agent is not a bred offspring")
+
+    breed_tx_hash = data.get("breed_tx_hash")
+    if not breed_tx_hash:
+        raise HTTPException(
+            status_code=400,
+            detail="No breed transaction hash stored — cannot retry (agent predates on-chain verification)",
+        )
+
+    try:
+        breed_tx_data = await web3_service.verify_breed_tx(
+            tx_hash=breed_tx_hash,
+            expected_user_wallet=wallet,
+            max_age_seconds=86400 * 30,  # Allow up to 30 days for retry
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Breed transaction invalid: {exc}") from exc
+
+    offspring_key = breed_tx_data.get("offspring_key")
+    if not offspring_key:
+        raise HTTPException(status_code=422, detail="Could not extract offspring key from breed transaction")
+
+    offspring_wallet = data.get("agent_wallet")
+    asyncio.create_task(
+        _spawn_bred_agent_on_chain(
+            db=db,
+            offspring_id=agent_id,
+            offspring_wallet=offspring_wallet,
+            onchain_offspring_key=offspring_key,
+        )
+    )
+
+    logger.info("retry-spawn initiated for offspring %s, offspring_key=%s...", agent_id, offspring_key[:16])
+    return {"status": "retry_initiated", "agent_id": agent_id}
 
 
 @router.get("/{agent_id}/scout-logs", response_model=list[ScoutLogResponse])

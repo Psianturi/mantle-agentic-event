@@ -1171,6 +1171,28 @@ function App() {
     }
   }
 
+  const handleRetrySpawn = async (agent: Agent) => {
+    if (!walletAddress) {
+      toast.error('Wallet not connected')
+      return
+    }
+    try {
+      toast.info(`Retrying V4 spawn for ${agent.name}...`)
+      const result = await cloudRunService.retrySpawnBredAgent(agent.id, walletAddress)
+      if (result.status === 'already_spawned') {
+        toast.success(`${agent.name} is already active on V4`)
+        setAgents(current => (current ?? []).map(a => a.id === agent.id ? { ...a, spawnedOnV4: true } : a))
+      } else {
+        toast.success(`Spawn retry initiated for ${agent.name}`, {
+          description: 'V4 activation TX sent — check back in ~30s'
+        })
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Retry failed'
+      toast.error('Spawn retry failed', { description: msg })
+    }
+  }
+
   const handleBreedComplete = (result: import('@/lib/types').BreedingResult, offspringName: string) => {
     const newAgent = result.offspring
     const parent1 = displayedAgents.find(a => a.id === (newAgent.parentIds?.[0]))
@@ -1659,6 +1681,7 @@ function App() {
                             pendingProposalCount={proposalCounts[agent.id] ?? 0}
                             onOpenProposals={(a) => setProposalModalAgent(a)}
                             onDeleteAgent={handleDeleteAgent}
+                            onRetrySpawn={handleRetrySpawn}
                           />
                           {agent.wisdomUnlocked && (
                             <Button
@@ -1756,7 +1779,7 @@ function App() {
                         (Date.now() - agent.lastBreedingTime) < (agent.breedingCooldownHours * 60 * 60 * 1000)
                       return (
                         <motion.div key={agent.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.08 }} className="space-y-2">
-                          <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} onToggleAutoReplenish={handleToggleAutoReplenish} pendingProposalCount={proposalCounts[agent.id] ?? 0} onOpenProposals={(a) => setProposalModalAgent(a)} onDeleteAgent={handleDeleteAgent} />
+                          <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} onToggleAutoReplenish={handleToggleAutoReplenish} pendingProposalCount={proposalCounts[agent.id] ?? 0} onOpenProposals={(a) => setProposalModalAgent(a)} onDeleteAgent={handleDeleteAgent} onRetrySpawn={handleRetrySpawn} />
                           {isOnCooldown && (
                             <div className="space-y-2">
                               <FusionCooldownTimer agent={agent} />
