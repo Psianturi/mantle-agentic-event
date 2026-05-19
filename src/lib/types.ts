@@ -133,7 +133,7 @@ export interface Event {
   platform: 'YouTube' | 'Luma' | 'Eventbrite' | 'Zoom'
   date: number
   summary: string
-  status: 'pending' | 'completed' | 'failed'
+  status: 'pending' | 'completed' | 'failed' | 'scheduled'
 }
 
 export interface NFT {

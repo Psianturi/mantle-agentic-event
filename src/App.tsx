@@ -679,33 +679,48 @@ function App() {
         modeB: true,  // Enable autonomous signing by default for demo impact
       })
 
+      const isScoutingBrief = result.lumaStatus === 'scheduled'
+      const resolvedTitle = result.txHash ? eventTitle : eventTitle  // title may have been resolved by backend
       const signingMode = result.txHash ? (result.txHash.includes('agent') ? 'Agent' : 'Backend') : 'Unknown'
-      addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Wisdom generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
-      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Transaction signed by ${signingMode}. TX: ${result.txHash.slice(0, 18)}...`, 'info')
-      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on Mantle! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
-      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units`, 'info')
+
+      if (isScoutingBrief) {
+        addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Future Luma event detected — switching to Scouting mode`, 'info')
+        addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Pre-Event Scouting Brief generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
+        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Scouting Brief NFT minted! Token #${result.tokenId}`, 'success')
+        toast.success(`Scouting Brief NFT minted for "${resolvedTitle}"`, {
+          description: `Future event — agent prepared a predictive analysis. No XP until event completes.`,
+        })
+      } else {
+        addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Wisdom generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
+        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Transaction signed by ${signingMode}. TX: ${result.txHash.slice(0, 18)}...`, 'info')
+        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on Mantle! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
+        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units`, 'info')
+      }
+
       const nicheTag = agent.niche === 'Blockchain/DeFi' ? '#DeFi #Web3 #Mantle' : agent.niche === 'Trading/Investment' ? '#Trading #Crypto #DeFi' : agent.niche === 'Technology' ? '#Tech #AI #Web3' : '#Health #Wellness #Web3'
       const shortWisdom = result.wisdomSummary.length > 110 ? result.wisdomSummary.slice(0, 110) + '…' : result.wisdomSummary
-      const socialPostText = `My AI agent ${agent.name} just attended "${eventTitle}" and minted a Proof-of-Attendance NFT on @MantleNetwork!\n\nKey insight: "${shortWisdom}"\n\nNFT #${result.tokenId} ${nicheTag} #MAEF`
-      setLastSocialPost({ agentId: agent.id, text: socialPostText, eventTitle })
-      addLog(agent.id, 'social-lite', `[${agent.name} - Social-Lite] Post draft ready for "${eventTitle}"`, 'success')
+      if (!isScoutingBrief) {
+        const socialPostText = `My AI agent ${agent.name} just attended "${resolvedTitle}" and minted a Proof-of-Attendance NFT on @MantleNetwork!\n\nKey insight: "${shortWisdom}"\n\nNFT #${result.tokenId} ${nicheTag} #MAEF`
+        setLastSocialPost({ agentId: agent.id, text: socialPostText, eventTitle: resolvedTitle })
+        addLog(agent.id, 'social-lite', `[${agent.name} - Social-Lite] Post draft ready for "${resolvedTitle}"`, 'success')
+      }
 
       const newEvent: Event = {
         id: `event-${Date.now()}`,
         agentId: agent.id,
         url: eventUrl.trim(),
-        title: eventTitle,
+        title: resolvedTitle,
         platform,
         date: Date.now(),
         summary: result.wisdomSummary,
-        status: 'completed',
+        status: isScoutingBrief ? 'scheduled' : 'completed',
       }
 
       const newNFT: NFT = {
         id: `nft-${Date.now()}`,
         agentId: agent.id,
         eventId: newEvent.id,
-        eventTitle,
+        eventTitle: resolvedTitle,
         summary: result.wisdomSummary,
         date: Date.now(),
         transactionHash: result.txHash,
@@ -714,9 +729,13 @@ function App() {
         imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT',
       }
 
-      // Use authoritative stats from backend (Firestore-persisted), fallback to local increment
-      const newEventsAttended = result.newTotalEvents ?? (agent.eventsAttended + 1)
-      const newLevel = result.newLevel ?? (result.levelUp ? agent.level + 1 : agent.level)
+      // Scouting Brief: 0 XP — eventsAttended and level unchanged
+      const newEventsAttended = isScoutingBrief
+        ? agent.eventsAttended
+        : (result.newTotalEvents ?? (agent.eventsAttended + 1))
+      const newLevel = isScoutingBrief
+        ? agent.level
+        : (result.newLevel ?? (result.levelUp ? agent.level + 1 : agent.level))
       let refreshedBalance: number | undefined
       try {
         const nextBalance = await blockchain.getBalance(agent.walletAddress)

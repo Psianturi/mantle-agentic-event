@@ -28,7 +28,7 @@ from core.config import settings
 from core.database import get_db
 from core.kms_service import decrypt_private_key
 from services.llm_service import summarize_event
-from services.luma_service import fetch_luma_event, is_luma_url
+from services.luma_service import fetch_luma_event, get_luma_event_status, is_luma_url
 from services.web3_service import web3_service
 
 AGENTS_COLLECTION = "agents"
@@ -108,6 +108,8 @@ class AttendResponse(BaseModel):
     level_up: bool
     new_total_events: int | None = None
     new_level: int | None = None
+    luma_status: str | None = None     # 'scheduled' | 'completed' | 'unknown' — only for Luma events
+    luma_start_at: str | None = None   # ISO 8601 event start time from Luma
 
 
 class EventHistoryItem(BaseModel):
@@ -230,6 +232,8 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
 
     # ── Luma auto-detection: pre-fetch event data once for title + summary ────
     luma_event_data: dict | None = None
+    luma_status: str | None = None      # 'scheduled' | 'completed' | 'unknown'
+    luma_start_at: str | None = None
     if is_luma_url(req.event_url):
         req.platform = "Luma"
         try:
@@ -237,7 +241,13 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             # Always prefer real event title over frontend-derived URL slug
             if luma_event_data.get("title"):
                 req.event_title = luma_event_data["title"]
-                logger.info("Luma title resolved: '%s'", req.event_title)
+            # Resolve timing status for Dual-State wisdom mode
+            luma_start_at = luma_event_data.get("start_at")
+            luma_status = get_luma_event_status(luma_start_at)
+            logger.info(
+                "Luma event '%s' resolved — status=%s start_at=%s",
+                req.event_title, luma_status, luma_start_at,
+            )
         except Exception as exc:
             logger.info("Luma pre-fetch failed: %s", exc)
     if not req.event_title:
@@ -250,6 +260,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
         platform=req.platform,
         agent_name=req.agent_name,
         luma_event_data=luma_event_data,
+        luma_status=luma_status,
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 
@@ -343,6 +354,9 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     explorer_base = _resolve_explorer_base()
 
     # ── Update agent stats in Firestore ───────────────────────────────────
+    # Scheduled Luma events (future) earn 0 XP — agent scouted, not yet attended.
+    # Completed/unknown Luma events and all YouTube events earn full XP.
+    is_scouting_brief = luma_status == "scheduled"
     new_total_events: int | None = None
     new_level: int | None = None
     if success:
@@ -352,30 +366,35 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             agent_doc = await agent_ref.get()
             if agent_doc.exists:
                 data = agent_doc.to_dict() or {}
-                current_events = data.get("total_events", 0) + 1
-                current_level = data.get("level", 1)
-                # Level formula: every 2 events = +1 level (matches frontend)
-                new_level = max(current_level, (current_events // 2) + 1)
-                if level_up and new_level <= current_level:
-                    new_level = current_level + 1
-                
-                # Track autonomous signatures for Agency Score
                 autonomous_sigs = data.get("autonomous_signatures", 0)
                 if signing_mode == "B":
                     autonomous_sigs += 1
-                
-                update_payload: dict = {
-                    "total_events": Increment(1),
-                    "level": new_level,
-                    "autonomous_signatures": autonomous_sigs,
-                }
+
+                if is_scouting_brief:
+                    # Scouting Brief: no XP, no level change — just record autonomous sig
+                    update_payload: dict = {"autonomous_signatures": autonomous_sigs}
+                    logger.info(
+                        "Agent %s scouted future Luma event '%s' — 0 XP (scheduled)",
+                        req.agent_id, req.event_title,
+                    )
+                else:
+                    current_events = data.get("total_events", 0) + 1
+                    current_level = data.get("level", 1)
+                    new_level = max(current_level, (current_events // 2) + 1)
+                    if level_up and new_level <= current_level:
+                        new_level = current_level + 1
+                    update_payload = {
+                        "total_events": Increment(1),
+                        "level": new_level,
+                        "autonomous_signatures": autonomous_sigs,
+                    }
+                    new_total_events = current_events
+                    logger.info(
+                        "Agent %s stats updated: total_events=%d level=%d mode=%s",
+                        req.agent_id, current_events, new_level, signing_mode,
+                    )
+
                 await agent_ref.update(update_payload)
-                new_total_events = current_events
-                logger.info(
-                    "Agent %s stats updated: total_events=%d level=%d mode=%s autonomous_sigs=%d",
-                    req.agent_id, current_events, new_level, 
-                    signing_mode, autonomous_sigs
-                )
             else:
                 logger.warning("Agent %s not found in Firestore — skipping stat update", req.agent_id)
         except Exception as exc:
@@ -399,6 +418,9 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "block_number": mint_result.get("block_number"),
                 "attended_at": time.time(),
                 "mode": signing_mode,
+                # Luma-specific fields (None for non-Luma events)
+                "luma_status": luma_status,
+                "luma_start_at": luma_start_at,
             }
             await db.collection(EVENTS_COLLECTION).add(event_doc)
         except Exception as exc:
@@ -415,4 +437,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
         level_up=level_up,
         new_total_events=new_total_events,
         new_level=new_level,
+        luma_status=luma_status,
+        luma_start_at=luma_start_at,
     )

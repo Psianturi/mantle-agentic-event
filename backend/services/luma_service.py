@@ -6,12 +6,24 @@ Try 2: httpx GET + __NEXT_DATA__ JSON parse  (Next.js server-side rendered)
 Try 3: httpx GET + OpenGraph meta tags  (always present, minimal data)
 
 Returns a LumaEventData dict consumed by llm_service.summarize_event().
+
+Dict fields returned:
+  title        : str
+  description  : str
+  speakers     : list[str]
+  location     : str | None       — physical address or None for online
+  start_at     : str | None       — ISO 8601 timestamp from Luma
+  meeting_url  : str              — virtual meeting link (empty if hidden/physical)
+  platform     : "Luma"
+  event_url    : str
+  source       : "official_api" | "next_data" | "opengraph"
 """
 
 import json
 import logging
 import os
 import re
+from datetime import datetime, timezone
 
 import httpx
 
@@ -53,6 +65,32 @@ def extract_luma_slug(url: str) -> str:
 def is_luma_url(url: str) -> bool:
     """Return True if the URL points to a Luma event page."""
     return bool(re.search(r"(?:lu\.ma|luma\.com)/", url))
+
+
+def get_luma_event_status(start_at_str: str | None) -> str:
+    """
+    Compare event start time against now (UTC).
+    Returns 'scheduled' (future), 'completed' (past/present), or 'unknown' (no timestamp).
+    """
+    if not start_at_str:
+        return "unknown"
+    try:
+        normalized = start_at_str.replace("Z", "+00:00")
+        event_time = datetime.fromisoformat(normalized)
+        return "scheduled" if event_time > datetime.now(timezone.utc) else "completed"
+    except Exception:
+        return "unknown"
+
+
+def extract_youtube_from_luma(luma_data: dict) -> str | None:
+    """
+    Return the YouTube URL if a Luma event streams on YouTube, else None.
+    Used to cascade-fetch a YouTube transcript for SUPER RICH wisdom mode.
+    """
+    meeting_url = luma_data.get("meeting_url", "")
+    if meeting_url and ("youtube.com" in meeting_url or "youtu.be" in meeting_url):
+        return meeting_url
+    return None
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
@@ -123,12 +161,14 @@ async def _try_official_api(slug: str, api_key: str) -> dict | None:
             data = r.json()
             event = data.get("event", {})
             hosts = data.get("hosts", [])
+            virtual_info = event.get("virtual_info") or {}
             return {
                 "title": event.get("name", slug),
                 "description": _clean_text(event.get("description", "")),
                 "speakers": [h.get("name") for h in hosts if h.get("name")],
                 "location": (event.get("geo_address_info") or {}).get("full_address"),
                 "start_at": event.get("start_at"),
+                "meeting_url": virtual_info.get("url") or "",
                 "platform": "Luma",
                 "event_url": f"https://lu.ma/{slug}",
                 "source": "official_api",
@@ -187,6 +227,7 @@ def _parse_next_data(html: str, slug: str) -> dict | None:
 
         description = _clean_text(event.get("description") or event.get("description_mirror") or "")
         location_info = event.get("geo_address_info") or {}
+        virtual_info = event.get("virtual_info") or {}
 
         return {
             "title": event.get("name", slug),
@@ -194,6 +235,7 @@ def _parse_next_data(html: str, slug: str) -> dict | None:
             "speakers": speakers,
             "location": location_info.get("full_address") or location_info.get("city_state"),
             "start_at": event.get("start_at"),
+            "meeting_url": virtual_info.get("url") or "",
             "platform": "Luma",
             "event_url": f"https://lu.ma/{slug}",
             "source": "next_data",
@@ -240,6 +282,7 @@ def _parse_opengraph(html: str, slug: str) -> dict | None:
             "speakers": [],
             "location": None,
             "start_at": None,
+            "meeting_url": "",   # OpenGraph doesn't expose meeting links
             "platform": "Luma",
             "event_url": f"https://lu.ma/{slug}",
             "source": "opengraph",
@@ -272,6 +315,21 @@ def build_luma_context(event_data: dict) -> str:
 
     if event_data.get("location"):
         parts.append(f"Location: {event_data['location']}")
+    else:
+        # Resolve online platform label from meeting_url
+        meeting_url = event_data.get("meeting_url", "")
+        if "youtube.com" in meeting_url or "youtu.be" in meeting_url:
+            parts.append("Format: Online — YouTube Live")
+        elif "zoom.us" in meeting_url:
+            parts.append("Format: Online — Zoom")
+        elif "meet.google.com" in meeting_url:
+            parts.append("Format: Online — Google Meet")
+        elif "x.com" in meeting_url or "twitter.com" in meeting_url:
+            parts.append("Format: Online — X/Twitter Spaces")
+        elif "t.me" in meeting_url or "telegram" in meeting_url:
+            parts.append("Format: Online — Telegram Live")
+        elif meeting_url:
+            parts.append("Format: Online / Virtual")
 
     if event_data.get("start_at"):
         parts.append(f"Date: {event_data['start_at']}")

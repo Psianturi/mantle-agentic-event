@@ -145,6 +145,8 @@ export interface AttendEventResponse {
   levelUp: boolean
   newTotalEvents?: number
   newLevel?: number
+  lumaStatus?: 'scheduled' | 'completed' | 'unknown'  // only for Luma events
+  lumaStartAt?: string                                  // ISO 8601 event start time
 }
 
 export interface EventHistoryItem {
@@ -631,6 +633,8 @@ export const cloudRunService = {
         level_up: boolean
         new_total_events: number | null
         new_level: number | null
+        luma_status?: string | null
+        luma_start_at?: string | null
       }>(response)
 
       if (!raw.success) {
@@ -648,6 +652,8 @@ export const cloudRunService = {
         levelUp: raw.level_up,
         newTotalEvents: raw.new_total_events ?? undefined,
         newLevel: raw.new_level ?? undefined,
+        lumaStatus: (raw.luma_status as AttendEventResponse['lumaStatus']) ?? undefined,
+        lumaStartAt: raw.luma_start_at ?? undefined,
       }
     } catch (error) {
       if (error instanceof CloudRunAPIError) throw error
