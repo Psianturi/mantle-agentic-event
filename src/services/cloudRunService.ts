@@ -162,6 +162,8 @@ export interface EventHistoryItem {
   blockNumber?: number
   attendedAt: number
   explorerUrl?: string
+  lumaStatus?: 'scheduled' | 'completed' | 'unknown'
+  lumaStartAt?: string
 }
 
 export interface GenerateWisdomRequest {
@@ -506,6 +508,8 @@ export const cloudRunService = {
         block_number: number | null
         attended_at: number
         explorer_url: string | null
+        luma_status?: string | null
+        luma_start_at?: string | null
       }>>(response)
 
       return raw.map((r) => ({
@@ -521,6 +525,8 @@ export const cloudRunService = {
         blockNumber: r.block_number ?? undefined,
         attendedAt: r.attended_at,
         explorerUrl: r.explorer_url ?? undefined,
+        lumaStatus: (r.luma_status as EventHistoryItem['lumaStatus']) ?? undefined,
+        lumaStartAt: r.luma_start_at ?? undefined,
       }))
     } catch (error) {
       console.warn('[cloudRunService] getEventHistoryByWallet failed:', error)

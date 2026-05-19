@@ -127,6 +127,8 @@ class EventHistoryItem(BaseModel):
     block_number: int | None
     attended_at: float
     explorer_url: str | None
+    luma_status: str | None = None   # 'scheduled' | 'completed' | 'unknown' | None for non-Luma
+    luma_start_at: str | None = None
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
@@ -188,6 +190,8 @@ async def list_events_by_wallet(
                         "gas_used": data.get("gas_used"),
                         "block_number": data.get("block_number"),
                         "attended_at": float(data.get("attended_at", 0.0)),
+                        "luma_status": data.get("luma_status"),
+                        "luma_start_at": data.get("luma_start_at"),
                     }
                 )
     except Exception as exc:

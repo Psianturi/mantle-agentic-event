@@ -134,6 +134,7 @@ export interface Event {
   date: number
   summary: string
   status: 'pending' | 'completed' | 'failed' | 'scheduled'
+  lumaStartAt?: string   // ISO 8601 event start — only for Luma future events
 }
 
 export interface NFT {
