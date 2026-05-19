@@ -24,6 +24,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import httpx
 
@@ -102,7 +103,10 @@ async def fetch_luma_event(url: str) -> dict:
     Raises ValueError if the event cannot be fetched by any strategy.
     """
     slug = extract_luma_slug(url)
-    canonical_url = f"https://lu.ma/{slug}"
+    # Preserve query params (e.g. ?tk= invite tokens) so private events authenticate correctly
+    parsed_orig = urlparse(url)
+    query = parsed_orig.query
+    canonical_url = f"https://lu.ma/{slug}" + (f"?{query}" if query else "")
 
     # Try 1: Official Luma API (only if API key is configured)
     api_key = os.getenv("LUMA_API_KEY", "").strip()
@@ -127,7 +131,7 @@ async def fetch_luma_event(url: str) -> dict:
             return result
 
     # Try luma.com domain if lu.ma failed (post-migration redirect)
-    luma_com_url = f"https://luma.com/{slug}"
+    luma_com_url = f"https://luma.com/{slug}" + (f"?{query}" if query else "")
     html = await _fetch_html(luma_com_url)
     if html:
         result = _parse_next_data(html, slug) or _parse_opengraph(html, slug)
@@ -179,7 +183,7 @@ async def _try_official_api(slug: str, api_key: str) -> dict | None:
 
 
 async def _fetch_html(url: str) -> str | None:
-    """Fetch raw HTML with a browser-like User-Agent. Returns None on error."""
+    """Fetch raw HTML with a browser-like User-Agent. Returns None on error or Cloudflare challenge."""
     try:
         async with httpx.AsyncClient(
             timeout=_TIMEOUT,
@@ -187,10 +191,15 @@ async def _fetch_html(url: str) -> str | None:
             headers=_HEADERS,
         ) as client:
             r = await client.get(url)
-            if r.status_code == 200:
-                return r.text
-            logger.debug("Luma HTTP %d for %s", r.status_code, url)
-            return None
+            if r.status_code != 200:
+                logger.debug("Luma HTTP %d for %s", r.status_code, url)
+                return None
+            html = r.text
+            # Cloudflare JS challenge pages return 200 but contain no real event data
+            if "cf-browser-verification" in html or "challenge-form" in html or "jschl_vc" in html:
+                logger.info("Luma fetch blocked by Cloudflare challenge for %s", url)
+                return None
+            return html
     except Exception as exc:
         logger.debug("Luma fetch error for %s: %s", url, exc)
         return None
