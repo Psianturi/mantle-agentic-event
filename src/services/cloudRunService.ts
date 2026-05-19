@@ -441,6 +441,7 @@ export const cloudRunService = {
         autonomous_signatures?: number
         lineage_biography?: string
         spawned_on_v4?: boolean
+        ownership_status?: string
       }>>(response)
 
       const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -473,6 +474,8 @@ export const cloudRunService = {
         wisdomHeritageScore: r.wisdom_heritage_score,
         lineageBiography: r.lineage_biography,
         spawnedOnV4: r.spawned_on_v4 ?? false,
+        ownershipStatus: r.ownership_status as Agent['ownershipStatus'] | undefined,
+        isGenesis: r.ownership_status === 'original-creator',
       }))
     } catch (error) {
       // Non-fatal: return empty list if backend is unreachable

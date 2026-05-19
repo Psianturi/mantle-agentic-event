@@ -141,6 +141,7 @@ class SpawnResponse(BaseModel):
     wisdom_heritage_score: int | None = None
     lineage_biography: str | None = None
     spawned_on_v4: bool = False
+    ownership_status: str | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -180,6 +181,7 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         parent_names=data.get("parent_names"),
         lineage_biography=data.get("lineage_biography"),
         spawned_on_v4=data.get("spawned_on_v4", False),
+        ownership_status=data.get("ownership_status"),
     )
 
 
