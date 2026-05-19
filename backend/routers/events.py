@@ -28,6 +28,7 @@ from core.config import settings
 from core.database import get_db
 from core.kms_service import decrypt_private_key
 from services.llm_service import summarize_event
+from services.luma_service import fetch_luma_event, is_luma_url
 from services.web3_service import web3_service
 
 AGENTS_COLLECTION = "agents"
@@ -71,7 +72,7 @@ class AttendRequest(BaseModel):
     agent_wallet: str       # NFT recipient (agent's derived address or user's wallet)
     agent_name: str
     event_url: str
-    event_title: str
+    event_title: str = ""   # Auto-populated from Luma API if empty and URL is a Luma event
     platform: str = "YouTube"
     niche: str = "General"
     mode_b: bool = False    # If True, agent signs with its own private key (autonomous); else backend signs (Mode A)
@@ -227,12 +228,28 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             ),
         )
 
+    # ── Luma auto-detection: pre-fetch event data once for title + summary ────
+    luma_event_data: dict | None = None
+    if is_luma_url(req.event_url):
+        req.platform = "Luma"
+        try:
+            luma_event_data = await fetch_luma_event(req.event_url)
+            # Always prefer real event title over frontend-derived URL slug
+            if luma_event_data.get("title"):
+                req.event_title = luma_event_data["title"]
+                logger.info("Luma title resolved: '%s'", req.event_title)
+        except Exception as exc:
+            logger.info("Luma pre-fetch failed: %s", exc)
+    if not req.event_title:
+        req.event_title = "Luma Event"
+
     # ── Step A: Wisdom Summary ─────────────────────────────────────────────
     wisdom_summary = await summarize_event(
         event_title=req.event_title,
         event_url=req.event_url,
         platform=req.platform,
         agent_name=req.agent_name,
+        luma_event_data=luma_event_data,
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 

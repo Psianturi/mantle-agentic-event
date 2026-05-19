@@ -152,6 +152,19 @@ Platform    : {platform}
 Return ONLY the wisdom summary text. No bullet points, no preamble, no labels.\
 """
 
+_PROMPT_WITH_LUMA_CONTENT = """\
+You are an autonomous AI agent that just attended a professional event hosted on Luma.
+You have access to the full event details below.
+Generate a concise "Wisdom Summary" — exactly 2-3 sentences — capturing the most \
+valuable insights a blockchain AI agent would gain from this event.
+Focus on: Web3 concepts, AI/agentic systems, DeFi, NFTs, developer tools, speaker insights, \
+or actionable takeaways specific to the event content below.
+
+{luma_context}
+
+Return ONLY the wisdom summary text. No bullet points, no preamble, no labels.\
+"""
+
 _FALLBACK_TEMPLATE = (
     "Agent '{agent_name}' attended '{event_title}' on {platform} and integrated "
     "key insights into its knowledge base. Core Web3 and agentic concepts from the "
@@ -166,6 +179,13 @@ try:
 except ImportError:
     _YT_AVAILABLE = False
     logger.warning("youtube-transcript-api not installed — transcript fetch disabled")
+
+try:
+    from services.luma_service import build_luma_context, fetch_luma_event, is_luma_url
+    _LUMA_AVAILABLE = True
+except ImportError:
+    _LUMA_AVAILABLE = False
+    logger.warning("luma_service not available — Luma event enrichment disabled")
 
 
 def _extract_video_id(url: str) -> str | None:
@@ -653,11 +673,13 @@ async def summarize_event(
     event_url: str,
     platform: str,
     agent_name: str = "Agent",
+    luma_event_data: dict | None = None,
 ) -> str:
     """
     Call Gemini to produce a wisdom summary.
 
     For YouTube events: fetches the real transcript and passes it to Gemini.
+    For Luma events: uses pre-fetched event data (if provided) or fetches from Luma API/HTML.
     For other platforms: uses event title + URL as context (metadata-only).
     Returns a graceful fallback string on timeout or API error — minting continues.
     """
@@ -684,6 +706,31 @@ async def summarize_event(
         else:
             logger.info("No transcript for '%s' — falling back to metadata-only prompt", event_title)
 
+    # For Luma URLs, enrich with real event content (description, speakers, date)
+    luma_context: str | None = None
+    if not transcript and _LUMA_AVAILABLE:
+        is_luma = platform.lower() == "luma" or is_luma_url(event_url)
+        if is_luma:
+            if luma_event_data:
+                luma_context = build_luma_context(luma_event_data)
+                logger.info(
+                    "Using pre-fetched Luma data for '%s' (%d chars)",
+                    event_title, len(luma_context),
+                )
+            else:
+                try:
+                    fetched = await fetch_luma_event(event_url)
+                    luma_context = build_luma_context(fetched)
+                    logger.info(
+                        "Luma event fetched for '%s' (%d chars) — using rich prompt",
+                        event_title, len(luma_context),
+                    )
+                except Exception as exc:
+                    logger.info(
+                        "Luma fetch skipped for '%s' (%s) — falling back to metadata-only",
+                        event_title, exc,
+                    )
+
     if transcript:
         prompt = _PROMPT_WITH_TRANSCRIPT.format(
             event_title=event_title,
@@ -691,6 +738,9 @@ async def summarize_event(
             transcript=transcript,
         )
         max_tokens = 512  # richer content → allow longer summary
+    elif luma_context:
+        prompt = _PROMPT_WITH_LUMA_CONTENT.format(luma_context=luma_context)
+        max_tokens = 512
     else:
         prompt = _PROMPT_METADATA_ONLY.format(
             event_title=event_title,

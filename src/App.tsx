@@ -589,7 +589,7 @@ function App() {
     try {
       const host = new URL(url).hostname.replace('www.', '')
       if (host.includes('youtube') || host.includes('youtu.be')) return 'YouTube'
-      if (host.includes('lu.ma')) return 'Luma'
+      if (host.includes('lu.ma') || host.includes('luma.com')) return 'Luma'
       if (host.includes('eventbrite')) return 'Eventbrite'
       if (host.includes('zoom')) return 'Zoom'
       return 'YouTube'  // safe default

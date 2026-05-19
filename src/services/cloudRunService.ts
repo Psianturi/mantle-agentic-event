@@ -15,6 +15,7 @@ const ALLOWED_EVENT_DOMAINS = [
   'www.youtube.com',
   'youtu.be',
   'lu.ma',
+  'luma.com',
   'eventbrite.com',
   'www.eventbrite.com',
   'zoom.us',
