@@ -160,6 +160,13 @@ valuable insights a blockchain AI agent would gain from this event.
 Focus on: Web3 concepts, AI/agentic systems, DeFi, NFTs, developer tools, speaker insights, \
 or actionable takeaways specific to the event content below.
 
+[CRITICAL INSTRUCTION FOR MARKET INTEGRATION]
+If the section "REAL-TIME MARKET INTELLIGENCE" is present in the context below, your Wisdom \
+Summary must not be isolated to the room's walls. Frame the key takeaways against the broader \
+market velocity. Example framing: "While speaker X highlighted the technical boundaries of \
+protocol Y, real-time social metrics indicate a [Sentiment Score]% bullish demand for this \
+niche, suggesting high ecosystem absorption for the discussed technology."
+
 {luma_context}
 
 Return ONLY the wisdom summary text. No bullet points, no preamble, no labels.\
@@ -173,6 +180,14 @@ Generate a concise "Pre-Event Scouting Brief" — exactly 2-3 sentences — that
 1. Identifies the most likely key topics, trends, or technologies to be discussed
 2. Highlights why this event is strategically relevant to a blockchain AI agent
 3. Ends with one sharp question or angle the agent should probe during the event
+
+[CRITICAL INSTRUCTION FOR MARKET INTEGRATION]
+If the section "REAL-TIME MARKET INTELLIGENCE" is provided in the context below, you MUST \
+cross-reference the event topic with the current social sentiment. Analyze how the event's \
+agenda aligns with the current bullish/bearish momentum. In your "Strategic Outlook", explain \
+whether this event is riding a macro trend (e.g., if social mentions are surging) or acting \
+as a contrarian developer pocket. Provide 1 actionable question that explicitly combines the \
+speaker's domain and the ELFA sentiment score.
 
 {luma_context}
 
@@ -694,6 +709,7 @@ async def summarize_event(
     agent_name: str = "Agent",
     luma_event_data: dict | None = None,
     luma_status: str | None = None,
+    elfa_signals: dict | None = None,
 ) -> str:
     """
     Call Gemini to produce a wisdom summary or scouting brief.
@@ -717,7 +733,7 @@ async def summarize_event(
 
     # ── Branch 1: Luma future event → Scouting Brief (no transcript needed) ──
     if luma_status == "scheduled" and luma_event_data and _LUMA_AVAILABLE:
-        luma_context = build_luma_context(luma_event_data)
+        luma_context = build_luma_context(luma_event_data, elfa_signals)
         logger.info("Luma SCOUTING BRIEF mode for '%s' (event not yet started)", event_title)
         payload = {
             "contents": [{"parts": [{"text": _PROMPT_LUMA_SCOUTING_BRIEF.format(luma_context=luma_context)}]}],
@@ -766,7 +782,7 @@ async def summarize_event(
                             "SUPER RICH mode: Luma + YouTube transcript for '%s' (%d chars)",
                             event_title, len(transcript),
                         )
-                luma_context = build_luma_context(luma_event_data)
+                luma_context = build_luma_context(luma_event_data, elfa_signals)
                 logger.info("Using pre-fetched Luma data for '%s' (%d chars)", event_title, len(luma_context))
             else:
                 try:
@@ -774,7 +790,7 @@ async def summarize_event(
                     yt_url = extract_youtube_from_luma(fetched)
                     if yt_url and _YT_AVAILABLE:
                         transcript = await _fetch_youtube_transcript(yt_url)
-                    luma_context = build_luma_context(fetched)
+                    luma_context = build_luma_context(fetched, elfa_signals)
                     logger.info(
                         "Luma event fetched for '%s' (%d chars) — using rich prompt",
                         event_title, len(luma_context),
