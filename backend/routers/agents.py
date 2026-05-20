@@ -1400,6 +1400,15 @@ async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> 
 # ── Luma Autonomous RSVP ─────────────────────────────────────────────────────
 
 
+class LumaConnectRequest(BaseModel):
+    """
+    Accepts pre-captured Luma session cookies from the local capture script.
+    Run backend/test_luma_rsvp_local.py locally → copy contents of luma_cookies_test.json
+    → POST here to store encrypted in Firestore.
+    """
+    cookies: list[dict]
+
+
 class LumaRSVPRequest(BaseModel):
     event_url: str
 
@@ -1412,14 +1421,20 @@ class LumaRSVPRequest(BaseModel):
 
 
 @router.post("/{agent_id}/luma-connect")
-async def luma_connect(agent_id: str) -> dict:
+async def luma_connect(agent_id: str, req: LumaConnectRequest) -> dict:
     """
-    Opens a visible Chromium browser so the user can log in to Luma via Google OAuth.
-    Captures session cookies, encrypts them via KMS, and stores in Firestore.
+    Stores pre-captured Luma session cookies for this agent, encrypted via KMS.
 
-    NOTE: Requires a display (local dev). Cloud Run deployment must use headless=True
-    and the user must have previously captured + uploaded their cookies.
+    Flow:
+      1. Run backend/test_luma_rsvp_local.py locally (opens browser, captures cookies)
+      2. Copy the contents of luma_cookies_test.json
+      3. POST { "cookies": [...] } to this endpoint
+      4. Cookies are KMS-encrypted and stored in Firestore
+      5. Call /luma-rsvp to autonomously register to Luma events
     """
+    if not req.cookies:
+        raise HTTPException(status_code=422, detail="cookies array must not be empty")
+
     db = get_db()
     doc_ref = db.collection(AGENTS_COLLECTION).document(agent_id)
 
@@ -1433,18 +1448,7 @@ async def luma_connect(agent_id: str) -> dict:
 
     agent_data = doc.to_dict() or {}
     agent_name = agent_data.get("name", agent_id)
-
-    try:
-        from services.luma_browser_service import capture_luma_session
-        cookies = await capture_luma_session(timeout_seconds=300)
-    except TimeoutError as exc:
-        raise HTTPException(status_code=408, detail=str(exc)) from exc
-    except Exception as exc:
-        logger.error("Luma session capture failed for agent %s: %s", agent_id, exc)
-        raise HTTPException(status_code=500, detail=f"Browser session capture failed: {exc}") from exc
-
-    if not cookies:
-        raise HTTPException(status_code=422, detail="No Luma cookies captured — login may have failed")
+    cookies = req.cookies
 
     # Serialize + encrypt cookies using KMS (same mechanism as agent private keys)
     try:

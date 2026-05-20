@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Agent, ScoutLogEntry } from '@/lib/types'
-import { MagnifyingGlass, Globe, Calendar, Clock, CheckCircle, ListBullets } from '@phosphor-icons/react'
+import { MagnifyingGlass, Globe, CheckCircle, ListBullets, Link, Spinner, Warning } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -26,6 +26,13 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
   const [showLog, setShowLog] = useState(false)
   const [logs, setLogs] = useState<ScoutLogEntry[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+
+  // Luma Connect state
+  const [showConnectModal, setShowConnectModal] = useState(false)
+  const [cookiesJson, setCookiesJson] = useState('')
+  const [connecting, setConnecting] = useState(false)
+  const [lumaConnected, setLumaConnected] = useState(agent.lumaConnected ?? false)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (logs.length > 0) return
@@ -62,6 +69,31 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
       .then(data => setLogs(data))
       .catch(() => setLogs([]))
       .finally(() => setLogsLoading(false))
+  }
+
+  const handleLumaConnect = async () => {
+    let cookies: object[]
+    try {
+      cookies = JSON.parse(cookiesJson)
+      if (!Array.isArray(cookies) || cookies.length === 0) throw new Error('Empty')
+    } catch {
+      toast.error('Invalid cookies JSON. Paste the full array from luma_cookies_test.json.')
+      return
+    }
+    setConnecting(true)
+    try {
+      await cloudRunService.lumaConnect(agent.id, cookies)
+      setLumaConnected(true)
+      setShowConnectModal(false)
+      setCookiesJson('')
+      toast.success('Luma account connected!', {
+        description: `${cookies.length} session cookies stored securely for ${agent.name}.`,
+      })
+    } catch (err: unknown) {
+      toast.error('Connection failed', { description: err instanceof Error ? err.message : 'Unknown error' })
+    } finally {
+      setConnecting(false)
+    }
   }
 
   return (
@@ -194,6 +226,78 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* ── Luma Connect ─────────────────────────────────────── */}
+        <div className="pt-3 border-t border-border/40">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Link size={13} className={lumaConnected ? 'text-emerald-400' : 'text-muted-foreground'} weight="bold" />
+              <span className="text-xs font-semibold">Luma Account</span>
+              {lumaConnected ? (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+                  Connected ✓
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+                  Not connected
+                </Badge>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 text-[10px] px-2 border-primary/30 hover:border-primary/60"
+              onClick={() => setShowConnectModal(v => !v)}
+            >
+              {lumaConnected ? 'Re-connect' : 'Connect'}
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
+            {lumaConnected
+              ? `${agent.name} can autonomously RSVP to Luma events using stored session cookies.`
+              : 'Connect your Luma account so this agent can autonomously RSVP to events.'}
+          </p>
+
+          <AnimatePresence>
+            {showConnectModal && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-3 space-y-2"
+              >
+                <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-300/80 leading-relaxed">
+                  <p className="font-semibold mb-1 flex items-center gap-1">
+                    <Warning size={12} weight="fill" /> How to connect:
+                  </p>
+                  <ol className="list-decimal list-inside space-y-0.5 text-amber-200/70">
+                    <li>Run <code className="bg-amber-500/10 px-1 rounded">python test_luma_rsvp_local.py</code> (CAPTURE step only)</li>
+                    <li>Open <code className="bg-amber-500/10 px-1 rounded">backend/luma_cookies_test.json</code></li>
+                    <li>Copy the full JSON array and paste below</li>
+                  </ol>
+                </div>
+                <textarea
+                  ref={textareaRef}
+                  value={cookiesJson}
+                  onChange={e => setCookiesJson(e.target.value)}
+                  placeholder='[{"name":"__session","value":"...","domain":".lu.ma",...}]'
+                  className="w-full h-24 text-[10px] font-mono bg-muted/30 border border-border/50 rounded p-2 resize-none focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/30"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleLumaConnect}
+                  disabled={connecting || !cookiesJson.trim()}
+                  className="w-full h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {connecting ? (
+                    <><Spinner size={12} className="animate-spin mr-1.5" />Encrypting &amp; storing...</>
+                  ) : 'Save Cookies to Agent'}
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
       </div>
     </Card>
   )

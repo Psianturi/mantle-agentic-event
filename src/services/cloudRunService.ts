@@ -447,6 +447,8 @@ export const cloudRunService = {
         lineage_biography?: string
         spawned_on_v4?: boolean
         ownership_status?: string
+        luma_connected_at?: number
+        luma_last_rsvp_at?: number
       }>>(response)
 
       const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -481,6 +483,9 @@ export const cloudRunService = {
         spawnedOnV4: r.spawned_on_v4 ?? false,
         ownershipStatus: r.ownership_status as Agent['ownershipStatus'] | undefined,
         isGenesis: r.ownership_status === 'original-creator',
+        lumaConnected: !!r.luma_connected_at,
+        lumaConnectedAt: r.luma_connected_at,
+        lumaLastRsvpAt: r.luma_last_rsvp_at,
       }))
     } catch (error) {
       // Non-fatal: return empty list if backend is unreachable
@@ -972,5 +977,46 @@ export const cloudRunService = {
       { method: 'POST', headers: { 'Content-Type': 'application/json' } },
     )
     return handleAPIResponse<BackendProposal>(response)
+  },
+
+  // ── Luma Autonomous RSVP ──────────────────────────────────────────────────
+
+  async lumaConnect(agentId: string, cookies: object[]): Promise<{
+    status: string
+    agent_id: string
+    agent_name: string
+    cookies_captured: number
+    luma_connected: boolean
+  }> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/luma-connect`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cookies }),
+      },
+    )
+    return handleAPIResponse(response)
+  },
+
+  async lumaRsvp(agentId: string, eventUrl: string): Promise<{
+    agent_id: string
+    agent_name: string
+    event_url: string
+    event_title: string
+    status: string
+    rsvp_confirmed: boolean
+    error?: string
+  }> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/luma-rsvp`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_url: eventUrl }),
+      },
+      120_000, // 2 min — Playwright can take time
+    )
+    return handleAPIResponse(response)
   },
 }

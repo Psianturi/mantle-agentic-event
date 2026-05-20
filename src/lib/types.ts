@@ -50,6 +50,9 @@ export interface Agent {
   parentNames?: { parent_1: string; parent_2: string }
   lineageBiography?: string
   spawnedOnV4?: boolean
+  lumaConnected?: boolean
+  lumaConnectedAt?: number
+  lumaLastRsvpAt?: number
 }
 
 export interface ScoutLogEntry {
