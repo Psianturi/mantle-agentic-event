@@ -12,6 +12,7 @@ This ensures agent wallets and private keys survive Cloud Run cold starts.
 
 import asyncio
 import hashlib
+import json
 import logging
 import secrets
 import time
@@ -1393,6 +1394,158 @@ async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> 
             "new_total_events": attend_result.new_total_events,
             "new_level": attend_result.new_level,
         },
+    }
+
+
+# ── Luma Autonomous RSVP ─────────────────────────────────────────────────────
+
+
+class LumaRSVPRequest(BaseModel):
+    event_url: str
+
+    @field_validator("event_url")
+    @classmethod
+    def validate_luma_url(cls, v: str) -> str:
+        if not ("lu.ma/" in v or "luma.com/" in v):
+            raise ValueError("URL must be a Luma event URL (lu.ma or luma.com)")
+        return v
+
+
+@router.post("/{agent_id}/luma-connect")
+async def luma_connect(agent_id: str) -> dict:
+    """
+    Opens a visible Chromium browser so the user can log in to Luma via Google OAuth.
+    Captures session cookies, encrypts them via KMS, and stores in Firestore.
+
+    NOTE: Requires a display (local dev). Cloud Run deployment must use headless=True
+    and the user must have previously captured + uploaded their cookies.
+    """
+    db = get_db()
+    doc_ref = db.collection(AGENTS_COLLECTION).document(agent_id)
+
+    try:
+        doc = await doc_ref.get()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    agent_data = doc.to_dict() or {}
+    agent_name = agent_data.get("name", agent_id)
+
+    try:
+        from services.luma_browser_service import capture_luma_session
+        cookies = await capture_luma_session(timeout_seconds=300)
+    except TimeoutError as exc:
+        raise HTTPException(status_code=408, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Luma session capture failed for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=500, detail=f"Browser session capture failed: {exc}") from exc
+
+    if not cookies:
+        raise HTTPException(status_code=422, detail="No Luma cookies captured — login may have failed")
+
+    # Serialize + encrypt cookies using KMS (same mechanism as agent private keys)
+    try:
+        cookies_enc = encrypt_private_key(json.dumps(cookies))
+    except Exception as exc:
+        logger.error("KMS encryption of Luma cookies failed for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to encrypt session cookies") from exc
+
+    try:
+        await doc_ref.update({
+            "luma_cookies_enc": cookies_enc,
+            "luma_connected_at": time.time(),
+        })
+    except Exception as exc:
+        logger.error("Firestore update failed for agent %s luma cookies: %s", agent_id, exc)
+        raise HTTPException(status_code=503, detail="Failed to persist session cookies") from exc
+
+    logger.info(
+        "Luma session captured for agent %s (%s), %d cookies stored",
+        agent_id, agent_name, len(cookies),
+    )
+    return {
+        "status": "success",
+        "agent_id": agent_id,
+        "agent_name": agent_name,
+        "cookies_captured": len(cookies),
+        "luma_connected": True,
+    }
+
+
+@router.post("/{agent_id}/luma-rsvp")
+async def luma_rsvp(agent_id: str, req: LumaRSVPRequest) -> dict:
+    """
+    Autonomously RSVPs the agent to a Luma event using stored session cookies.
+    Refreshes cookies in Firestore if Clerk rotates the JWT during the session.
+    """
+    db = get_db()
+    doc_ref = db.collection(AGENTS_COLLECTION).document(agent_id)
+
+    try:
+        doc = await doc_ref.get()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable") from exc
+
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    agent_data = doc.to_dict() or {}
+    agent_name = agent_data.get("name", agent_id)
+    cookies_enc = agent_data.get("luma_cookies_enc")
+
+    if not cookies_enc:
+        raise HTTPException(
+            status_code=422,
+            detail="No Luma session found for this agent. Call POST /luma-connect first.",
+        )
+
+    try:
+        cookies = json.loads(decrypt_private_key(cookies_enc))
+    except Exception as exc:
+        logger.error("Failed to decrypt Luma cookies for agent %s: %s", agent_id, exc)
+        raise HTTPException(status_code=500, detail="Failed to decrypt session cookies") from exc
+
+    try:
+        from services.luma_browser_service import rsvp_luma_event
+        result = await rsvp_luma_event(
+            cookies=cookies,
+            event_url=req.event_url,
+            agent_name=agent_name,
+        )
+    except Exception as exc:
+        logger.error("RSVP failed for agent %s on %s: %s", agent_id, req.event_url, exc)
+        raise HTTPException(status_code=500, detail=f"RSVP execution failed: {exc}") from exc
+
+    # If Clerk rotated the JWT, persist refreshed cookies
+    updated_cookies = result.get("updated_cookies")
+    ts_update: dict = {"luma_last_rsvp_at": time.time()}
+    if updated_cookies:
+        try:
+            ts_update["luma_cookies_enc"] = encrypt_private_key(json.dumps(updated_cookies))
+            logger.info("Refreshed Luma cookies persisted for agent %s", agent_id)
+        except Exception as exc:
+            logger.warning("Failed to re-encrypt updated Luma cookies for agent %s: %s", agent_id, exc)
+    try:
+        await doc_ref.update(ts_update)
+    except Exception:
+        pass  # non-critical timestamp update
+
+    logger.info(
+        "Luma RSVP for agent %s on '%s': status=%s confirmed=%s",
+        agent_id, result.get("event_title", req.event_url),
+        result.get("status"), result.get("rsvp_confirmed"),
+    )
+    return {
+        "agent_id": agent_id,
+        "agent_name": agent_name,
+        "event_url": req.event_url,
+        "event_title": result.get("event_title", ""),
+        "status": result.get("status"),
+        "rsvp_confirmed": result.get("rsvp_confirmed", False),
+        "error": result.get("error"),
     }
 
 

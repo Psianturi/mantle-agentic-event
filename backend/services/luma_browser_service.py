@@ -69,7 +69,7 @@ async def capture_luma_session(timeout_seconds: int = 300) -> list[dict]:
     from playwright.async_api import async_playwright  # lazy — not installed in all envs
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False, args=["--no-sandbox"])
+        browser = await p.chromium.launch(headless=True, args=_CR_ARGS)
         context = await browser.new_context(user_agent=_UA)
         page = await context.new_page()
 
@@ -163,8 +163,8 @@ async def rsvp_luma_event(
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(
-            headless=False,   # DEBUG: set True for production
-            args=["--no-sandbox"],
+            headless=True,
+            args=_CR_ARGS,
         )
         context = await browser.new_context(user_agent=_UA)
 
