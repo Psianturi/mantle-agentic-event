@@ -5,12 +5,17 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Agent, ScoutLogEntry } from '@/lib/types'
-import { MagnifyingGlass, Globe, CheckCircle, ListBullets, Link, Spinner, Warning } from '@phosphor-icons/react'
+import { MagnifyingGlass, Globe, CheckCircle, ListBullets, Link, Spinner } from '@phosphor-icons/react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { ScoutDecisionTable } from '@/components/ScoutDecisionTable'
 import { cloudRunService } from '@/services/cloudRunService'
+
+// Bookmarklet: runs on lu.ma, grabs all non-HttpOnly cookies (includes __client, __client_uat),
+// formats as JSON array, copies to clipboard. __session is HttpOnly so excluded — Playwright
+// re-issues it automatically via Clerk's rotation mechanism on first authenticated request.
+const LUMA_GRABBER_BOOKMARKLET = `javascript:(function(){var h=location.hostname,d=h.startsWith('.')?h:'.'+h,cs=document.cookie.split(';').filter(Boolean).map(function(c){var i=c.indexOf('=');return{name:c.slice(0,i).trim(),value:c.slice(i+1).trim(),domain:d,path:'/',secure:true,sameSite:'None'};}).filter(function(c){return c.name&&c.value;});if(!cs.length){alert('No cookies found. Are you logged in to lu.ma?');return;}var j=JSON.stringify(cs);if(navigator.clipboard){navigator.clipboard.writeText(j).then(function(){alert('✅ '+cs.length+' Luma cookies copied! Return to MAEF and paste.');});}else{var t=document.createElement('textarea');t.value=j;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);alert('✅ '+cs.length+' Luma cookies copied!');}})();`
 
 interface ProactiveScoutingPanelProps {
   agent: Agent
@@ -266,14 +271,27 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                 exit={{ opacity: 0, height: 0 }}
                 className="mt-3 space-y-2"
               >
-                <div className="p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-[11px] text-amber-300/80 leading-relaxed">
-                  <p className="font-semibold mb-1 flex items-center gap-1">
-                    <Warning size={12} weight="fill" /> How to connect:
+                <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-[11px] leading-relaxed space-y-2.5">
+                  <p className="font-semibold text-primary/80 flex items-center gap-1.5">
+                    <Link size={12} weight="bold" /> Connect in 4 steps:
                   </p>
-                  <ol className="list-decimal list-inside space-y-0.5 text-amber-200/70">
-                    <li>Run <code className="bg-amber-500/10 px-1 rounded">python test_luma_rsvp_local.py</code> (CAPTURE step only)</li>
-                    <li>Open <code className="bg-amber-500/10 px-1 rounded">backend/luma_cookies_test.json</code></li>
-                    <li>Copy the full JSON array and paste below</li>
+                  <div className="flex items-center gap-2.5 py-1">
+                    <a
+                      href={LUMA_GRABBER_BOOKMARKLET}
+                      draggable
+                      onClick={(e) => e.preventDefault()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/20 border border-primary/50 text-primary text-[11px] font-semibold cursor-grab active:cursor-grabbing hover:bg-primary/30 transition-colors select-none whitespace-nowrap"
+                      title="Drag this to your bookmarks bar"
+                    >
+                      📎 MAEF Luma Grabber
+                    </a>
+                    <span className="text-muted-foreground/50">← drag to bookmarks bar</span>
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground/70">
+                    <li>Open <strong className="text-foreground/70 font-medium">lu.ma</strong> and make sure you're logged in</li>
+                    <li>Click <strong className="text-foreground/70 font-medium">MAEF Luma Grabber</strong> in your bookmarks bar</li>
+                    <li>Session cookies auto-copy to your clipboard</li>
+                    <li>Return here and paste below</li>
                   </ol>
                 </div>
                 <textarea
