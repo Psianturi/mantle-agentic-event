@@ -16,6 +16,7 @@ import json
 import logging
 import secrets
 import time
+import uuid
 
 from eth_account import Account
 from fastapi import APIRouter, HTTPException, Query
@@ -1399,13 +1400,22 @@ async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> 
 
 # ── Luma Autonomous RSVP ─────────────────────────────────────────────────────
 
+# In-memory OTP session store — keyed by session_id (token_urlsafe).
+# Each value: (otp_queue, result_queue) used to bridge HTTP requests with Playwright task.
+# Works reliably for Cloud Run min-instances=1. Multi-instance scale would need Redis.
+_luma_otp_sessions: dict[str, tuple[asyncio.Queue, asyncio.Queue]] = {}
+
+
+class LumaConnectStartRequest(BaseModel):
+    email: str
+
+
+class LumaConnectVerifyRequest(BaseModel):
+    session_id: str
+    code: str
+
 
 class LumaConnectRequest(BaseModel):
-    """
-    Accepts pre-captured Luma session cookies from the local capture script.
-    Run backend/test_luma_rsvp_local.py locally → copy contents of luma_cookies_test.json
-    → POST here to store encrypted in Firestore.
-    """
     cookies: list[dict]
 
 
@@ -1418,6 +1428,75 @@ class LumaRSVPRequest(BaseModel):
         if not ("lu.ma/" in v or "luma.com/" in v):
             raise ValueError("URL must be a Luma event URL (lu.ma or luma.com)")
         return v
+
+
+@router.post("/{agent_id}/luma-connect-start")
+async def luma_connect_start(agent_id: str, req: LumaConnectStartRequest) -> dict:
+    """
+    Step 1 of OTP connect flow: starts a headless Playwright session, opens lu.ma/signin,
+    enters the user's email. Luma emails a 6-digit OTP. Returns session_id for step 2.
+    """
+    db = get_db()
+    doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    session_id = secrets.token_urlsafe(16)
+    otp_queue: asyncio.Queue = asyncio.Queue()
+    result_queue: asyncio.Queue = asyncio.Queue()
+    _luma_otp_sessions[session_id] = (otp_queue, result_queue)
+
+    async def _run():
+        from services.luma_browser_service import connect_luma_with_otp
+        await connect_luma_with_otp(req.email, otp_queue, result_queue)
+
+    asyncio.create_task(_run())
+    logger.info("Luma OTP connect started for agent %s, email %s, session %s", agent_id, req.email, session_id)
+
+    return {"session_id": session_id, "status": "otp_sent", "email": req.email}
+
+
+@router.post("/{agent_id}/luma-connect-verify")
+async def luma_connect_verify(agent_id: str, req: LumaConnectVerifyRequest) -> dict:
+    """
+    Step 2 of OTP connect flow: submits the 6-digit code. Playwright enters it,
+    detects login, captures cookies, KMS-encrypts, and stores in Firestore.
+    """
+    session = _luma_otp_sessions.get(req.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found or expired. Please start again.")
+
+    otp_queue, result_queue = session
+
+    # Signal the waiting Playwright task with the code
+    await otp_queue.put(req.code.strip())
+
+    # Wait for Playwright to process OTP + capture cookies (up to 60s)
+    try:
+        result = await asyncio.wait_for(result_queue.get(), timeout=60)
+    except asyncio.TimeoutError:
+        _luma_otp_sessions.pop(req.session_id, None)
+        raise HTTPException(status_code=504, detail="Timed out processing the code. Please try again.")
+
+    _luma_otp_sessions.pop(req.session_id, None)
+
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "OTP verification failed"))
+
+    cookies = result["cookies"]
+    try:
+        cookies_enc = encrypt_private_key(json.dumps(cookies))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed to encrypt session cookies") from exc
+
+    db = get_db()
+    await db.collection(AGENTS_COLLECTION).document(agent_id).update({
+        "luma_cookies_enc": cookies_enc,
+        "luma_connected_at": time.time(),
+    })
+
+    logger.info("Luma OTP connect verified for agent %s — %d cookies stored", agent_id, len(cookies))
+    return {"status": "connected", "cookies_captured": len(cookies), "luma_connected": True}
 
 
 @router.post("/{agent_id}/luma-connect")

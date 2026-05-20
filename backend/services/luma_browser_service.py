@@ -141,6 +141,116 @@ async def capture_luma_session(timeout_seconds: int = 300) -> list[dict]:
             await browser.close()
 
 
+# ── OTP CONNECT mode (one-time per-user setup via email code) ────────────────
+
+async def connect_luma_with_otp(
+    email: str,
+    otp_queue: asyncio.Queue,
+    result_queue: asyncio.Queue,
+) -> None:
+    """
+    Headless Playwright flow for email OTP login on Luma.
+
+    Caller is responsible for signalling:
+      - otp_queue.put(code)   → unblocks this function to submit the code
+      - result_queue.get()    → caller waits here for {"success": bool, ...}
+
+    Flow:
+      1. Open lu.ma/signin headless
+      2. Enter email → Luma emails a 6-digit code
+      3. Await otp_queue for the code (up to 5 min)
+      4. Enter code → detect login → capture cookies
+      5. Put result in result_queue
+    """
+    from playwright.async_api import async_playwright
+
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True, args=_CR_ARGS)
+            context = await browser.new_context(user_agent=_UA)
+            page = await context.new_page()
+
+            # Step 1: Navigate to signin
+            await page.goto(_LUMA_SIGNIN_URL, wait_until="domcontentloaded", timeout=30_000)
+            await page.wait_for_timeout(2_000)
+
+            # Step 2: Enter email — Clerk renders input[type="email"] or input[name="emailAddress"]
+            email_input = await page.wait_for_selector(
+                'input[type="email"], input[name="emailAddress"]',
+                timeout=15_000,
+                state="visible",
+            )
+            await email_input.fill(email)
+            await page.wait_for_timeout(400)
+
+            # Click Continue/Sign In button
+            await page.evaluate("""
+                () => {
+                    const LABELS = ['Continue', 'Sign in', 'Send', 'Next', 'Submit'];
+                    const btn = [...document.querySelectorAll('button[type="submit"], button')]
+                        .find(b => LABELS.some(l => (b.innerText || b.textContent || '').trim().startsWith(l)));
+                    if (btn) btn.click();
+                }
+            """)
+            logger.info("OTP connect: email '%s' submitted — waiting for Luma to send code.", email)
+            await page.wait_for_timeout(3_000)
+
+            # Step 3: Wait for OTP code from frontend (5 min timeout)
+            try:
+                otp_code = await asyncio.wait_for(otp_queue.get(), timeout=300)
+            except asyncio.TimeoutError:
+                await result_queue.put({"success": False, "error": "Timed out waiting for OTP code (5 minutes)"})
+                return
+
+            logger.info("OTP connect: received code — submitting.")
+
+            # Step 4: Enter OTP — Clerk uses 6 individual single-char inputs OR one consolidated input
+            digit_inputs = await page.query_selector_all('input[maxlength="1"]')
+            if len(digit_inputs) >= 6:
+                for i, char in enumerate(otp_code.strip()[:6]):
+                    await digit_inputs[i].fill(char)
+                    await page.wait_for_timeout(80)
+            else:
+                otp_input = await page.wait_for_selector(
+                    'input[autocomplete="one-time-code"], input[type="text"]',
+                    timeout=10_000,
+                    state="visible",
+                )
+                await otp_input.fill(otp_code.strip())
+
+            await page.wait_for_timeout(400)
+
+            # Submit OTP form
+            await page.evaluate("""
+                () => {
+                    const LABELS = ['Verify', 'Continue', 'Sign in', 'Confirm', 'Submit'];
+                    const btn = [...document.querySelectorAll('button[type="submit"], button')]
+                        .find(b => LABELS.some(l => (b.innerText || b.textContent || '').trim().startsWith(l)));
+                    if (btn) btn.click();
+                }
+            """)
+            await page.wait_for_timeout(5_000)
+
+            # Step 5: Detect login + capture cookies
+            all_cookies = await context.cookies(_LUMA_COOKIE_URLS)
+            luma_cookies = _filter_luma_cookies(all_cookies)
+
+            has_session = any(c["name"] in ("__session", "__client") for c in luma_cookies)
+            if not has_session:
+                await result_queue.put({
+                    "success": False,
+                    "error": "Login failed — no session cookie found. Check the code and try again.",
+                })
+                return
+
+            logger.info("OTP connect: login confirmed — %d cookies captured.", len(luma_cookies))
+            await result_queue.put({"success": True, "cookies": luma_cookies})
+
+    except Exception as exc:
+        logger.error("OTP connect: unexpected error: %s", exc)
+        await result_queue.put({"success": False, "error": str(exc)})
+
+
 # ── RSVP mode (autonomous) ────────────────────────────────────────────────────
 
 async def rsvp_luma_event(

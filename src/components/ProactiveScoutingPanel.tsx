@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Agent, ScoutLogEntry } from '@/lib/types'
-import { MagnifyingGlass, Globe, CheckCircle, ListBullets, Link, Spinner } from '@phosphor-icons/react'
-import { cn } from '@/lib/utils'
+import { MagnifyingGlass, Globe, CheckCircle, ListBullets, Link, Spinner, EnvelopeSimple } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { ScoutDecisionTable } from '@/components/ScoutDecisionTable'
@@ -27,11 +27,14 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
   const [logs, setLogs] = useState<ScoutLogEntry[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
 
-  // Luma Connect state
+  // Luma Connect state — two-step OTP flow
   const [showConnectModal, setShowConnectModal] = useState(false)
+  const [connectStep, setConnectStep] = useState<'email' | 'otp'>('email')
+  const [connectEmail, setConnectEmail] = useState('')
+  const [connectOtp, setConnectOtp] = useState('')
+  const [connectSessionId, setConnectSessionId] = useState('')
   const [connecting, setConnecting] = useState(false)
   const [lumaConnected, setLumaConnected] = useState(agent.lumaConnected ?? false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (logs.length > 0) return
@@ -70,23 +73,39 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
       .finally(() => setLogsLoading(false))
   }
 
-  const handleLumaConnect = async (file: File) => {
+  const handleSendOtp = async () => {
+    if (!connectEmail.trim()) return
     setConnecting(true)
     try {
-      const text = await file.text()
-      const cookies = JSON.parse(text)
-      if (!Array.isArray(cookies) || cookies.length === 0) throw new Error('File contains no cookies')
-      await cloudRunService.lumaConnect(agent.id, cookies)
-      setLumaConnected(true)
-      setShowConnectModal(false)
-      toast.success('Luma account connected!', {
-        description: `${cookies.length} session cookies stored securely for ${agent.name}.`,
-      })
+      const res = await cloudRunService.lumaConnectStart(agent.id, connectEmail.trim())
+      setConnectSessionId(res.session_id)
+      setConnectStep('otp')
+      toast.info('Code sent!', { description: `Check your inbox at ${connectEmail}` })
     } catch (err: unknown) {
-      toast.error('Connection failed', { description: err instanceof Error ? err.message : 'Invalid or empty cookies file' })
+      toast.error('Failed to send code', { description: err instanceof Error ? err.message : 'Unknown error' })
     } finally {
       setConnecting(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    if (!connectOtp.trim() || !connectSessionId) return
+    setConnecting(true)
+    try {
+      await cloudRunService.lumaConnectVerify(agent.id, connectSessionId, connectOtp.trim())
+      setLumaConnected(true)
+      setShowConnectModal(false)
+      setConnectEmail('')
+      setConnectOtp('')
+      setConnectSessionId('')
+      setConnectStep('email')
+      toast.success('Luma account connected!', {
+        description: `${agent.name} can now autonomously RSVP to Luma events.`,
+      })
+    } catch (err: unknown) {
+      toast.error('Verification failed', { description: err instanceof Error ? err.message : 'Invalid code' })
+    } finally {
+      setConnecting(false)
     }
   }
 
@@ -258,32 +277,74 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-3 space-y-2.5"
+                className="mt-3 space-y-2"
               >
-                <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
-                  Run <code className="bg-muted/40 px-1 rounded text-[10px]">python backend/test_luma_rsvp_local.py</code> once locally to capture your session, then upload the generated file.
-                </p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (file) await handleLumaConnect(file)
-                  }}
-                />
-                <Button
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={connecting}
-                  className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
-                >
-                  {connecting
-                    ? <><Spinner size={12} className="animate-spin" /> Encrypting &amp; storing...</>
-                    : '📂 Upload luma_cookies_test.json'
-                  }
-                </Button>
+                {connectStep === 'email' ? (
+                  <>
+                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
+                      Enter your Luma email. We'll send a login code — no password needed.
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        placeholder="you@email.com"
+                        value={connectEmail}
+                        onChange={e => setConnectEmail(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSendOtp()}
+                        className="h-8 text-xs bg-muted/30 border-border/50 focus:border-primary/50"
+                        disabled={connecting}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleSendOtp}
+                        disabled={connecting || !connectEmail.trim()}
+                        className="h-8 text-xs px-3 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                      >
+                        {connecting
+                          ? <Spinner size={12} className="animate-spin" />
+                          : <><EnvelopeSimple size={12} /> Send Code</>
+                        }
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
+                      Check <strong className="text-foreground/70">{connectEmail}</strong> for a 6-digit code from Luma.
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="123456"
+                        maxLength={6}
+                        value={connectOtp}
+                        onChange={e => setConnectOtp(e.target.value.replace(/\D/g, ''))}
+                        onKeyDown={e => e.key === 'Enter' && handleVerifyOtp()}
+                        className="h-8 text-xs font-mono tracking-widest bg-muted/30 border-border/50 focus:border-primary/50"
+                        disabled={connecting}
+                        autoFocus
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleVerifyOtp}
+                        disabled={connecting || connectOtp.length < 6}
+                        className="h-8 text-xs px-3 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                      >
+                        {connecting
+                          ? <><Spinner size={12} className="animate-spin" /> Verifying...</>
+                          : <><CheckCircle size={12} /> Verify</>
+                        }
+                      </Button>
+                    </div>
+                    <button
+                      onClick={() => { setConnectStep('email'); setConnectOtp('') }}
+                      className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                    >
+                      ← Use a different email
+                    </button>
+                  </>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
