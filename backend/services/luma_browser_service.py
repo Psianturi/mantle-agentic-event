@@ -23,13 +23,17 @@ _LUMA_SIGNIN_URL = "https://lu.ma/signin"
 _LUMA_HOME_URL = "https://luma.com/home"   # Google OAuth lands on luma.com
 _LUMA_COOKIE_URLS = ["https://lu.ma", "https://luma.com"]  # fetch cookies from both
 
-# Chromium launch args safe for Cloud Run (headless Linux, no sandbox)
+# Chromium launch args safe for Cloud Run (headless Linux, no sandbox).
+# --single-process is intentionally omitted: it causes SIGTRAP (signal 5) crashes
+# when Chromium handles complex JS form interactions (OTP input, modal buttons).
 _CR_ARGS = [
     "--no-sandbox",
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
     "--disable-gpu",
-    "--single-process",
+    "--disable-extensions",
+    "--disable-background-networking",
+    "--disable-sync",
 ]
 
 _UA = (
@@ -195,10 +199,32 @@ async def connect_luma_with_otp(session_id: str, email: str) -> None:
                     if (btn) btn.click();
                 }
             """)
-            logger.info("OTP connect [%s]: email submitted, waiting for code.", session_id)
-            await page.wait_for_timeout(3_000)
+            logger.info("OTP connect [%s]: email submitted, waiting for OTP page.", session_id)
 
-            # Step 3: Signal frontend that OTP was sent, then poll Firestore for code
+            # Wait for OTP input to actually appear before telling frontend to ask for code.
+            # This ensures Playwright is definitely on the OTP screen when the code arrives.
+            _OTP_SELECTORS = (
+                'input[maxlength="1"]',
+                'input[autocomplete="one-time-code"]',
+                'input[inputmode="numeric"]',
+                'input[type="tel"]',
+                'input[name="code"]',
+            )
+            otp_page_ready = False
+            for sel in _OTP_SELECTORS:
+                try:
+                    await page.wait_for_selector(sel, timeout=20_000, state="visible")
+                    otp_page_ready = True
+                    logger.info("OTP connect [%s]: OTP page confirmed (selector: %s).", session_id, sel)
+                    break
+                except Exception:
+                    pass
+
+            if not otp_page_ready:
+                await _set_status("error", error="OTP page didn't load — email may be invalid or Luma rate-limited")
+                return
+
+            # Step 3: Signal frontend that OTP is ready, then poll Firestore for code
             await _set_status("waiting_otp")
 
             otp_code: str | None = None
@@ -217,28 +243,47 @@ async def connect_luma_with_otp(session_id: str, email: str) -> None:
 
             logger.info("OTP connect [%s]: code received, submitting.", session_id)
 
-            # Step 4: Enter OTP — Clerk uses 6 individual single-char inputs OR one input
+            # Step 4: Enter OTP — use keyboard.type() to avoid Chromium crashes on fill()
             digit_inputs = await page.query_selector_all('input[maxlength="1"]')
             if len(digit_inputs) >= 6:
+                # Clerk 6-box OTP: click each box, type one digit via keyboard
                 for i, char in enumerate(otp_code[:6]):
-                    await digit_inputs[i].fill(char)
-                    await page.wait_for_timeout(80)
+                    try:
+                        await digit_inputs[i].click()
+                        await page.wait_for_timeout(80)
+                        await page.keyboard.type(char)
+                        await page.wait_for_timeout(100)
+                    except Exception as e:
+                        logger.warning("OTP connect [%s]: digit %d input error: %s", session_id, i, e)
             else:
-                otp_input = await page.wait_for_selector(
-                    'input[autocomplete="one-time-code"], input[type="text"]',
-                    timeout=10_000,
-                    state="visible",
-                )
-                await otp_input.fill(otp_code)
+                # Single OTP input (less common)
+                otp_input = None
+                for sel in (
+                    'input[autocomplete="one-time-code"]',
+                    'input[inputmode="numeric"]',
+                    'input[name="code"]',
+                    'input[type="text"]',
+                ):
+                    try:
+                        otp_input = await page.wait_for_selector(sel, timeout=5_000, state="visible")
+                        if otp_input:
+                            break
+                    except Exception:
+                        pass
+                if otp_input:
+                    await otp_input.click()
+                    await page.wait_for_timeout(100)
+                    await page.keyboard.type(otp_code)
 
-            await page.wait_for_timeout(400)
+            await page.wait_for_timeout(600)
 
+            # Luma auto-submits when the last digit is entered; if not, click submit
             await page.evaluate("""
                 () => {
                     const LABELS = ['Verify', 'Continue', 'Sign in', 'Confirm', 'Submit'];
                     const btn = [...document.querySelectorAll('button[type="submit"], button')]
                         .find(b => LABELS.some(l => (b.innerText || b.textContent || '').trim().startsWith(l)));
-                    if (btn) btn.click();
+                    if (btn && !btn.disabled) btn.click();
                 }
             """)
             await page.wait_for_timeout(5_000)
@@ -249,6 +294,11 @@ async def connect_luma_with_otp(session_id: str, email: str) -> None:
             has_session = any(c["name"] in ("__session", "__client") for c in luma_cookies)
 
             if not has_session:
+                try:
+                    await page.screenshot(path="/tmp/otp_connect_fail.png", full_page=False)
+                    logger.info("OTP connect [%s]: failure screenshot saved.", session_id)
+                except Exception:
+                    pass
                 await _set_status("error", error="Login failed — wrong code or session expired")
                 return
 
