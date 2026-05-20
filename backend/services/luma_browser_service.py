@@ -23,17 +23,17 @@ _LUMA_SIGNIN_URL = "https://lu.ma/signin"
 _LUMA_HOME_URL = "https://luma.com/home"   # Google OAuth lands on luma.com
 _LUMA_COOKIE_URLS = ["https://lu.ma", "https://luma.com"]  # fetch cookies from both
 
-# Chromium launch args safe for Cloud Run (headless Linux, no sandbox).
-# --single-process is intentionally omitted: it causes SIGTRAP (signal 5) crashes
-# when Chromium handles complex JS form interactions (OTP input, modal buttons).
+# Chromium launch args for Cloud Run (headless Linux, no sandbox).
+# --single-process causes SIGTRAP on complex JS interactions — removed.
+# --no-zygote prevents Chromium from pre-forking a zygote process, which triggers
+# pthread_create failures in resource-constrained containers and causes 3+ min startup.
 _CR_ARGS = [
     "--no-sandbox",
     "--disable-setuid-sandbox",
     "--disable-dev-shm-usage",
     "--disable-gpu",
+    "--no-zygote",
     "--disable-extensions",
-    "--disable-background-networking",
-    "--disable-sync",
 ]
 
 _UA = (
@@ -243,20 +243,20 @@ async def connect_luma_with_otp(session_id: str, email: str) -> None:
 
             logger.info("OTP connect [%s]: code received, submitting.", session_id)
 
-            # Step 4: Enter OTP — use keyboard.type() to avoid Chromium crashes on fill()
+            # Step 4: Enter OTP using fill() — Playwright's fill() dispatches InputEvent
+            # which React's synthetic event system handles correctly (keyboard.type()
+            # only fires keydown/keyup and does NOT trigger React's onChange).
             digit_inputs = await page.query_selector_all('input[maxlength="1"]')
             if len(digit_inputs) >= 6:
-                # Clerk 6-box OTP: click each box, type one digit via keyboard
+                # Clerk 6-box OTP: fill each box with one digit
                 for i, char in enumerate(otp_code[:6]):
                     try:
-                        await digit_inputs[i].click()
+                        await digit_inputs[i].fill(char)
                         await page.wait_for_timeout(80)
-                        await page.keyboard.type(char)
-                        await page.wait_for_timeout(100)
                     except Exception as e:
                         logger.warning("OTP connect [%s]: digit %d input error: %s", session_id, i, e)
             else:
-                # Single OTP input (less common)
+                # Single OTP input (e.g. input[autocomplete="one-time-code"])
                 otp_input = None
                 for sel in (
                     'input[autocomplete="one-time-code"]',
@@ -271,11 +271,9 @@ async def connect_luma_with_otp(session_id: str, email: str) -> None:
                     except Exception:
                         pass
                 if otp_input:
-                    await otp_input.click()
-                    await page.wait_for_timeout(100)
-                    await page.keyboard.type(otp_code)
+                    await otp_input.fill(otp_code)
 
-            await page.wait_for_timeout(600)
+            await page.wait_for_timeout(800)
 
             # Luma auto-submits when the last digit is entered; if not, click submit
             await page.evaluate("""
@@ -283,10 +281,21 @@ async def connect_luma_with_otp(session_id: str, email: str) -> None:
                     const LABELS = ['Verify', 'Continue', 'Sign in', 'Confirm', 'Submit'];
                     const btn = [...document.querySelectorAll('button[type="submit"], button')]
                         .find(b => LABELS.some(l => (b.innerText || b.textContent || '').trim().startsWith(l)));
-                    if (btn && !btn.disabled) btn.click();
+                    if (btn) btn.click();  // click even if disabled — React may re-enable it
                 }
             """)
-            await page.wait_for_timeout(5_000)
+
+            # Wait for either page navigation (success) or timeout (error)
+            try:
+                await page.wait_for_url(
+                    lambda url: "signin" not in url and "login" not in url,
+                    timeout=8_000,
+                )
+                logger.info("OTP connect [%s]: page navigated away from signin — login likely successful.", session_id)
+            except Exception:
+                logger.warning("OTP connect [%s]: page did not navigate from signin within 8s — checking cookies anyway.", session_id)
+
+            await page.wait_for_timeout(2_000)  # let Clerk finalise session cookies
 
             # Step 5: Capture cookies
             all_cookies = await context.cookies(_LUMA_COOKIE_URLS)
