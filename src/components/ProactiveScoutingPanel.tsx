@@ -12,11 +12,6 @@ import { toast } from 'sonner'
 import { ScoutDecisionTable } from '@/components/ScoutDecisionTable'
 import { cloudRunService } from '@/services/cloudRunService'
 
-// Bookmarklet: runs on lu.ma, grabs all non-HttpOnly cookies (includes __client, __client_uat),
-// formats as JSON array, copies to clipboard. __session is HttpOnly so excluded — Playwright
-// re-issues it automatically via Clerk's rotation mechanism on first authenticated request.
-const LUMA_GRABBER_BOOKMARKLET = `javascript:(function(){var h=location.hostname,d=h.startsWith('.')?h:'.'+h,cs=document.cookie.split(';').filter(Boolean).map(function(c){var i=c.indexOf('=');return{name:c.slice(0,i).trim(),value:c.slice(i+1).trim(),domain:d,path:'/',secure:true,sameSite:'None'};}).filter(function(c){return c.name&&c.value;});if(!cs.length){alert('No cookies found. Are you logged in to lu.ma?');return;}var j=JSON.stringify(cs);if(navigator.clipboard){navigator.clipboard.writeText(j).then(function(){alert('✅ '+cs.length+' Luma cookies copied! Return to MAEF and paste.');});}else{var t=document.createElement('textarea');t.value=j;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);alert('✅ '+cs.length+' Luma cookies copied!');}})();`
-
 interface ProactiveScoutingPanelProps {
   agent: Agent
   onToggleScout: (agentId: string, enabled: boolean) => void
@@ -34,10 +29,9 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
 
   // Luma Connect state
   const [showConnectModal, setShowConnectModal] = useState(false)
-  const [cookiesJson, setCookiesJson] = useState('')
   const [connecting, setConnecting] = useState(false)
   const [lumaConnected, setLumaConnected] = useState(agent.lumaConnected ?? false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (logs.length > 0) return
@@ -76,28 +70,23 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
       .finally(() => setLogsLoading(false))
   }
 
-  const handleLumaConnect = async () => {
-    let cookies: object[]
-    try {
-      cookies = JSON.parse(cookiesJson)
-      if (!Array.isArray(cookies) || cookies.length === 0) throw new Error('Empty')
-    } catch {
-      toast.error('Invalid cookies JSON. Paste the full array from luma_cookies_test.json.')
-      return
-    }
+  const handleLumaConnect = async (file: File) => {
     setConnecting(true)
     try {
+      const text = await file.text()
+      const cookies = JSON.parse(text)
+      if (!Array.isArray(cookies) || cookies.length === 0) throw new Error('File contains no cookies')
       await cloudRunService.lumaConnect(agent.id, cookies)
       setLumaConnected(true)
       setShowConnectModal(false)
-      setCookiesJson('')
       toast.success('Luma account connected!', {
         description: `${cookies.length} session cookies stored securely for ${agent.name}.`,
       })
     } catch (err: unknown) {
-      toast.error('Connection failed', { description: err instanceof Error ? err.message : 'Unknown error' })
+      toast.error('Connection failed', { description: err instanceof Error ? err.message : 'Invalid or empty cookies file' })
     } finally {
       setConnecting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -269,47 +258,31 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-3 space-y-2"
+                className="mt-3 space-y-2.5"
               >
-                <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-[11px] leading-relaxed space-y-2.5">
-                  <p className="font-semibold text-primary/80 flex items-center gap-1.5">
-                    <Link size={12} weight="bold" /> Connect in 4 steps:
-                  </p>
-                  <div className="flex items-center gap-2.5 py-1">
-                    <a
-                      href={LUMA_GRABBER_BOOKMARKLET}
-                      draggable
-                      onClick={(e) => e.preventDefault()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/20 border border-primary/50 text-primary text-[11px] font-semibold cursor-grab active:cursor-grabbing hover:bg-primary/30 transition-colors select-none whitespace-nowrap"
-                      title="Drag this to your bookmarks bar"
-                    >
-                      📎 MAEF Luma Grabber
-                    </a>
-                    <span className="text-muted-foreground/50">← drag to bookmarks bar</span>
-                  </div>
-                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground/70">
-                    <li>Open <strong className="text-foreground/70 font-medium">lu.ma</strong> and make sure you're logged in</li>
-                    <li>Click <strong className="text-foreground/70 font-medium">MAEF Luma Grabber</strong> in your bookmarks bar</li>
-                    <li>Session cookies auto-copy to your clipboard</li>
-                    <li>Return here and paste below</li>
-                  </ol>
-                </div>
-                <textarea
-                  ref={textareaRef}
-                  value={cookiesJson}
-                  onChange={e => setCookiesJson(e.target.value)}
-                  placeholder='[{"name":"__session","value":"...","domain":".lu.ma",...}]'
-                  className="w-full h-24 text-[10px] font-mono bg-muted/30 border border-border/50 rounded p-2 resize-none focus:outline-none focus:border-primary/50 placeholder:text-muted-foreground/30"
+                <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
+                  Run <code className="bg-muted/40 px-1 rounded text-[10px]">python backend/test_luma_rsvp_local.py</code> once locally to capture your session, then upload the generated file.
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (file) await handleLumaConnect(file)
+                  }}
                 />
                 <Button
                   size="sm"
-                  onClick={handleLumaConnect}
-                  disabled={connecting || !cookiesJson.trim()}
-                  className="w-full h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={connecting}
+                  className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5"
                 >
-                  {connecting ? (
-                    <><Spinner size={12} className="animate-spin mr-1.5" />Encrypting &amp; storing...</>
-                  ) : 'Save Cookies to Agent'}
+                  {connecting
+                    ? <><Spinner size={12} className="animate-spin" /> Encrypting &amp; storing...</>
+                    : '📂 Upload luma_cookies_test.json'
+                  }
                 </Button>
               </motion.div>
             )}

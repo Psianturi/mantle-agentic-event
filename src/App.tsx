@@ -665,6 +665,22 @@ function App() {
       addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Connecting to Agent Engine (Cloud Run)...`, 'info')
       await new Promise(resolve => setTimeout(resolve, 400))
 
+      // ── Luma RSVP: auto-register if agent has Luma session + URL is Luma ──
+      if (platform === 'Luma' && agent.lumaConnected) {
+        addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Luma event detected — initiating autonomous RSVP...`, 'info')
+        try {
+          const rsvpResult = await cloudRunService.lumaRsvp(agent.id, eventUrl.trim())
+          if (rsvpResult.rsvp_confirmed) {
+            addLog(agent.id, 'secretary', `[${agent.name} - Secretary] RSVP confirmed for "${rsvpResult.event_title || eventTitle}"`, 'success')
+          } else {
+            addLog(agent.id, 'secretary', `[${agent.name} - Secretary] RSVP status: ${rsvpResult.status}`, 'warning')
+          }
+        } catch (rsvpErr) {
+          // Non-fatal: RSVP failure doesn't block Scouting Brief processing
+          addLog(agent.id, 'secretary', `[${agent.name} - Secretary] RSVP skipped — ${rsvpErr instanceof Error ? rsvpErr.message : 'connection error'}`, 'warning')
+        }
+      }
+
       addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Sending event to Gemini AI for analysis...`, 'info')
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Preparing on-chain mint. NFT recipient: ${agent.walletAddress.slice(0, 10)}...${agent.walletAddress.slice(-4)}`, 'info')
       toast.info('Processing event...', { description: 'Gemini AI is analyzing. This takes 15-40s.' })
