@@ -1400,10 +1400,7 @@ async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> 
 
 # ── Luma Autonomous RSVP ─────────────────────────────────────────────────────
 
-# In-memory OTP session store — keyed by session_id (token_urlsafe).
-# Each value: (otp_queue, result_queue) used to bridge HTTP requests with Playwright task.
-# Works reliably for Cloud Run min-instances=1. Multi-instance scale would need Redis.
-_luma_otp_sessions: dict[str, tuple[asyncio.Queue, asyncio.Queue]] = {}
+_LUMA_OTP_SESSIONS_COLLECTION = "luma_otp_sessions"
 
 
 class LumaConnectStartRequest(BaseModel):
@@ -1433,8 +1430,8 @@ class LumaRSVPRequest(BaseModel):
 @router.post("/{agent_id}/luma-connect-start")
 async def luma_connect_start(agent_id: str, req: LumaConnectStartRequest) -> dict:
     """
-    Step 1 of OTP connect flow: starts a headless Playwright session, opens lu.ma/signin,
-    enters the user's email. Luma emails a 6-digit OTP. Returns session_id for step 2.
+    Step 1: Create Firestore session doc, start Playwright background task.
+    Playwright polls Firestore for OTP code — works across any Cloud Run instance.
     """
     db = get_db()
     doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
@@ -1442,16 +1439,21 @@ async def luma_connect_start(agent_id: str, req: LumaConnectStartRequest) -> dic
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
 
     session_id = secrets.token_urlsafe(16)
-    otp_queue: asyncio.Queue = asyncio.Queue()
-    result_queue: asyncio.Queue = asyncio.Queue()
-    _luma_otp_sessions[session_id] = (otp_queue, result_queue)
+
+    # Write session to Firestore before starting Playwright task
+    await db.collection(_LUMA_OTP_SESSIONS_COLLECTION).document(session_id).set({
+        "agent_id": agent_id,
+        "email": req.email,
+        "status": "starting",
+        "created_at": time.time(),
+    })
 
     async def _run():
         from services.luma_browser_service import connect_luma_with_otp
-        await connect_luma_with_otp(req.email, otp_queue, result_queue)
+        await connect_luma_with_otp(session_id, req.email)
 
     asyncio.create_task(_run())
-    logger.info("Luma OTP connect started for agent %s, email %s, session %s", agent_id, req.email, session_id)
+    logger.info("Luma OTP connect started — agent=%s session=%s email=%s", agent_id, session_id, req.email)
 
     return {"session_id": session_id, "status": "otp_sent", "email": req.email}
 
@@ -1459,44 +1461,35 @@ async def luma_connect_start(agent_id: str, req: LumaConnectStartRequest) -> dic
 @router.post("/{agent_id}/luma-connect-verify")
 async def luma_connect_verify(agent_id: str, req: LumaConnectVerifyRequest) -> dict:
     """
-    Step 2 of OTP connect flow: submits the 6-digit code. Playwright enters it,
-    detects login, captures cookies, KMS-encrypts, and stores in Firestore.
+    Step 2: Write OTP code to Firestore. Playwright task picks it up and completes login.
+    Poll Firestore for result (works across any Cloud Run instance).
     """
-    session = _luma_otp_sessions.get(req.session_id)
-    if not session:
+    db = get_db()
+    session_ref = db.collection(_LUMA_OTP_SESSIONS_COLLECTION).document(req.session_id)
+
+    doc = await session_ref.get()
+    if not doc.exists:
         raise HTTPException(status_code=404, detail="Session not found or expired. Please start again.")
 
-    otp_queue, result_queue = session
+    # Write code to Firestore — Playwright task is polling for this
+    await session_ref.update({"code": req.code.strip(), "code_submitted_at": time.time()})
 
-    # Signal the waiting Playwright task with the code
-    await otp_queue.put(req.code.strip())
+    # Poll Firestore until Playwright completes (up to 60s)
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        await asyncio.sleep(2)
+        snap = await session_ref.get()
+        data = snap.to_dict() or {}
+        status = data.get("status")
 
-    # Wait for Playwright to process OTP + capture cookies (up to 60s)
-    try:
-        result = await asyncio.wait_for(result_queue.get(), timeout=60)
-    except asyncio.TimeoutError:
-        _luma_otp_sessions.pop(req.session_id, None)
-        raise HTTPException(status_code=504, detail="Timed out processing the code. Please try again.")
+        if status == "connected":
+            logger.info("Luma OTP verified — agent=%s session=%s", agent_id, req.session_id)
+            return {"status": "connected", "cookies_captured": data.get("cookies_count", 0), "luma_connected": True}
 
-    _luma_otp_sessions.pop(req.session_id, None)
+        if status == "error":
+            raise HTTPException(status_code=400, detail=data.get("error", "OTP verification failed"))
 
-    if not result.get("success"):
-        raise HTTPException(status_code=400, detail=result.get("error", "OTP verification failed"))
-
-    cookies = result["cookies"]
-    try:
-        cookies_enc = encrypt_private_key(json.dumps(cookies))
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail="Failed to encrypt session cookies") from exc
-
-    db = get_db()
-    await db.collection(AGENTS_COLLECTION).document(agent_id).update({
-        "luma_cookies_enc": cookies_enc,
-        "luma_connected_at": time.time(),
-    })
-
-    logger.info("Luma OTP connect verified for agent %s — %d cookies stored", agent_id, len(cookies))
-    return {"status": "connected", "cookies_captured": len(cookies), "luma_connected": True}
+    raise HTTPException(status_code=504, detail="Timed out waiting for verification. Please try again.")
 
 
 @router.post("/{agent_id}/luma-connect")
