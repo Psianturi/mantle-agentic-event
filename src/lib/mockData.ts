@@ -679,7 +679,9 @@ export function getMockMarketplaceAgents(): MarketplaceAgent[] {
       subAgents: createSubAgents(),
       createdAt: now - 45 * dayInMs,
       mantleBalance: 0,
-      gasSpent: 0.187
+      gasSpent: 0.187,
+      wisdomHeritageScore: 35,
+      autonomousSignatures: 2,
     },
     {
       id: 'marketplace-agent-002',
@@ -699,7 +701,9 @@ export function getMockMarketplaceAgents(): MarketplaceAgent[] {
       subAgents: createSubAgents(),
       createdAt: now - 60 * dayInMs,
       mantleBalance: 0,
-      gasSpent: 0.245
+      gasSpent: 0.245,
+      wisdomHeritageScore: 55,
+      autonomousSignatures: 4,
     },
     {
       id: 'marketplace-agent-003',
@@ -719,7 +723,9 @@ export function getMockMarketplaceAgents(): MarketplaceAgent[] {
       subAgents: createSubAgents(),
       createdAt: now - 30 * dayInMs,
       mantleBalance: 0,
-      gasSpent: 0.098
+      gasSpent: 0.098,
+      wisdomHeritageScore: 15,
+      autonomousSignatures: 1,
     },
     {
       id: 'marketplace-agent-004',
@@ -739,7 +745,9 @@ export function getMockMarketplaceAgents(): MarketplaceAgent[] {
       subAgents: createSubAgents(),
       createdAt: now - 50 * dayInMs,
       mantleBalance: 0,
-      gasSpent: 0.132
+      gasSpent: 0.132,
+      wisdomHeritageScore: 20,
+      autonomousSignatures: 0,
     },
     {
       id: 'marketplace-agent-005',
@@ -759,7 +767,9 @@ export function getMockMarketplaceAgents(): MarketplaceAgent[] {
       subAgents: createSubAgents(),
       createdAt: now - 90 * dayInMs,
       mantleBalance: 0,
-      gasSpent: 0.312
+      gasSpent: 0.312,
+      wisdomHeritageScore: 80,
+      autonomousSignatures: 7,
     },
     {
       id: 'marketplace-agent-006',
@@ -779,7 +789,9 @@ export function getMockMarketplaceAgents(): MarketplaceAgent[] {
       subAgents: createSubAgents(),
       createdAt: now - 35 * dayInMs,
       mantleBalance: 0,
-      gasSpent: 0.115
+      gasSpent: 0.115,
+      wisdomHeritageScore: 25,
+      autonomousSignatures: 1,
     }
   ]
 }

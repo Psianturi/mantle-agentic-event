@@ -239,6 +239,8 @@ export interface MarketplaceAgent {
   parentIds?: string[]
   geneticTraits?: string[]
   rarityTier?: RarityTier
+  wisdomHeritageScore?: number
+  autonomousSignatures?: number
 }
 
 export interface MarketplaceFilters {
