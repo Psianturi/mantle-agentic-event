@@ -1490,10 +1490,11 @@ async def luma_connect_verify(agent_id: str, req: LumaConnectVerifyRequest) -> d
     # Write code to Firestore — Playwright task is polling for this
     await session_ref.update({"code": req.code.strip(), "code_submitted_at": time.time()})
 
-    # Poll Firestore until Playwright completes (up to 60s)
-    deadline = time.time() + 60
+    # Poll Firestore until Playwright completes. OTP verification can be slow on
+    # Cloud Run because Clerk/Luma may take multiple redirects before cookies settle.
+    deadline = time.time() + 180
     while time.time() < deadline:
-        await asyncio.sleep(2)
+        await asyncio.sleep(1.5)
         snap = await session_ref.get()
         data = snap.to_dict() or {}
         status = data.get("status")
@@ -1505,7 +1506,7 @@ async def luma_connect_verify(agent_id: str, req: LumaConnectVerifyRequest) -> d
         if status == "error":
             raise HTTPException(status_code=400, detail=data.get("error", "OTP verification failed"))
 
-    raise HTTPException(status_code=504, detail="Timed out waiting for verification. Please try again.")
+    raise HTTPException(status_code=504, detail="Timed out waiting for verification. Luma is still responding too slowly; please try again.")
 
 
 @router.post("/{agent_id}/luma-connect")

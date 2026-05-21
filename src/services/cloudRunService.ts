@@ -1022,7 +1022,7 @@ export const cloudRunService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId, code }),
       },
-      90_000,
+      210_000,
     )
     return handleAPIResponse(response)
   },
@@ -1061,7 +1061,7 @@ export const cloudRunService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event_url: eventUrl }),
       },
-      120_000, // 2 min — Playwright can take time
+      240_000, // Playwright + Luma hydration can exceed 2 minutes on Cloud Run
     )
     return handleAPIResponse(response)
   },

@@ -36,6 +36,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
   const [connectOtp, setConnectOtp] = useState('')
   const [connectSessionId, setConnectSessionId] = useState('')
   const [connecting, setConnecting] = useState(false)
+  const [connectProgress, setConnectProgress] = useState('Starting secure Luma session...')
   const [lumaConnected, setLumaConnected] = useState(agent.lumaConnected ?? false)
 
   useEffect(() => {
@@ -81,20 +82,50 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
     setConnectOtp('')
     setConnectSessionId('')
     setConnectStep('email')
+    setConnectProgress('Starting secure Luma session...')
+  }
+
+  const getConnectProgressMessage = (status: string, email: string, mode: 'otp' | 'password') => {
+    switch (status) {
+      case 'launching_browser':
+        return 'Launching secure browser worker…'
+      case 'loading_signin':
+        return 'Opening Luma sign-in…'
+      case 'submitting_email':
+        return mode === 'otp'
+          ? `Submitting ${email} and asking Luma to send a code…`
+          : `Submitting ${email} and preparing password login…`
+      case 'waiting_password':
+        return 'Waiting for the password form from Luma…'
+      case 'authenticating_password':
+        return `Verifying password for ${email}…`
+      case 'verifying_otp':
+        return 'Verifying your 6-digit code with Luma…'
+      case 'capturing_session':
+        return 'Login accepted. Capturing session cookies…'
+      case 'starting':
+      default:
+        return mode === 'otp'
+          ? `Preparing Luma sign-in for ${email}… this can take 1-4 minutes.`
+          : `Connecting ${email}… this can take 1-3 minutes.`
+    }
   }
 
   const pollConnectStatus = async (sessionId: string, mode: 'otp' | 'password') => {
-    const deadline = Date.now() + 120_000
+    const deadline = Date.now() + 300_000
     while (Date.now() < deadline) {
       await new Promise(r => setTimeout(r, 3000))
       try {
         const res = await cloudRunService.lumaConnectStatus(agent.id, sessionId)
+        setConnectProgress(getConnectProgressMessage(res.status, connectEmail, mode))
         if (res.status === 'waiting_otp' && mode === 'otp') {
           setConnectStep('otp')
+          setConnecting(false)
           toast.info('Code sent!', { description: `Check your inbox at ${connectEmail}` })
           return
         }
         if (res.status === 'connected') {
+          setConnecting(false)
           setLumaConnected(true)
           setShowConnectModal(false)
           resetConnectState()
@@ -120,6 +151,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
     if (!connectEmail.trim()) return
     if (connectMode === 'password' && !connectPassword.trim()) return
     setConnecting(true)
+    setConnectProgress(getConnectProgressMessage('starting', connectEmail.trim(), connectMode))
     try {
       const res = await cloudRunService.lumaConnectStart(
         agent.id,
@@ -128,7 +160,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
       )
       setConnectSessionId(res.session_id)
       setConnectStep('waiting')
-      pollConnectStatus(res.session_id, connectMode)
+      void pollConnectStatus(res.session_id, connectMode)
     } catch (err: unknown) {
       toast.error('Failed to start connection', { description: err instanceof Error ? err.message : 'Unknown error' })
       setConnecting(false)
@@ -384,9 +416,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                   <div className="flex items-center gap-2 py-2">
                     <Spinner size={14} className="animate-spin text-emerald-400 shrink-0" />
                     <p className="text-[11px] text-muted-foreground/70">
-                      {connectMode === 'otp'
-                        ? `Sending login code to ${connectEmail}…`
-                        : `Connecting ${connectEmail}…`}
+                      {connectProgress}
                     </p>
                   </div>
                 )}

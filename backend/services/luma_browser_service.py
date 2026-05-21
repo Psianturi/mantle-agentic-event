@@ -42,6 +42,16 @@ _UA = (
     "Chrome/124.0.0.0 Safari/537.36"
 )
 
+_OTP_INPUT_SELECTOR = ", ".join([
+    'input[maxlength="1"]',
+    'input[autocomplete="one-time-code"]',
+    'input[inputmode="numeric"]',
+    'input[type="tel"]',
+    'input[name="code"]',
+])
+
+_PASSWORD_INPUT_SELECTOR = 'input[type="password"], input[name="password"]'
+
 
 # ── Cookie helpers ────────────────────────────────────────────────────────────
 
@@ -175,13 +185,15 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
 
     try:
         async with async_playwright() as p:
+            await _set_status("launching_browser")
             browser = await p.chromium.launch(headless=True, args=_CR_ARGS)
             context = await browser.new_context(user_agent=_UA)
             page = await context.new_page()
 
             # Step 1: Navigate to signin
+            await _set_status("loading_signin")
             await page.goto(_LUMA_SIGNIN_URL, wait_until="domcontentloaded", timeout=30_000)
-            await page.wait_for_timeout(2_000)
+            await page.wait_for_timeout(500)
 
             # Step 2: Enter email
             email_input = await page.wait_for_selector(
@@ -190,7 +202,8 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
                 state="visible",
             )
             await email_input.fill(email)
-            await page.wait_for_timeout(400)
+            await page.wait_for_timeout(150)
+            await _set_status("submitting_email")
 
             await page.evaluate("""
                 () => {
@@ -204,16 +217,18 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
 
             # ── Password mode: fill password field and submit ─────────────────
             if password:
+                await _set_status("waiting_password")
                 try:
                     pwd_input = await page.wait_for_selector(
-                        'input[type="password"]', timeout=8_000, state="visible"
+                        _PASSWORD_INPUT_SELECTOR, timeout=15_000, state="visible"
                     )
                 except Exception:
                     await _set_status("error", error="Password field not found — this account may not have a password set. Try OTP instead.")
                     return
 
                 await pwd_input.fill(password)
-                await page.wait_for_timeout(300)
+                await page.wait_for_timeout(100)
+                await _set_status("authenticating_password")
                 await page.evaluate("""
                     () => {
                         const LABELS = ['Continue', 'Sign in', 'Login', 'Submit'];
@@ -231,7 +246,8 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
                 except Exception:
                     await _set_status("error", error="Password incorrect or login timed out")
                     return
-                await page.wait_for_timeout(2_000)
+                await _set_status("capturing_session")
+                await page.wait_for_timeout(1_000)
                 # Jump directly to cookie capture (skip OTP section below)
                 all_cookies = await context.cookies(_LUMA_COOKIE_URLS)
                 luma_cookies = _filter_luma_cookies(all_cookies)
@@ -252,24 +268,10 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
 
             # ── OTP mode: wait for OTP input to actually appear before telling frontend to ask for code.
             # This ensures Playwright is definitely on the OTP screen when the code arrives.
-            _OTP_SELECTORS = (
-                'input[maxlength="1"]',
-                'input[autocomplete="one-time-code"]',
-                'input[inputmode="numeric"]',
-                'input[type="tel"]',
-                'input[name="code"]',
-            )
-            otp_page_ready = False
-            for sel in _OTP_SELECTORS:
-                try:
-                    await page.wait_for_selector(sel, timeout=20_000, state="visible")
-                    otp_page_ready = True
-                    logger.info("OTP connect [%s]: OTP page confirmed (selector: %s).", session_id, sel)
-                    break
-                except Exception:
-                    pass
-
-            if not otp_page_ready:
+            try:
+                await page.wait_for_selector(_OTP_INPUT_SELECTOR, timeout=20_000, state="visible")
+                logger.info("OTP connect [%s]: OTP page confirmed.", session_id)
+            except Exception:
                 await _set_status("error", error="OTP page didn't load — email may be invalid or Luma rate-limited")
                 return
 
@@ -291,6 +293,7 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
                 return
 
             logger.info("OTP connect [%s]: code received, submitting.", session_id)
+            await _set_status("verifying_otp")
 
             # Step 4: Enter OTP using fill() — Playwright's fill() dispatches InputEvent
             # which React's synthetic event system handles correctly (keyboard.type()
@@ -322,7 +325,7 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
                 if otp_input:
                     await otp_input.fill(otp_code)
 
-            await page.wait_for_timeout(800)
+            await page.wait_for_timeout(300)
 
             # Luma auto-submits when the last digit is entered; if not, click submit
             await page.evaluate("""
@@ -344,7 +347,8 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
             except Exception:
                 logger.warning("OTP connect [%s]: page did not navigate from signin within 8s — checking cookies anyway.", session_id)
 
-            await page.wait_for_timeout(2_000)  # let Clerk finalise session cookies
+            await _set_status("capturing_session")
+            await page.wait_for_timeout(1_000)  # let Clerk finalise session cookies
 
             # Step 5: Capture cookies
             all_cookies = await context.cookies(_LUMA_COOKIE_URLS)
