@@ -63,6 +63,16 @@ def _filter_luma_cookies(all_cookies: list[dict]) -> list[dict]:
     ]
 
 
+def _has_luma_session(cookies: list[dict]) -> bool:
+    """Return True when cookies look like an authenticated Luma session."""
+    session_cookie_names = {
+        "__session",
+        "__client",
+        "luma.auth-session-key",
+    }
+    return any(c.get("name") in session_cookie_names for c in cookies)
+
+
 def _is_logged_in(url: str) -> bool:
     # Luma uses both lu.ma and luma.com — Google OAuth redirects to luma.com/home
     on_luma = "lu.ma" in url or "luma.com" in url
@@ -251,8 +261,13 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
                 # Jump directly to cookie capture (skip OTP section below)
                 all_cookies = await context.cookies(_LUMA_COOKIE_URLS)
                 luma_cookies = _filter_luma_cookies(all_cookies)
-                has_session = any(c["name"] in ("__session", "__client") for c in luma_cookies)
+                has_session = _has_luma_session(luma_cookies)
                 if not has_session:
+                    logger.warning(
+                        "OTP connect [%s]: password login navigated, but auth cookie missing. Cookies seen: %s",
+                        session_id,
+                        [c.get("name") for c in luma_cookies],
+                    )
                     await _set_status("error", error="Password login succeeded but no session cookie captured")
                     return
                 agent_id = (await session_ref.get()).to_dict().get("agent_id", "")
@@ -353,7 +368,7 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
             # Step 5: Capture cookies
             all_cookies = await context.cookies(_LUMA_COOKIE_URLS)
             luma_cookies = _filter_luma_cookies(all_cookies)
-            has_session = any(c["name"] in ("__session", "__client") for c in luma_cookies)
+            has_session = _has_luma_session(luma_cookies)
 
             if not has_session:
                 try:
@@ -361,6 +376,11 @@ async def connect_luma_with_otp(session_id: str, email: str, password: str | Non
                     logger.info("OTP connect [%s]: failure screenshot saved.", session_id)
                 except Exception:
                     pass
+                logger.warning(
+                    "OTP connect [%s]: OTP accepted/navigated but auth cookie missing. Cookies seen: %s",
+                    session_id,
+                    [c.get("name") for c in luma_cookies],
+                )
                 await _set_status("error", error="Login failed — wrong code or session expired")
                 return
 
