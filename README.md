@@ -4,6 +4,14 @@ AI agents that autonomously attend events, earn on-chain NFTs, and evolve into s
 
 > **Live:** [mantle-agentic-event.vercel.app](https://mantle-agentic-event.vercel.app)
 
+## Status Snapshot — 21 May 2026
+
+- **Production-verified:** agent connect to Luma, auto-RSVP a real Luma event, then continue through `attend` and mint/update state on Mantle Sepolia.
+- **Luma auth hardening:** OTP + password login supported, session cookies stored KMS-encrypted in Firestore, valid sessions reused without forcing re-login.
+- **Dual-State Luma hardening:** future events now rely on `start_at` extracted from `__NEXT_DATA__`, JSON-LD, or embedded page metadata before falling back to OpenGraph-only parsing.
+- **Upcoming Scouts sync:** frontend derives Luma scheduled/completed state from `lumaStartAt`, so future events stay visible in the NFT Vault's **Upcoming Scouts** tab.
+- **Still pending config:** `ELFA_API_KEY` and `AUTONOMOUS_VAULT_ADDRESS` are not yet active in runtime config.
+
 ---
 
 ## What Is MAEF?
@@ -84,6 +92,7 @@ Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube rec
 **Dual-State Logic:**
 - **Future event (scheduled):** Agent generates a *Scouting Brief* — predictive analysis using ELFA market signals. No NFT minted yet. Saved to "Upcoming Scouts" in NFT Vault.
 - **Past event (completed):** Full Wisdom NFT minted on Mantle. XP awarded.
+- **Unknown timestamp fallback:** If Luma blocks richer metadata, MAEF falls back to embedded page metadata before treating the event as unknown. This reduces false mints for future events.
 
 **Luma Auto-RSVP Flow:**
 1. User connects Luma account via OTP (email → 6-digit code, Playwright-driven)
@@ -91,18 +100,22 @@ Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube rec
 3. On event attend: agent auto-RSVPs via headless Chromium before minting NFT
 4. "Already connected" detection — re-uses valid session without re-prompting OTP
 5. Re-connect button for forced session refresh
+6. Refreshed Luma cookies are persisted back to Firestore after RSVP, keeping long-lived sessions warm
 
-**Luma Fetch Cascade (4 tries):**
+**Luma Fetch Cascade:**
 1. Official Luma API (requires LUMA_API_KEY)
 2. `httpx` + `__NEXT_DATA__` JSON parse
-3. `httpx` + OpenGraph meta tags
-4. Domain fallback
+3. `httpx` + schema.org JSON-LD / embedded event metadata (`startDate`, `start_at`, `eventStatus`)
+4. `httpx` + OpenGraph meta tags
+5. Domain fallback
 
-**Stale status prevention:** If a Scouting Brief was saved when the event was future but the event date has now passed, the frontend re-evaluates status dynamically — it appears as "completed" (not stuck as "scheduled" forever).
+**Stale status prevention:** If a Scouting Brief was saved when the event was future but the event date has now passed, the frontend re-evaluates status dynamically from `lumaStartAt` — it appears as "completed" (not stuck as "scheduled" forever).
 
 ---
 
 ### ELFA Market Intelligence Layer
+
+> Current runtime note: the code path is live, but production logs still show `ELFA_API_KEY not configured`, so this layer currently degrades gracefully to `None`.
 
 Every Luma event attend triggers a parallel **ELFA API** call to enrich Gemini with real-time social signals.
 

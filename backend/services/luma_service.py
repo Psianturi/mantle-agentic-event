@@ -3,7 +3,8 @@ Luma event data fetcher — cascading strategy for Cloud Run (no browser availab
 
 Try 1: Official Luma API  (requires LUMA_API_KEY env var)
 Try 2: httpx GET + __NEXT_DATA__ JSON parse  (Next.js server-side rendered)
-Try 3: httpx GET + OpenGraph meta tags  (always present, minimal data)
+Try 3: httpx GET + JSON-LD / embedded event metadata
+Try 4: httpx GET + OpenGraph meta tags  (always present, minimal data)
 
 Returns a LumaEventData dict consumed by llm_service.summarize_event().
 
@@ -16,7 +17,7 @@ Dict fields returned:
   meeting_url  : str              — virtual meeting link (empty if hidden/physical)
   platform     : "Luma"
   event_url    : str
-  source       : "official_api" | "next_data" | "opengraph"
+    source       : "official_api" | "next_data" | "json_ld" | "opengraph"
 """
 
 import json
@@ -124,7 +125,13 @@ async def fetch_luma_event(url: str) -> dict:
             logger.info("Luma event '%s' fetched via __NEXT_DATA__", slug)
             return result
 
-        # Try 3: OpenGraph meta tags (always present, minimal data)
+        # Try 3: JSON-LD / embedded event metadata
+        result = _parse_json_ld_event(html, slug)
+        if result:
+            logger.info("Luma event '%s' fetched via JSON-LD metadata", slug)
+            return result
+
+        # Try 4: OpenGraph meta tags (always present, minimal data)
         result = _parse_opengraph(html, slug)
         if result:
             logger.info("Luma event '%s' fetched via OpenGraph tags", slug)
@@ -134,7 +141,7 @@ async def fetch_luma_event(url: str) -> dict:
     luma_com_url = f"https://luma.com/{slug}" + (f"?{query}" if query else "")
     html = await _fetch_html(luma_com_url)
     if html:
-        result = _parse_next_data(html, slug) or _parse_opengraph(html, slug)
+        result = _parse_next_data(html, slug) or _parse_json_ld_event(html, slug) or _parse_opengraph(html, slug)
         if result:
             logger.info("Luma event '%s' fetched via luma.com fallback", slug)
             return result
@@ -221,13 +228,19 @@ def _parse_next_data(html: str, slug: str) -> dict | None:
         data = json.loads(match.group(1))
         props = data.get("props", {}).get("pageProps", {})
 
-        # Luma embeds event under props.initialData or props.event
+        # Luma has used multiple layouts over time. Prefer the closest event dict
+        # with both name/title and start_at before falling back to older shapes.
         initial = props.get("initialData") or props
-        event = initial.get("event") or {}
+        event = (
+            props.get("event")
+            or initial.get("event")
+            or (initial.get("data") or {}).get("event")
+            or {}
+        )
         if not event or not event.get("name"):
             return None
 
-        hosts = initial.get("hosts", [])
+        hosts = props.get("hosts") or initial.get("hosts") or (initial.get("data") or {}).get("hosts") or []
         speakers = [
             h.get("name") or h.get("user", {}).get("name", "")
             for h in hosts
@@ -251,6 +264,69 @@ def _parse_next_data(html: str, slug: str) -> dict | None:
         }
     except Exception as exc:
         logger.debug("__NEXT_DATA__ parse failed for '%s': %s", slug, exc)
+        return None
+
+
+def _parse_json_ld_event(html: str, slug: str) -> dict | None:
+    """
+    Extract event metadata from schema.org JSON-LD blocks or embedded event fields.
+    This is the safest fallback when __NEXT_DATA__ shape changes but the page still
+    exposes Event metadata such as startDate / eventStatus.
+    """
+    try:
+        for raw_json in re.findall(
+            r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+            html,
+            re.DOTALL | re.IGNORECASE,
+        ):
+            cleaned = raw_json.strip()
+            if not cleaned:
+                continue
+            try:
+                payload = json.loads(cleaned)
+            except Exception:
+                continue
+
+            event = _find_json_ld_event(payload)
+            if not event:
+                continue
+
+            title = (event.get("name") or event.get("headline") or slug).strip()
+            description = _clean_text(event.get("description") or "")
+            location = _extract_json_ld_location(event.get("location"))
+            meeting_url = _extract_json_ld_meeting_url(event)
+            start_at = event.get("start_at") or event.get("startDate")
+            return {
+                "title": title,
+                "description": description,
+                "speakers": _extract_json_ld_speakers(event),
+                "location": location,
+                "start_at": start_at,
+                "meeting_url": meeting_url,
+                "platform": "Luma",
+                "event_url": f"https://lu.ma/{slug}",
+                "source": "json_ld",
+            }
+
+        start_at = _extract_embedded_start_at(html)
+        if not start_at:
+            return None
+
+        title_match = re.search(r"<title>([^<]+)</title>", html, re.IGNORECASE)
+        title = title_match.group(1).strip() if title_match else slug
+        return {
+            "title": title,
+            "description": _clean_text(""),
+            "speakers": [],
+            "location": None,
+            "start_at": start_at,
+            "meeting_url": "",
+            "platform": "Luma",
+            "event_url": f"https://lu.ma/{slug}",
+            "source": "json_ld",
+        }
+    except Exception as exc:
+        logger.debug("JSON-LD parse failed for '%s': %s", slug, exc)
         return None
 
 
@@ -290,7 +366,7 @@ def _parse_opengraph(html: str, slug: str) -> dict | None:
             "description": _clean_text(description),
             "speakers": [],
             "location": None,
-            "start_at": None,
+            "start_at": _extract_embedded_start_at(html),
             "meeting_url": "",   # OpenGraph doesn't expose meeting links
             "platform": "Luma",
             "event_url": f"https://lu.ma/{slug}",
@@ -313,6 +389,70 @@ def _clean_text(text: str) -> str:
     text = re.sub(r"\s+", " ", text).strip()
     # Truncate to 3000 chars to stay within Gemini token budget
     return text[:3000]
+
+
+def _find_json_ld_event(payload: object) -> dict | None:
+    if isinstance(payload, dict):
+        payload_type = payload.get("@type")
+        if payload_type == "Event" or (isinstance(payload_type, list) and "Event" in payload_type):
+            return payload
+        for value in payload.values():
+            found = _find_json_ld_event(value)
+            if found:
+                return found
+    elif isinstance(payload, list):
+        for item in payload:
+            found = _find_json_ld_event(item)
+            if found:
+                return found
+    return None
+
+
+def _extract_json_ld_location(location: object) -> str | None:
+    if isinstance(location, str):
+        return location.strip() or None
+    if isinstance(location, dict):
+        return (
+            location.get("name")
+            or location.get("address")
+            or location.get("url")
+            or None
+        )
+    return None
+
+
+def _extract_json_ld_speakers(event: dict) -> list[str]:
+    speakers: list[str] = []
+    for key in ("performer", "organizer"):
+        value = event.get(key)
+        items = value if isinstance(value, list) else [value]
+        for item in items:
+            if isinstance(item, dict) and item.get("name"):
+                speakers.append(str(item["name"]).strip())
+            elif isinstance(item, str) and item.strip():
+                speakers.append(item.strip())
+    # Preserve order while deduplicating.
+    return list(dict.fromkeys(speakers))
+
+
+def _extract_json_ld_meeting_url(event: dict) -> str:
+    for key in ("eventAttendanceMode", "url", "contentUrl"):
+        value = event.get(key)
+        if isinstance(value, str) and value.startswith("http"):
+            return value
+    return ""
+
+
+def _extract_embedded_start_at(html: str) -> str | None:
+    patterns = [
+        r'"start_at"\s*:\s*"([^"]+)"',
+        r'"startDate"\s*:\s*"([^"]+)"',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, html, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return None
 
 
 def build_luma_context(event_data: dict, elfa_signals: dict | None = None) -> str:

@@ -390,9 +390,11 @@ function App() {
         platform: normalizePlatform(item.platform),
         date: item.attendedAt > 0 ? item.attendedAt * 1000 : Date.now(),
         summary: item.wisdomSummary,
-        status: (item.lumaStatus === 'scheduled' && (!item.lumaStartAt || new Date(item.lumaStartAt) > new Date()))
-          ? 'scheduled'
-          : 'completed',
+        status: deriveEventStatus(
+          normalizePlatform(item.platform),
+          item.lumaStatus,
+          item.lumaStartAt,
+        ),
         lumaStartAt: item.lumaStartAt,
       }))
 
@@ -608,6 +610,21 @@ function App() {
     return 'YouTube'
   }
 
+  const deriveEventStatus = (
+    platform: Event['platform'],
+    lumaStatus?: 'scheduled' | 'completed' | 'unknown',
+    lumaStartAt?: string,
+  ): Event['status'] => {
+    if (platform !== 'Luma') return 'completed'
+    if (!lumaStartAt) return lumaStatus === 'scheduled' ? 'scheduled' : 'completed'
+
+    const startMs = new Date(lumaStartAt).getTime()
+    if (Number.isNaN(startMs)) {
+      return lumaStatus === 'scheduled' ? 'scheduled' : 'completed'
+    }
+    return startMs > Date.now() ? 'scheduled' : 'completed'
+  }
+
   const handleAttendEvent = async () => {
     if (!walletConnected) {
       toast.error('Please connect your wallet first!')
@@ -734,7 +751,7 @@ function App() {
         platform,
         date: Date.now(),
         summary: result.wisdomSummary,
-        status: isScoutingBrief ? 'scheduled' : 'completed',
+        status: deriveEventStatus(platform, result.lumaStatus, result.lumaStartAt),
         lumaStartAt: result.lumaStartAt,
       }
 
