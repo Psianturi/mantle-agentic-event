@@ -148,18 +148,19 @@ async def capture_luma_session(timeout_seconds: int = 300) -> list[dict]:
 
 # ── OTP CONNECT mode (one-time per-user setup via email code) ────────────────
 
-async def connect_luma_with_otp(session_id: str, email: str) -> None:
+async def connect_luma_with_otp(session_id: str, email: str, password: str | None = None) -> None:
     """
-    Headless Playwright OTP login — uses Firestore as session bridge so it works
-    correctly across Cloud Run instances (no shared in-memory state needed).
+    Headless Playwright login — OTP or password mode.
+    Uses Firestore as session bridge so it works across Cloud Run instances.
 
-    Flow:
-      1. Open lu.ma/signin headless, enter email → Luma sends OTP email
-      2. Write status="waiting_otp" to Firestore otp_sessions/{session_id}
-      3. Poll Firestore every 2s for up to 5 min waiting for code to appear
-      4. Enter code in Playwright → detect login → capture cookies
-      5. Encrypt cookies → store in agent Firestore doc
-      6. Write status="connected" | "error" to otp_sessions/{session_id}
+    OTP flow:
+      1. Enter email → Luma sends OTP email
+      2. Write status="waiting_otp" → frontend shows code input
+      3. Poll Firestore for code → enter code → capture cookies → status="connected"
+
+    Password flow (when password is supplied):
+      1. Enter email → password field appears → fill password → submit
+      2. Navigate away from signin → capture cookies → status="connected"
     """
     import time as _time
     from playwright.async_api import async_playwright
@@ -199,9 +200,57 @@ async def connect_luma_with_otp(session_id: str, email: str) -> None:
                     if (btn) btn.click();
                 }
             """)
-            logger.info("OTP connect [%s]: email submitted, waiting for OTP page.", session_id)
+            logger.info("OTP connect [%s]: email submitted, waiting for next page.", session_id)
 
-            # Wait for OTP input to actually appear before telling frontend to ask for code.
+            # ── Password mode: fill password field and submit ─────────────────
+            if password:
+                try:
+                    pwd_input = await page.wait_for_selector(
+                        'input[type="password"]', timeout=8_000, state="visible"
+                    )
+                except Exception:
+                    await _set_status("error", error="Password field not found — this account may not have a password set. Try OTP instead.")
+                    return
+
+                await pwd_input.fill(password)
+                await page.wait_for_timeout(300)
+                await page.evaluate("""
+                    () => {
+                        const LABELS = ['Continue', 'Sign in', 'Login', 'Submit'];
+                        const btn = [...document.querySelectorAll('button[type="submit"], button')]
+                            .find(b => LABELS.some(l => (b.innerText || b.textContent || '').trim().startsWith(l)));
+                        if (btn) btn.click();
+                    }
+                """)
+                try:
+                    await page.wait_for_url(
+                        lambda url: "signin" not in url and "login" not in url,
+                        timeout=10_000,
+                    )
+                    logger.info("OTP connect [%s]: password login — page navigated.", session_id)
+                except Exception:
+                    await _set_status("error", error="Password incorrect or login timed out")
+                    return
+                await page.wait_for_timeout(2_000)
+                # Jump directly to cookie capture (skip OTP section below)
+                all_cookies = await context.cookies(_LUMA_COOKIE_URLS)
+                luma_cookies = _filter_luma_cookies(all_cookies)
+                has_session = any(c["name"] in ("__session", "__client") for c in luma_cookies)
+                if not has_session:
+                    await _set_status("error", error="Password login succeeded but no session cookie captured")
+                    return
+                agent_id = (await session_ref.get()).to_dict().get("agent_id", "")
+                cookies_enc = encrypt_private_key(json.dumps(luma_cookies))
+                if agent_id:
+                    await db.collection("agents").document(agent_id).update({
+                        "luma_cookies_enc": cookies_enc,
+                        "luma_connected_at": _time.time(),
+                    })
+                await _set_status("connected", cookies_count=len(luma_cookies))
+                logger.info("OTP connect [%s]: password success — %d cookies for agent %s", session_id, len(luma_cookies), agent_id)
+                return
+
+            # ── OTP mode: wait for OTP input to actually appear before telling frontend to ask for code.
             # This ensures Playwright is definitely on the OTP screen when the code arrives.
             _OTP_SELECTORS = (
                 'input[maxlength="1"]',

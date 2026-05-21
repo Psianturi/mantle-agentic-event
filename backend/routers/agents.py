@@ -1405,6 +1405,7 @@ _LUMA_OTP_SESSIONS_COLLECTION = "luma_otp_sessions"
 
 class LumaConnectStartRequest(BaseModel):
     email: str
+    password: str | None = None  # optional: use password login instead of OTP
 
 
 class LumaConnectVerifyRequest(BaseModel):
@@ -1450,12 +1451,27 @@ async def luma_connect_start(agent_id: str, req: LumaConnectStartRequest) -> dic
 
     async def _run():
         from services.luma_browser_service import connect_luma_with_otp
-        await connect_luma_with_otp(session_id, req.email)
+        await connect_luma_with_otp(session_id, req.email, password=req.password)
 
     asyncio.create_task(_run())
-    logger.info("Luma OTP connect started — agent=%s session=%s email=%s", agent_id, session_id, req.email)
+    mode = "password" if req.password else "otp"
+    logger.info("Luma connect started — agent=%s session=%s email=%s mode=%s", agent_id, session_id, req.email, mode)
 
-    return {"session_id": session_id, "status": "otp_sent", "email": req.email}
+    return {"session_id": session_id, "status": "started", "email": req.email, "mode": mode}
+
+
+@router.get("/{agent_id}/luma-connect-status")
+async def luma_connect_status(
+    agent_id: str,
+    session_id: str = Query(..., description="Session ID from luma-connect-start"),
+) -> dict:
+    """Poll Firestore for the current state of a Luma connect session."""
+    db = get_db()
+    doc = await db.collection(_LUMA_OTP_SESSIONS_COLLECTION).document(session_id).get()
+    if not doc.exists:
+        raise HTTPException(status_code=404, detail="Session not found or expired")
+    data = doc.to_dict() or {}
+    return {"status": data.get("status", "unknown"), "error": data.get("error")}
 
 
 @router.post("/{agent_id}/luma-connect-verify")

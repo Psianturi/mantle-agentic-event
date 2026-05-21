@@ -981,19 +981,31 @@ export const cloudRunService = {
 
   // ── Luma Autonomous RSVP ──────────────────────────────────────────────────
 
-  async lumaConnectStart(agentId: string, email: string): Promise<{
+  async lumaConnectStart(agentId: string, email: string, password?: string): Promise<{
     session_id: string
     status: string
     email: string
+    mode: 'otp' | 'password'
   }> {
     const response = await fetchWithTimeout(
       `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/luma-connect-start`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, ...(password ? { password } : {}) }),
       },
       60_000,
+    )
+    return handleAPIResponse(response)
+  },
+
+  async lumaConnectStatus(agentId: string, sessionId: string): Promise<{
+    status: 'starting' | 'waiting_otp' | 'connected' | 'error' | string
+    error?: string
+  }> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/luma-connect-status?session_id=${encodeURIComponent(sessionId)}`,
+      { method: 'GET' },
+      10_000,
     )
     return handleAPIResponse(response)
   },

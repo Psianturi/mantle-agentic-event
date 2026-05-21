@@ -27,10 +27,12 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
   const [logs, setLogs] = useState<ScoutLogEntry[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
 
-  // Luma Connect state — two-step OTP flow
+  // Luma Connect state
   const [showConnectModal, setShowConnectModal] = useState(false)
-  const [connectStep, setConnectStep] = useState<'email' | 'otp'>('email')
+  const [connectMode, setConnectMode] = useState<'otp' | 'password'>('otp')
+  const [connectStep, setConnectStep] = useState<'email' | 'waiting' | 'otp'>('email')
   const [connectEmail, setConnectEmail] = useState('')
+  const [connectPassword, setConnectPassword] = useState('')
   const [connectOtp, setConnectOtp] = useState('')
   const [connectSessionId, setConnectSessionId] = useState('')
   const [connecting, setConnecting] = useState(false)
@@ -73,17 +75,62 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
       .finally(() => setLogsLoading(false))
   }
 
-  const handleSendOtp = async () => {
+  const resetConnectState = () => {
+    setConnectEmail('')
+    setConnectPassword('')
+    setConnectOtp('')
+    setConnectSessionId('')
+    setConnectStep('email')
+  }
+
+  const pollConnectStatus = async (sessionId: string, mode: 'otp' | 'password') => {
+    const deadline = Date.now() + 120_000
+    while (Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 3000))
+      try {
+        const res = await cloudRunService.lumaConnectStatus(agent.id, sessionId)
+        if (res.status === 'waiting_otp' && mode === 'otp') {
+          setConnectStep('otp')
+          toast.info('Code sent!', { description: `Check your inbox at ${connectEmail}` })
+          return
+        }
+        if (res.status === 'connected') {
+          setLumaConnected(true)
+          setShowConnectModal(false)
+          resetConnectState()
+          toast.success('Luma account connected!', {
+            description: `${agent.name} can now autonomously RSVP to Luma events.`,
+          })
+          return
+        }
+        if (res.status === 'error') {
+          toast.error('Connection failed', { description: res.error || 'Unknown error' })
+          setConnectStep('email')
+          setConnecting(false)
+          return
+        }
+      } catch { /* ignore transient network errors */ }
+    }
+    toast.error('Timeout', { description: 'Could not reach Luma. Please try again.' })
+    setConnectStep('email')
+    setConnecting(false)
+  }
+
+  const handleStartConnect = async () => {
     if (!connectEmail.trim()) return
+    if (connectMode === 'password' && !connectPassword.trim()) return
     setConnecting(true)
     try {
-      const res = await cloudRunService.lumaConnectStart(agent.id, connectEmail.trim())
+      const res = await cloudRunService.lumaConnectStart(
+        agent.id,
+        connectEmail.trim(),
+        connectMode === 'password' ? connectPassword.trim() : undefined,
+      )
       setConnectSessionId(res.session_id)
-      setConnectStep('otp')
-      toast.info('Code sent!', { description: `Check your inbox at ${connectEmail}` })
+      setConnectStep('waiting')
+      pollConnectStatus(res.session_id, connectMode)
     } catch (err: unknown) {
-      toast.error('Failed to send code', { description: err instanceof Error ? err.message : 'Unknown error' })
-    } finally {
+      toast.error('Failed to start connection', { description: err instanceof Error ? err.message : 'Unknown error' })
       setConnecting(false)
     }
   }
@@ -95,10 +142,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
       await cloudRunService.lumaConnectVerify(agent.id, connectSessionId, connectOtp.trim())
       setLumaConnected(true)
       setShowConnectModal(false)
-      setConnectEmail('')
-      setConnectOtp('')
-      setConnectSessionId('')
-      setConnectStep('email')
+      resetConnectState()
       toast.success('Luma account connected!', {
         description: `${agent.name} can now autonomously RSVP to Luma events.`,
       })
@@ -279,35 +323,75 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                 exit={{ opacity: 0, height: 0 }}
                 className="mt-3 space-y-2"
               >
-                {connectStep === 'email' ? (
+                {connectStep === 'email' && (
                   <>
-                    <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
-                      Enter your Luma email. We'll send a login code — no password needed.
-                    </p>
-                    <div className="flex gap-2">
+                    {/* Mode toggle */}
+                    <div className="flex gap-1 mb-2">
+                      {(['otp', 'password'] as const).map(m => (
+                        <button
+                          key={m}
+                          onClick={() => setConnectMode(m)}
+                          className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+                            connectMode === m
+                              ? 'border-primary/60 bg-primary/10 text-primary'
+                              : 'border-border/40 text-muted-foreground/60 hover:text-muted-foreground'
+                          }`}
+                        >
+                          {m === 'otp' ? 'Email code' : 'Password'}
+                        </button>
+                      ))}
+                    </div>
+                    <Input
+                      type="email"
+                      placeholder="you@email.com"
+                      value={connectEmail}
+                      onChange={e => setConnectEmail(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && connectMode === 'password' && handleStartConnect()}
+                      className="h-8 text-xs bg-muted/30 border-border/50 focus:border-primary/50"
+                      disabled={connecting}
+                    />
+                    {connectMode === 'password' && (
                       <Input
-                        type="email"
-                        placeholder="you@email.com"
-                        value={connectEmail}
-                        onChange={e => setConnectEmail(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleSendOtp()}
+                        type="password"
+                        placeholder="Your Luma password"
+                        value={connectPassword}
+                        onChange={e => setConnectPassword(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleStartConnect()}
                         className="h-8 text-xs bg-muted/30 border-border/50 focus:border-primary/50"
                         disabled={connecting}
                       />
-                      <Button
-                        size="sm"
-                        onClick={handleSendOtp}
-                        disabled={connecting || !connectEmail.trim()}
-                        className="h-8 text-xs px-3 shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
-                      >
-                        {connecting
-                          ? <Spinner size={12} className="animate-spin" />
-                          : <><EnvelopeSimple size={12} /> Send Code</>
-                        }
-                      </Button>
-                    </div>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={handleStartConnect}
+                      disabled={connecting || !connectEmail.trim() || (connectMode === 'password' && !connectPassword.trim())}
+                      className="h-8 text-xs w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                    >
+                      {connectMode === 'otp'
+                        ? <><EnvelopeSimple size={12} /> Send Code</>
+                        : <><CheckCircle size={12} /> Connect</>
+                      }
+                    </Button>
+                    <p className="text-[10px] text-muted-foreground/50">
+                      {connectMode === 'otp'
+                        ? "We'll send a 6-digit login code to your inbox."
+                        : 'Use the password set on your Luma account.'}
+                    </p>
                   </>
-                ) : (
+                )}
+
+                {connectStep === 'waiting' && (
+                  <div className="flex items-center gap-2 py-2">
+                    <Spinner size={14} className="animate-spin text-emerald-400 shrink-0" />
+                    <p className="text-[11px] text-muted-foreground/70">
+                      {connectMode === 'otp'
+                        ? `Sending login code to ${connectEmail}…`
+                        : `Connecting ${connectEmail}…`}
+                    </p>
+                  </div>
+                )}
+
+                {connectStep === 'otp' && (
                   <>
                     <p className="text-[11px] text-muted-foreground/60 leading-relaxed">
                       Check <strong className="text-foreground/70">{connectEmail}</strong> for a 6-digit code from Luma.
