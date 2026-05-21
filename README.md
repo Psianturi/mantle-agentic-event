@@ -77,6 +77,53 @@ Each agent progresses through 5 levels as it attends more events:
 
 ## Key Features
 
+### Luma Event Integration (Dual-State Engine)
+
+Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube recordings.
+
+**Dual-State Logic:**
+- **Future event (scheduled):** Agent generates a *Scouting Brief* — predictive analysis using ELFA market signals. No NFT minted yet. Saved to "Upcoming Scouts" in NFT Vault.
+- **Past event (completed):** Full Wisdom NFT minted on Mantle. XP awarded.
+
+**Luma Auto-RSVP Flow:**
+1. User connects Luma account via OTP (email → 6-digit code, Playwright-driven)
+2. Session encrypted with GCP KMS, stored in Firestore (multi-instance safe)
+3. On event attend: agent auto-RSVPs via headless Chromium before minting NFT
+4. "Already connected" detection — re-uses valid session without re-prompting OTP
+5. Re-connect button for forced session refresh
+
+**Luma Fetch Cascade (4 tries):**
+1. Official Luma API (requires LUMA_API_KEY)
+2. `httpx` + `__NEXT_DATA__` JSON parse
+3. `httpx` + OpenGraph meta tags
+4. Domain fallback
+
+**Stale status prevention:** If a Scouting Brief was saved when the event was future but the event date has now passed, the frontend re-evaluates status dynamically — it appears as "completed" (not stuck as "scheduled" forever).
+
+---
+
+### ELFA Market Intelligence Layer
+
+Every Luma event attend triggers a parallel **ELFA API** call to enrich Gemini with real-time social signals.
+
+**Pipeline:**
+```
+Luma fetch → determine_elfa_query(title, niche) → asyncio.create_task(ELFA)
+                                                          │
+              [Firestore key load runs here in parallel]  │
+                                                          ↓
+                                              elfa_signals = await elfa_task
+                                                          │
+                                              Gemini sees "REAL-TIME MARKET INTELLIGENCE"
+                                              section with velocity_24h + sentiment_bullish_pct
+```
+
+**Hybrid query:** Scans event title for crypto keywords first, falls back to niche-based ticker.  
+**Graceful degradation:** Returns `None` on timeout/error — never blocks the pipeline.  
+**Stored:** `elfa_signals` snapshot persisted per event record in Firestore.
+
+---
+
 ### Strategic Consult — Human-in-the-Loop (HITL)
 
 Available at Level 3+. The agent's Gemini AI analyzes all attended events and generates **context-aware strategic proposals** specific to the agent's niche and knowledge base.
@@ -168,9 +215,11 @@ User Browser (React + Vite → Vercel)
   └─ Cloud Run (FastAPI backend)
        ├─ Firestore        — agent state, events, scout logs, proposals
        ├─ GCP KMS          — agent private key encryption
-       ├─ GCP Secret Mgr   — MINTER_SERVICE_PRIVATE_KEY, LLM_API_KEY, YOUTUBE_API_KEY
+       ├─ GCP Secret Mgr   — MINTER_SERVICE_PRIVATE_KEY, LLM_API_KEY, YOUTUBE_API_KEY, ELFA_API_KEY
        ├─ Gemini 2.5 Flash — wisdom, chat, scout scoring, HITL proposals
        ├─ YouTube Data API — Auto Scout event discovery
+       ├─ ELFA AI API      — real-time social signals (velocity, sentiment) for Luma events
+       ├─ Playwright       — headless Chromium for Luma OTP login + RSVP automation
        ├─ Web3.py          — Mantle Sepolia RPC
        │    └─ MAEFDynamicNFTV4 (0x66fD...)
        │         ├─ spawnAgent / spawnBredAgent
@@ -260,6 +309,7 @@ GCP Secret Manager secrets:
 - `MINTER_SERVICE_PRIVATE_KEY` — minter wallet, holds `MINTER_ROLE`
 - `LLM_API_KEY` — Gemini API key
 - `YOUTUBE_API_KEY` — YouTube Data API key (enables Auto Scout)
+- `ELFA_API_KEY` — ELFA AI API key (enables real-time market intelligence for Luma events)
 
 > Always create secrets with `echo -n "VALUE" | ...` — trailing newlines break eth_account.
 
@@ -294,6 +344,7 @@ MINTER_WALLET=0xCBA7951a8b5AE81303AC5E1017e34bF50A342D22 \
 
 - [ ] **Level 5** — Semi-autonomous proposal execution (no human click required)
 - [ ] **Marketplace V4** — Buy/sell agents with `spawnBredAgent` limit per original creator
-- [ ] **Luma / Event Platform Integration** — Agent attends non-YouTube events via open-source tooling
 - [ ] **Retire / Archive flow** — Soft-delete with auto-sweep of agent assets
 - [ ] **Multi-agent wisdom consensus** — Cross-agent insights from the same niche cohort
+- [ ] **Gas warning banner** — Alert when agent gas balance drops below 0.08 MNT
+- [ ] **AUTONOMOUS_VAULT_ADDRESS** — Configure multisig vault for Option A DeFi proposal execution

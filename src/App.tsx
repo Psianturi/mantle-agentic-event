@@ -390,7 +390,9 @@ function App() {
         platform: normalizePlatform(item.platform),
         date: item.attendedAt > 0 ? item.attendedAt * 1000 : Date.now(),
         summary: item.wisdomSummary,
-        status: item.lumaStatus === 'scheduled' ? 'scheduled' : 'completed',
+        status: (item.lumaStatus === 'scheduled' && (!item.lumaStartAt || new Date(item.lumaStartAt) > new Date()))
+          ? 'scheduled'
+          : 'completed',
         lumaStartAt: item.lumaStartAt,
       }))
 
@@ -705,8 +707,8 @@ function App() {
       if (isScoutingBrief) {
         addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Future Luma event detected — switching to Scouting mode`, 'info')
         addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Pre-Event Scouting Brief generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
-        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Scouting Brief NFT minted! Token #${result.tokenId}`, 'success')
-        toast.success(`Scouting Brief NFT minted for "${resolvedTitle}"`, {
+        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Scouting Brief saved — no NFT minted until event completes.`, 'info')
+        toast.success(`Scouting Brief registered for "${resolvedTitle}"`, {
           description: `Future event — agent prepared a predictive analysis. No XP until event completes.`,
         })
       } else {
@@ -765,7 +767,7 @@ function App() {
       }
 
       setEvents(c => [...(c ?? []), newEvent])
-      setNFTs(c => [...(c ?? []), newNFT])
+      if (!isScoutingBrief) setNFTs(c => [...(c ?? []), newNFT])
       setAgents(c => (c ?? []).map(a =>
         a.id === agent.id
           ? {

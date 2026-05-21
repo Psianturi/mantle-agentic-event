@@ -324,6 +324,51 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 
+    # ── Early exit: Scheduled (future) Luma events — no NFT mint ──────────
+    # Save a scouting brief record so it appears in Upcoming Scouts tab.
+    if luma_status == "scheduled":
+        db = get_db()
+        try:
+            await db.collection(EVENTS_COLLECTION).add({
+                "agent_id": req.agent_id,
+                "agent_wallet": req.agent_wallet,
+                "agent_name": req.agent_name,
+                "niche": req.niche,
+                "event_url": req.event_url,
+                "event_title": req.event_title,
+                "platform": req.platform,
+                "wisdom_summary": wisdom_summary,
+                "tx_hash": None,
+                "token_id": None,
+                "gas_used": None,
+                "block_number": None,
+                "attended_at": time.time(),
+                "mode": "B" if req.mode_b else "A",
+                "luma_status": "scheduled",
+                "luma_start_at": luma_start_at,
+                "elfa_signals": elfa_signals,
+            })
+            logger.info(
+                "Scouting brief saved for agent %s — future event '%s' (no NFT minted)",
+                req.agent_id, req.event_title,
+            )
+        except Exception as exc:
+            logger.error("Firestore scouting brief save failed for agent %s: %s", req.agent_id, exc)
+        return AttendResponse(
+            success=True,
+            tx_hash=None,
+            token_id=None,
+            wisdom_summary=wisdom_summary,
+            gas_used=None,
+            block_number=None,
+            explorer_url=None,
+            level_up=False,
+            new_total_events=None,
+            new_level=None,
+            luma_status="scheduled",
+            luma_start_at=luma_start_at,
+        )
+
     # ── Steps B + C: Mint on Mantle ────────────────────────────────────────
     # Mode B: agent signs with own key, agent pays gas (no fallback to minter).
     # Mode A: MINTER_SERVICE signs (admin ops, recordExecutedProposal, explicit Mode A).
