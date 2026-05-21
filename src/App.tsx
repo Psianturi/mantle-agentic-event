@@ -685,6 +685,9 @@ function App() {
       await new Promise(resolve => setTimeout(resolve, 400))
 
       // ── Luma RSVP: auto-register if agent has Luma session + URL is Luma ──
+      if (platform === 'Luma' && !agent.lumaConnected) {
+        addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Luma event detected — connect Luma account to enable autonomous RSVP`, 'info')
+      }
       if (platform === 'Luma' && agent.lumaConnected) {
         addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Luma event detected — initiating autonomous RSVP...`, 'info')
         try {

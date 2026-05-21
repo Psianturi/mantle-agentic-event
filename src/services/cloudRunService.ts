@@ -449,6 +449,7 @@ export const cloudRunService = {
         ownership_status?: string
         luma_connected_at?: number
         luma_last_rsvp_at?: number
+        agent_gas_balance?: number | null
       }>>(response)
 
       const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -486,6 +487,7 @@ export const cloudRunService = {
         lumaConnected: !!r.luma_connected_at,
         lumaConnectedAt: r.luma_connected_at,
         lumaLastRsvpAt: r.luma_last_rsvp_at,
+        agentGasBalance: r.agent_gas_balance ?? 0,
       }))
     } catch (error) {
       // Non-fatal: return empty list if backend is unreachable

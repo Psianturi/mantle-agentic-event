@@ -145,6 +145,7 @@ class SpawnResponse(BaseModel):
     spawned_on_v4: bool = False
     ownership_status: str | None = None
     luma_connected_at: float | None = None
+    agent_gas_balance: float | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -186,6 +187,7 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         spawned_on_v4=data.get("spawned_on_v4", False),
         ownership_status=data.get("ownership_status"),
         luma_connected_at=data.get("luma_connected_at"),
+        agent_gas_balance=data.get("agent_gas_balance"),
     )
 
 
@@ -1618,7 +1620,7 @@ async def luma_rsvp(agent_id: str, req: LumaRSVPRequest) -> dict:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
 
     agent_data = doc.to_dict() or {}
-    agent_name = agent_data.get("name", agent_id)
+    agent_name = agent_data.get("agent_name", agent_id)
     cookies_enc = agent_data.get("luma_cookies_enc")
 
     if not cookies_enc:
