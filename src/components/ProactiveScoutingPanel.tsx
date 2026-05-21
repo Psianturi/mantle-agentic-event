@@ -38,6 +38,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
   const [connecting, setConnecting] = useState(false)
   const [connectProgress, setConnectProgress] = useState('Starting secure Luma session...')
   const [lumaConnected, setLumaConnected] = useState(agent.lumaConnected ?? false)
+  const [isReconnecting, setIsReconnecting] = useState(false)
 
   useEffect(() => {
     if (logs.length > 0) return
@@ -83,6 +84,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
     setConnectSessionId('')
     setConnectStep('email')
     setConnectProgress('Starting secure Luma session...')
+    setIsReconnecting(false)
   }
 
   const getConnectProgressMessage = (status: string, email: string, mode: 'otp' | 'password') => {
@@ -147,7 +149,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
     setConnecting(false)
   }
 
-  const handleStartConnect = async () => {
+  const handleStartConnect = async (forceReconnect = false) => {
     if (!connectEmail.trim()) return
     if (connectMode === 'password' && !connectPassword.trim()) return
     setConnecting(true)
@@ -157,7 +159,18 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
         agent.id,
         connectEmail.trim(),
         connectMode === 'password' ? connectPassword.trim() : undefined,
+        forceReconnect,
       )
+      if (res.already_connected) {
+        setConnecting(false)
+        setLumaConnected(true)
+        setShowConnectModal(false)
+        resetConnectState()
+        toast.success('Session reused!', {
+          description: `${agent.name} already has an active Luma session. No login needed.`,
+        })
+        return
+      }
       setConnectSessionId(res.session_id)
       setConnectStep('waiting')
       void pollConnectStatus(res.session_id, connectMode)
@@ -336,7 +349,10 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
               size="sm"
               variant="outline"
               className="h-6 text-[10px] px-2 border-primary/30 hover:border-primary/60"
-              onClick={() => setShowConnectModal(v => !v)}
+              onClick={() => {
+                setIsReconnecting(lumaConnected)
+                setShowConnectModal(v => !v)
+              }}
             >
               {lumaConnected ? 'Re-connect' : 'Connect'}
             </Button>
@@ -378,7 +394,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                       placeholder="you@email.com"
                       value={connectEmail}
                       onChange={e => setConnectEmail(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && connectMode === 'password' && handleStartConnect()}
+                      onKeyDown={e => e.key === 'Enter' && connectMode === 'password' && handleStartConnect(isReconnecting)}
                       className="h-8 text-xs bg-muted/30 border-border/50 focus:border-primary/50"
                       disabled={connecting}
                     />
@@ -388,20 +404,20 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
                         placeholder="Your Luma password"
                         value={connectPassword}
                         onChange={e => setConnectPassword(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleStartConnect()}
+                        onKeyDown={e => e.key === 'Enter' && handleStartConnect(isReconnecting)}
                         className="h-8 text-xs bg-muted/30 border-border/50 focus:border-primary/50"
                         disabled={connecting}
                       />
                     )}
                     <Button
                       size="sm"
-                      onClick={handleStartConnect}
+                      onClick={() => handleStartConnect(isReconnecting)}
                       disabled={connecting || !connectEmail.trim() || (connectMode === 'password' && !connectPassword.trim())}
                       className="h-8 text-xs w-full bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
                     >
                       {connectMode === 'otp'
-                        ? <><EnvelopeSimple size={12} /> Send Code</>
-                        : <><CheckCircle size={12} /> Connect</>
+                        ? <><EnvelopeSimple size={12} /> {isReconnecting ? 'Reconnect' : 'Send Code'}</>
+                        : <><CheckCircle size={12} /> {isReconnecting ? 'Reconnect' : 'Connect'}</>
                       }
                     </Button>
                     <p className="text-[10px] text-muted-foreground/50">

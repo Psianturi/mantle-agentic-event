@@ -1406,6 +1406,7 @@ _LUMA_OTP_SESSIONS_COLLECTION = "luma_otp_sessions"
 class LumaConnectStartRequest(BaseModel):
     email: str
     password: str | None = None  # optional: use password login instead of OTP
+    force_reconnect: bool = False  # set True to re-login even if session appears valid
 
 
 class LumaConnectVerifyRequest(BaseModel):
@@ -1433,6 +1434,9 @@ async def luma_connect_start(agent_id: str, req: LumaConnectStartRequest) -> dic
     """
     Step 1: Create Firestore session doc, start Playwright background task.
     Playwright polls Firestore for OTP code — works across any Cloud Run instance.
+
+    If the agent already has a non-expired luma.auth-session-key cookie stored and
+    force_reconnect is not set, the session is reused immediately without Playwright.
     """
     db = get_db()
     doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
@@ -1440,6 +1444,32 @@ async def luma_connect_start(agent_id: str, req: LumaConnectStartRequest) -> dic
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
 
     session_id = secrets.token_urlsafe(16)
+
+    # Check for existing valid session (skip Playwright if already connected)
+    if not req.force_reconnect:
+        agent_data = doc.to_dict() or {}
+        existing_enc = agent_data.get("luma_cookies_enc")
+        if existing_enc:
+            try:
+                from services.luma_browser_service import validate_existing_luma_session
+                existing_cookies = json.loads(decrypt_private_key(existing_enc))
+                if validate_existing_luma_session(existing_cookies):
+                    await db.collection(_LUMA_OTP_SESSIONS_COLLECTION).document(session_id).set({
+                        "agent_id": agent_id,
+                        "email": req.email,
+                        "status": "connected",
+                        "created_at": time.time(),
+                    })
+                    logger.info("Luma connect reused existing session — agent=%s session=%s", agent_id, session_id)
+                    return {
+                        "session_id": session_id,
+                        "status": "already_connected",
+                        "already_connected": True,
+                        "email": req.email,
+                        "mode": "reuse",
+                    }
+            except Exception as e:
+                logger.warning("Existing session validation failed for agent %s: %s — proceeding with fresh login", agent_id, e)
 
     # Write session to Firestore before starting Playwright task
     await db.collection(_LUMA_OTP_SESSIONS_COLLECTION).document(session_id).set({

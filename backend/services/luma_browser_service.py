@@ -73,6 +73,24 @@ def _has_luma_session(cookies: list[dict]) -> bool:
     return any(c.get("name") in session_cookie_names for c in cookies)
 
 
+def validate_existing_luma_session(cookies: list[dict]) -> bool:
+    """
+    Quick local check: does luma.auth-session-key exist and hasn't expired?
+    Returns True if the stored session looks still valid without a network call.
+    Used by luma_connect_start to skip OTP if the agent already has a live session.
+    """
+    import time as _t
+    now = _t.time()
+    for c in cookies:
+        if c.get("name") == "luma.auth-session-key":
+            expires = c.get("expires", -1)
+            # expires == -1 means session cookie (no expiry set — persists until browser close)
+            # On Luma, auth-session-key is a persistent cookie with ~1-year expiry
+            if expires == -1 or expires > now:
+                return True
+    return False
+
+
 def _is_logged_in(url: str) -> bool:
     # Luma uses both lu.ma and luma.com — Google OAuth redirects to luma.com/home
     on_luma = "lu.ma" in url or "luma.com" in url
