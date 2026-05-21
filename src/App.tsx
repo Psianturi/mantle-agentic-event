@@ -1517,10 +1517,10 @@ function App() {
                       />
                       <Button
                         onClick={!walletConnected ? () => handleWalletConnect('') : handleAttendEvent}
-                        disabled={walletConnected && !eventUrl.trim()}
+                        disabled={walletConnected && (!eventUrl.trim() || isProcessingEvent)}
                         className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
                       >
-                        {!walletConnected ? 'Connect & Attend' : 'Attend Event'}
+                        {!walletConnected ? 'Connect & Attend' : isProcessingEvent ? 'Processing...' : 'Attend Event'}
                       </Button>
                     </div>
                     {walletConnected && activeAgent && (
@@ -1577,6 +1577,7 @@ function App() {
                   isActive={isProcessingEvent}
                   currentTasks={tasks}
                   activeAgentId={activeAgentId}
+                  syncAgentId={(selectedAgent ?? displayedAgents[0])?.id}
                 />
               )}
 
@@ -2108,6 +2109,33 @@ function App() {
                 totalAgents={marketplaceAgents?.length ?? 0}
               />
 
+              {/* Coming Soon banner */}
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: 'easeOut' }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-accent/5 to-secondary/10"
+              >
+                <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center flex-shrink-0">
+                  <LockKey size={16} weight="duotone" className="text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-xs font-mono text-muted-foreground tracking-[0.2em] uppercase">On-chain P2P Marketplace · </span>
+                  <span className="text-sm font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Coming Soon</span>
+                  <span className="text-xs text-muted-foreground/70 ml-2">— launching after mainnet deployment</span>
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {[0, 0.25, 0.5].map((delay, i) => (
+                    <motion.div
+                      key={i}
+                      animate={{ scale: [1, 1.5, 1], opacity: [0.35, 1, 0.35] }}
+                      transition={{ repeat: Infinity, duration: 1.2, delay, ease: 'easeInOut' }}
+                      className="w-1.5 h-1.5 rounded-full bg-primary"
+                    />
+                  ))}
+                </div>
+              </motion.div>
+
               {!marketplaceAgents || marketplaceAgents.length === 0 ? (
                 <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-secondary/30">
                   <Storefront size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
@@ -2117,66 +2145,15 @@ function App() {
                   </p>
                 </Card>
               ) : (
-                <div className="relative">
-                  {/* Marketplace card grid — lightly blurred behind overlay */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pointer-events-none select-none opacity-55" style={{ filter: 'blur(2px)' }}>
-                    {filteredAndSortedMarketplace().map((agent) => (
-                      <MarketplaceAgentCard
-                        key={agent.id}
-                        agent={agent}
-                        onBuy={handleBuyAgent}
-                        isPurchasing={false}
-                      />
-                    ))}
-                  </div>
-
-                  {/* Coming Soon overlay */}
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5, ease: 'easeOut' }}
-                    className="absolute inset-0 flex flex-col items-center justify-center z-10"
-                  >
-                    <div className="relative flex flex-col items-center gap-4 px-8 py-8 rounded-2xl border border-primary/30 bg-background/80 backdrop-blur-md shadow-2xl shadow-primary/20 max-w-sm mx-auto text-center">
-                      {/* Pulsing outer glow ring */}
-                      <motion.div
-                        animate={{ scale: [1, 1.12, 1], opacity: [0.4, 0.15, 0.4] }}
-                        transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
-                        className="absolute inset-0 rounded-2xl border border-primary/50 bg-gradient-to-br from-primary/10 to-accent/10"
-                      />
-
-                      {/* Lock icon with pulse */}
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/40 flex items-center justify-center">
-                        <LockKey size={28} weight="duotone" className="text-primary" />
-                      </div>
-
-                      {/* "Coming Soon" text */}
-                      <div>
-                        <p className="text-xs font-mono text-muted-foreground tracking-[0.3em] uppercase mb-1">
-                          On-chain P2P Marketplace
-                        </p>
-                        <h3 className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(0,243,255,0.5)]">
-                          Coming Soon
-                        </h3>
-                      </div>
-
-                      <p className="text-xs text-muted-foreground/80 leading-relaxed relative z-10">
-                        Decentralized agent trading — launching after mainnet deployment
-                      </p>
-
-                      {/* Animated dot row */}
-                      <div className="flex items-center gap-2 relative z-10">
-                        {[0, 0.3, 0.6].map((delay, i) => (
-                          <motion.div
-                            key={i}
-                            animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
-                            transition={{ repeat: Infinity, duration: 1.2, delay, ease: 'easeInOut' }}
-                            className="w-2 h-2 rounded-full bg-primary"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredAndSortedMarketplace().map((agent) => (
+                    <MarketplaceAgentCard
+                      key={agent.id}
+                      agent={agent}
+                      onBuy={handleBuyAgent}
+                      isPurchasing={purchasingAgentId === agent.id}
+                    />
+                  ))}
                 </div>
               )}
             </motion.div>

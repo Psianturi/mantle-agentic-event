@@ -283,6 +283,15 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                 </TooltipProvider>
               </div>
               
+              {(agent.agentGasBalance ?? 0) > 0 && (agent.agentGasBalance ?? 0) < 0.08 && (
+                <div className="mb-3 flex items-center gap-2 px-2.5 py-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                  <Warning size={13} className="text-amber-400 flex-shrink-0" weight="fill" />
+                  <span className="text-[10px] text-amber-400 font-semibold leading-tight">
+                    Low gas — top up to keep agent operational
+                  </span>
+                </div>
+              )}
+
               {onToggleAutoReplenish && (
                 <div className="mb-3 p-2.5 rounded-md bg-background/50 border border-border/50">
                   <div className="flex items-center justify-between">

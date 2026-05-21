@@ -36,6 +36,7 @@ interface SubAgentDelegationProps {
   isActive?: boolean
   currentTasks?: SubAgentTask[]
   activeAgentId?: string | null
+  syncAgentId?: string
 }
 
 const subAgentConfig = {
@@ -127,7 +128,7 @@ const getStatusColor = (status: SubAgentTask['status']) => {
   }
 }
 
-export function SubAgentDelegation({ agents, isActive, currentTasks = [], activeAgentId }: SubAgentDelegationProps) {
+export function SubAgentDelegation({ agents, isActive, currentTasks = [], activeAgentId, syncAgentId }: SubAgentDelegationProps) {
   const [selectedAgentId, setSelectedAgentId] = useState<string>(agents[0]?.id || '')
   const [activePulse, setActivePulse] = useState<SubAgentType | null>(null)
   const [taskQueue, setTaskQueue] = useState<SubAgentTask[]>(currentTasks)
@@ -178,6 +179,12 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
       setSelectedAgentId(agents[0].id)
     }
   }, [agents, selectedAgentId])
+
+  useEffect(() => {
+    if (syncAgentId && agents.find(a => a.id === syncAgentId)) {
+      setSelectedAgentId(syncAgentId)
+    }
+  }, [syncAgentId, agents])
 
   useEffect(() => {
     if (activeAgentId === selectedAgentId && isActive && currentTasks.length > 0) {
