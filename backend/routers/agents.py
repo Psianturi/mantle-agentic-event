@@ -280,12 +280,16 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         data = doc.to_dict()
         return _to_response(data, needs_funding=not data.get("funded", False))
 
-    # Per-wallet agent limit (testnet: 3, mainnet: change to 1)
+    # Per-wallet agent limit applies only to directly spawned agents (ownership_status='original-creator').
+    # Bred offspring are excluded — their slot cost is paid via breedAgents() on-chain.
     MAX_AGENTS_PER_WALLET = 3
     try:
         existing_query = db.collection(AGENTS_COLLECTION).where("user_wallet", "==", req.user_wallet)
         existing_docs = await existing_query.get()
-        existing_count = len(existing_docs)
+        existing_count = sum(
+            1 for doc in existing_docs
+            if (doc.to_dict() or {}).get("ownership_status") != "bred"
+        )
         if existing_count >= MAX_AGENTS_PER_WALLET:
             raise HTTPException(
                 status_code=422,

@@ -3,15 +3,25 @@ import { MANTLE_NETWORKS, DEFAULT_NETWORK, CONTRACT_ADDRESSES, GAS_LIMITS } from
 import { MAEF_NFT_ABI } from './abi'
 import { ipfsService } from '@/lib/ipfs/ipfsService'
 
+type EthProvider = {
+  isMetaMask?: boolean
+  isOKExWallet?: boolean
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
+  on: (event: string, callback: (...args: unknown[]) => void) => void
+  removeListener: (event: string, callback: (...args: unknown[]) => void) => void
+}
+
 declare global {
   interface Window {
-    ethereum?: {
-      isMetaMask?: boolean
-      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
-      on: (event: string, callback: (...args: unknown[]) => void) => void
-      removeListener: (event: string, callback: (...args: unknown[]) => void) => void
-    }
+    ethereum?: EthProvider
+    okxwallet?: EthProvider      // OKX Wallet primary injection point
   }
+}
+
+// Returns the best available EIP-1193 provider across multiple wallet extensions.
+// Priority: OKX Wallet → window.ethereum (MetaMask, Rabby, Coinbase, etc.)
+function resolveProvider(): EthProvider | undefined {
+  return window.okxwallet ?? window.ethereum
 }
 
 export interface MintNFTParams {
@@ -56,15 +66,17 @@ export class MantleBlockchainService {
   private currentNetwork = DEFAULT_NETWORK
 
   async connectWallet(): Promise<{ address: string; network: string }> {
-    if (!window.ethereum) {
-      throw new Error('MetaMask or compatible wallet not found. Please install a Web3 wallet.')
+    const ethProvider = resolveProvider()
+    if (!ethProvider) {
+      throw new Error('No Web3 wallet found. Please install MetaMask, OKX Wallet, or another EVM-compatible wallet.')
     }
 
     try {
-      const provider = new BrowserProvider(window.ethereum)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const provider = new BrowserProvider(ethProvider as any)
       this.provider = provider
 
-      const accounts = await window.ethereum.request({
+      const accounts = await ethProvider.request({
         method: 'eth_requestAccounts'
       }) as string[]
 
@@ -92,12 +104,13 @@ export class MantleBlockchainService {
   }
 
   async switchToMantleNetwork(): Promise<void> {
-    if (!window.ethereum) {
+    const ethProvider = resolveProvider()
+    if (!ethProvider) {
       throw new Error('No wallet found')
     }
 
     try {
-      await window.ethereum.request({
+      await ethProvider.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: `0x${this.currentNetwork.chainId.toString(16)}` }]
       })
@@ -112,11 +125,12 @@ export class MantleBlockchainService {
   }
 
   private async addMantleNetwork(): Promise<void> {
-    if (!window.ethereum) {
+    const ethProvider = resolveProvider()
+    if (!ethProvider) {
       throw new Error('No wallet found')
     }
 
-    await window.ethereum.request({
+    await ethProvider.request({
       method: 'wallet_addEthereumChain',
       params: [
         {
