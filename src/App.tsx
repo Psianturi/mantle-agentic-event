@@ -382,6 +382,7 @@ function App() {
       })
       // Load cloud state persisted in Firestore for this wallet
       const cloudAgents = await cloudRunService.getAgentsByWallet(connectedAddress)
+      setBackendConnected(true)  // getAgentsByWallet success = backend is reachable
       const cloudHistory = await cloudRunService.getEventHistoryByWallet(connectedAddress)
 
       const restoredEvents: Event[] = cloudHistory.map((item) => ({
