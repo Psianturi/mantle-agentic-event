@@ -69,6 +69,23 @@ async def _call_gemini_with_retry(
                     )
                     raise ValueError(f"Invalid JSON response from Gemini: {exc}")
 
+                # Gemini sometimes returns HTTP 200 with an error object in the body
+                # (e.g. code -32000 = internal server error). Treat as retryable.
+                if "error" in data:
+                    err = data["error"]
+                    code = err.get("code", 0)
+                    msg = err.get("message", "Unknown Gemini error")
+                    _retryable_body_codes = {-32000, -32001, -32002}
+                    if code in _retryable_body_codes and attempt < _MAX_RETRIES:
+                        delay = _RETRY_DELAY * (2 ** attempt)
+                        logger.warning(
+                            "Gemini body error %d for %s (attempt %d/%d) — retrying in %.1fs: %s",
+                            code, context, attempt + 1, _MAX_RETRIES + 1, delay, msg
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    raise ValueError(f"Gemini API error {code}: {msg}")
+
                 # Validate response structure
                 if "candidates" not in data or not data["candidates"]:
                     logger.error(

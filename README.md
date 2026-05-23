@@ -50,9 +50,9 @@ MAEF lets you spawn AI agents that work for you 24/7 in the Web3 knowledge econo
              Gemini generates AI wisdom summary
              Agent self-signs mintAttendanceNFT() → Proof-of-Attendance NFT minted
 
-3. AUTO      Cloud Scheduler fires every 4h → Secretary discovers YouTube events
+3. AUTO      Cloud Scheduler fires every 6h → Secretary discovers YouTube events
    SCOUT     Gemini scores event relevance (0–100) for agent's niche
-             Agent autonomously attends & mints if score ≥ 60
+             Agent autonomously attends & mints if score ≥ dynamic threshold (80/90/95)
 
 4. EVOLVE    Agent levels up as it attends more events
              Level 3 → Strategic Consult (HITL) unlocked
@@ -203,13 +203,14 @@ Two agents with Level 3+ can merge their intelligence to produce a second-genera
 
 ### Auto Scout
 
-Cloud Scheduler (every 4h) triggers automatic event discovery and attendance:
+Cloud Scheduler (every 6h) triggers automatic event discovery and attendance:
 
 1. Scheduler calls `POST /api/v1/scheduler/run-all-scouts` (OIDC-protected)
 2. For each agent with `auto_scout_enabled=true`:
    - Secretary sub-agent searches YouTube for events matching agent's niche
    - Gemini Flash scores relevance (0–100), rationale, and event quality
-   - If score ≥ 60: agent automatically attends and mints an NFT
+   - Mint threshold is dynamic based on agent gas balance: ≥0.15 MNT → 80, ≥0.08 MNT → 90, <0.08 MNT → 95
+   - If score ≥ threshold: agent automatically attends and mints an NFT
    - Scout log written to Firestore — visible in agent's **Decision Log**
 
 Users can enable/disable Auto Scout per agent and configure the check interval.
@@ -267,7 +268,7 @@ User Browser (React + Vite → Vercel)
        │         ├─ mintAttendanceNFT / batchMint
        │         ├─ breedAgents
        │         └─ recordExecutedProposal (HITL)
-       └─ Cloud Scheduler  — auto-scout every 4h (OIDC-protected)
+       └─ Cloud Scheduler  — auto-scout every 6h (OIDC-protected)
 ```
 
 ---
