@@ -4,13 +4,14 @@ AI agents that autonomously attend events, earn on-chain NFTs, and evolve into s
 
 > **Live:** [mantle-agentic-event.vercel.app](https://mantle-agentic-event.vercel.app)
 
-## Status Snapshot — 21 May 2026
+## Status Snapshot 
 
 - **Production-verified:** agent connect to Luma, auto-RSVP a real Luma event, then continue through `attend` and mint/update state on Mantle Sepolia.
 - **Luma auth hardening:** OTP + password login supported, session cookies stored KMS-encrypted in Firestore, valid sessions reused without forcing re-login.
 - **Dual-State Luma hardening:** future events now rely on `start_at` extracted from `__NEXT_DATA__`, JSON-LD, or embedded page metadata before falling back to OpenGraph-only parsing.
 - **Upcoming Scouts sync:** frontend derives Luma scheduled/completed state from `lumaStartAt`, so future events stay visible in the NFT Vault's **Upcoming Scouts** tab.
-- **Still pending config:** `ELFA_API_KEY` and `AUTONOMOUS_VAULT_ADDRESS` are not yet active in runtime config.
+- **ELFA in production:** `ELFA_API_KEY` is active in Cloud Run (rev `00122`, 21 May 2026); event enrichment now runs in production with graceful degradation fallback.
+- **Still pending config:** `AUTONOMOUS_VAULT_ADDRESS` is not yet active in runtime config.
 
 ---
 
@@ -115,7 +116,7 @@ Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube rec
 
 ### ELFA Market Intelligence Layer
 
-> Current runtime note: the code path is live, but production logs still show `ELFA_API_KEY not configured`, so this layer currently degrades gracefully to `None`.
+> Runtime note: ELFA is enabled in production. If ELFA API is slow/unavailable, MAEF degrades gracefully to `None` and continues the pipeline.
 
 Every Luma event attend triggers a parallel **ELFA API** call to enrich Gemini with real-time social signals.
 
@@ -134,6 +135,33 @@ Luma fetch → determine_elfa_query(title, niche) → asyncio.create_task(ELFA)
 **Hybrid query:** Scans event title for crypto keywords first, falls back to niche-based ticker.  
 **Graceful degradation:** Returns `None` on timeout/error — never blocks the pipeline.  
 **Stored:** `elfa_signals` snapshot persisted per event record in Firestore.
+
+---
+
+## Operational Limits and Guardrails
+
+- **Spawn quota:** max **3 directly spawned agents** per wallet (`ownership_status != "bred"` counted). Bred offspring do not consume this spawn quota.
+- **Breed constraints:** parent level 3+, max 3 breedings per parent, 24h cooldown, and no self-breeding.
+- **Mode B gas autonomy:** agents need gas balance for autonomous signing. If out of gas, top-up is required before retry.
+- **Luma automation safety:** OTP/password flow is supported; valid encrypted sessions are reused to avoid repeated login friction.
+
+---
+
+## Known Gaps (Current) and Priority Improvements
+
+
+1. **Wallet compatibility hardening**
+  - Current UX and error copy is still MetaMask-centric in some paths.
+  - Improve injected provider detection/selection so other EIP-1193 wallets connect reliably.
+
+2. **E2E Luma reliability verification on Cloud Run**
+  - OTP and RSVP flows are implemented, but should be validated repeatedly as an end-to-end demo path under production latency.
+
+3. **Demo-first resilience checks**
+  - Validate spawn quota messaging and bred-agent behavior are clearly communicated in UI.
+  - Keep ELFA graceful degradation visible and non-blocking in logs/toasts.
+
+
 
 ---
 
@@ -223,7 +251,7 @@ Each agent coordinates a squad of 4 specialized sub-agents:
 ```
 User Browser (React + Vite → Vercel)
   │
-  ├─ MetaMask (user wallet — pays for spawn/breed)
+  ├─ Injected EIP-1193 wallet (MetaMask / compatible wallet — pays for spawn/breed)
   │
   └─ Cloud Run (FastAPI backend)
        ├─ Firestore        — agent state, events, scout logs, proposals

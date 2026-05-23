@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Wallet, CurrencyCircleDollar } from '@phosphor-icons/react'
+import { Wallet, CurrencyCircleDollar, WarningCircle } from '@phosphor-icons/react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { toast } from 'sonner'
 import { motion } from 'framer-motion'
+import { detectWallets, DetectedWallet, mantleService } from '@/lib/blockchain/mantleService'
 
 interface WalletConnectProps {
   onConnect: (address: string) => void
@@ -13,24 +13,27 @@ interface WalletConnectProps {
   onDisconnect: () => void
 }
 
+const WALLET_STYLES: Record<DetectedWallet['id'], { border: string; bg: string; dot: string; label: string }> = {
+  okx:      { border: 'border-blue-500/40 hover:border-blue-500/70',    bg: 'from-blue-500/10 to-cyan-500/10',     dot: 'bg-blue-400',   label: 'OKX' },
+  metamask: { border: 'border-orange-500/40 hover:border-orange-500/70', bg: 'from-orange-500/10 to-amber-500/10', dot: 'bg-orange-400', label: 'MM' },
+  rabby:    { border: 'border-purple-500/40 hover:border-purple-500/70', bg: 'from-purple-500/10 to-violet-500/10', dot: 'bg-purple-400', label: 'R' },
+  injected: { border: 'border-primary/30 hover:border-primary/60',       bg: 'from-primary/10 to-accent/10',       dot: 'bg-primary',    label: '⬡' },
+}
+
 export function WalletConnect({ onConnect, isConnected, address, balance, onDisconnect }: WalletConnectProps) {
   const [showDialog, setShowDialog] = useState(false)
-  const [isConnecting, setIsConnecting] = useState(false)
+  const [detectedWallets, setDetectedWallets] = useState<DetectedWallet[]>([])
 
-  const mockConnect = async () => {
-    setIsConnecting(true)
-    toast.info('Connecting to Mantle Network...')
-    
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    const mockAddress = '0x' + Math.random().toString(16).slice(2, 42).padEnd(40, '0')
-    onConnect(mockAddress)
+  useEffect(() => {
+    if (showDialog) {
+      setDetectedWallets(detectWallets())
+    }
+  }, [showDialog])
+
+  const handleWalletSelect = (wallet: DetectedWallet) => {
+    mantleService.setPreferredProvider(wallet.provider)
     setShowDialog(false)
-    setIsConnecting(false)
-    
-    toast.success('Wallet Connected!', {
-      description: 'Successfully connected to Mantle Network'
-    })
+    onConnect('')
   }
 
   if (isConnected && address) {
@@ -77,51 +80,63 @@ export function WalletConnect({ onConnect, isConnected, address, balance, onDisc
               Connect to Mantle
             </DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Connect your wallet to start spawning AI agents and minting NFTs on Mantle Network
+              Select a wallet to connect to Mantle Network
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 mt-4">
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Button
-                onClick={mockConnect}
-                disabled={isConnecting}
-                className="w-full h-16 bg-gradient-to-r from-primary/20 to-accent/20 hover:from-primary/30 hover:to-accent/30 border-2 border-primary/30 hover:border-primary/50 transition-all"
-              >
-                <Wallet size={24} className="mr-3 text-primary" weight="duotone" />
-                <div className="text-left">
-                  <p className="font-bold text-foreground">MetaMask</p>
-                  <p className="text-xs text-muted-foreground">Connect to Mantle via MetaMask</p>
+            {detectedWallets.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-6 text-center">
+                <WarningCircle size={36} className="text-muted-foreground" weight="duotone" />
+                <p className="text-sm text-muted-foreground">No compatible wallet detected.</p>
+                <div className="flex gap-2 text-xs">
+                  <a
+                    href="https://metamask.io/download/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline text-primary hover:text-primary/80"
+                  >
+                    Install MetaMask
+                  </a>
+                  <span className="text-muted-foreground">or</span>
+                  <a
+                    href="https://www.okx.com/web3"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline text-blue-400 hover:text-blue-300"
+                  >
+                    Install OKX Wallet
+                  </a>
                 </div>
-              </Button>
-            </motion.div>
+              </div>
+            ) : (
+              detectedWallets.map((wallet) => {
+                const style = WALLET_STYLES[wallet.id]
+                return (
+                  <motion.div key={wallet.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    <Button
+                      onClick={() => handleWalletSelect(wallet)}
+                      className={`w-full h-16 bg-gradient-to-r ${style.bg} border-2 ${style.border} transition-all`}
+                    >
+                      <div className={`w-8 h-8 rounded-full ${style.bg} border ${style.border} flex items-center justify-center mr-3 text-xs font-bold`}>
+                        {style.label}
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-foreground">{wallet.name}</p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} />
+                          Detected · EIP-1193
+                        </p>
+                      </div>
+                    </Button>
+                  </motion.div>
+                )
+              })
+            )}
 
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Button
-                onClick={mockConnect}
-                disabled={isConnecting}
-                className="w-full h-16 bg-gradient-to-r from-secondary/20 to-accent/20 hover:from-secondary/30 hover:to-accent/30 border-2 border-secondary/30 hover:border-secondary/50 transition-all"
-              >
-                <Wallet size={24} className="mr-3 text-secondary" weight="duotone" />
-                <div className="text-left">
-                  <p className="font-bold text-foreground">WalletConnect</p>
-                  <p className="text-xs text-muted-foreground">Connect via WalletConnect</p>
-                </div>
-              </Button>
-            </motion.div>
-
-            <div className="pt-4 border-t border-border/30">
+            <div className="pt-3 border-t border-border/30">
               <p className="text-xs text-muted-foreground text-center">
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                  Connected to Mantle Network
-                </span>
+                Supports MetaMask, OKX Wallet, Rabby, and any EIP-1193 compatible wallet
               </p>
             </div>
           </div>

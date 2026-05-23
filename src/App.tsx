@@ -169,17 +169,18 @@ function App() {
     }
   }, [mainView])
 
-  // Auto-reconnect on page load if MetaMask is already unlocked and site is authorized.
+  // Auto-reconnect on page load if any EIP-1193 wallet is already authorized.
   // TTL: session expires after 24h — user must manually reconnect after that.
   const WALLET_SESSION_KEY = 'maef-wallet-session-at'
   const WALLET_SESSION_TTL = 24 * 60 * 60 * 1000 // 24 hours
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.ethereum) return
-    const eth = window.ethereum as { request: (a: { method: string }) => Promise<string[]> }
+    if (typeof window === 'undefined') return
+    const eth = window.okxwallet ?? window.ethereum
+    if (!eth) return
     eth.request({ method: 'eth_accounts' })
       .then((accounts) => {
-        if (accounts.length === 0) return
+        if ((accounts as string[]).length === 0) return
         const savedAt = parseInt(localStorage.getItem(WALLET_SESSION_KEY) || '0')
         if (Date.now() - savedAt < WALLET_SESSION_TTL) {
           handleWalletConnect('')
@@ -190,14 +191,15 @@ function App() {
       .catch(() => {})
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // React to wallet switches or lock events in MetaMask
+  // React to wallet account switches or lock events across all supported wallets.
   useEffect(() => {
-    if (typeof window === 'undefined' || !window.ethereum) return
-    const eth = window.ethereum as { on: (e: string, cb: (a: string[]) => void) => void; removeListener: (e: string, cb: (a: string[]) => void) => void }
-    const onAccountsChanged = (accounts: string[]) => {
+    if (typeof window === 'undefined') return
+    const eth = window.okxwallet ?? window.ethereum
+    if (!eth) return
+    const onAccountsChanged = (accounts: unknown[]) => {
       if (accounts.length === 0) {
         handleWalletDisconnect()
-      } else if (accounts[0]?.toLowerCase() !== walletAddress?.toLowerCase()) {
+      } else if ((accounts[0] as string)?.toLowerCase() !== walletAddress?.toLowerCase()) {
         handleWalletConnect('')
       }
     }
@@ -2188,6 +2190,8 @@ function App() {
         onOpenChange={setSpawnDialogOpen}
         onAgentCreated={handleAgentCreated}
         userWallet={walletAddress}
+        originalAgentCount={displayedAgents.filter(a => a.ownershipStatus === 'original-creator').length}
+        bredAgentCount={displayedAgents.filter(a => a.ownershipStatus === 'bred').length}
       />
 
       {selectedAgent && (

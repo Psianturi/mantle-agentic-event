@@ -5,17 +5,21 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Niche, Personality, Agent, SubAgent } from '@/lib/types'
-import { Sparkle, Lightning, CheckCircle, XCircle } from '@phosphor-icons/react'
+import { Sparkle, Lightning, CheckCircle, XCircle, Info } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cloudRunService } from '@/services/cloudRunService'
 import { mantleService } from '@/lib/blockchain/mantleService'
 import { toast } from 'sonner'
 
+const ORIGINAL_AGENT_LIMIT = 3
+
 interface SpawnAgentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onAgentCreated: (agent: Agent) => void
-  userWallet?: string  // Connected MetaMask address, forwarded to backend
+  userWallet?: string
+  originalAgentCount?: number  // Directly spawned agents (counts toward 3-slot limit)
+  bredAgentCount?: number      // Neural Fusion offspring (does NOT count toward limit)
 }
 
 const niches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -23,7 +27,7 @@ const personalities: Personality[] = ['Aggressive', 'Analytical', 'Creative']
 
 type SpawnPhase = 'form' | 'spawning' | 'deploying' | 'success' | 'error'
 
-export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWallet }: SpawnAgentDialogProps) {
+export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWallet, originalAgentCount = 0, bredAgentCount = 0 }: SpawnAgentDialogProps) {
   const [name, setName] = useState('')
   const [personality, setPersonality] = useState<Personality>('Analytical')
   const [niche, setNiche] = useState<Niche>('Blockchain/DeFi')
@@ -250,10 +254,36 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
                 </Select>
               </div>
 
+              {/* Spawn quota counter */}
+              <div className={`flex flex-col gap-1 px-3 py-2 rounded-md text-xs border ${
+                originalAgentCount >= ORIGINAL_AGENT_LIMIT
+                  ? 'bg-destructive/10 border-destructive/30 text-destructive'
+                  : originalAgentCount >= ORIGINAL_AGENT_LIMIT - 1
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                    : 'bg-muted/40 border-border/40 text-muted-foreground'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Info size={13} weight="fill" className="flex-shrink-0" />
+                  <span>
+                    <span className="font-mono font-bold">{originalAgentCount}/{ORIGINAL_AGENT_LIMIT}</span>
+                    {' '}original slots used
+                    {originalAgentCount >= ORIGINAL_AGENT_LIMIT
+                      ? ' — limit reached. Use Neural Fusion to breed offspring.'
+                      : ' · bred offspring don\'t count toward this limit.'}
+                  </span>
+                </div>
+                {bredAgentCount > 0 && (
+                  <div className="flex items-center gap-2 pl-[21px] text-muted-foreground">
+                    <span className="font-mono font-bold text-violet-400">{bredAgentCount}</span>
+                    <span>Neural Fusion offspring (unlimited)</span>
+                  </div>
+                )}
+              </div>
+
               <Button
                 onClick={handleSpawn}
-                disabled={!name.trim()}
-                className="w-full bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity"
+                disabled={!name.trim() || originalAgentCount >= ORIGINAL_AGENT_LIMIT}
+                className="w-full bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 <Lightning className="mr-2" weight="fill" />
                 Register Agent On-chain

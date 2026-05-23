@@ -6,6 +6,7 @@ import { ipfsService } from '@/lib/ipfs/ipfsService'
 type EthProvider = {
   isMetaMask?: boolean
   isOKExWallet?: boolean
+  isRabby?: boolean
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
   on: (event: string, callback: (...args: unknown[]) => void) => void
   removeListener: (event: string, callback: (...args: unknown[]) => void) => void
@@ -18,7 +19,33 @@ declare global {
   }
 }
 
-// Returns the best available EIP-1193 provider across multiple wallet extensions.
+export interface DetectedWallet {
+  id: 'okx' | 'metamask' | 'rabby' | 'injected'
+  name: string
+  provider: EthProvider
+}
+
+// Detects all EIP-1193 providers currently injected in the browser.
+export function detectWallets(): DetectedWallet[] {
+  const wallets: DetectedWallet[] = []
+  if (typeof window === 'undefined') return wallets
+
+  if (window.okxwallet) {
+    wallets.push({ id: 'okx', name: 'OKX Wallet', provider: window.okxwallet })
+  }
+  if (window.ethereum) {
+    if (window.ethereum.isRabby) {
+      wallets.push({ id: 'rabby', name: 'Rabby', provider: window.ethereum })
+    } else if (window.ethereum.isMetaMask) {
+      wallets.push({ id: 'metamask', name: 'MetaMask', provider: window.ethereum })
+    } else {
+      wallets.push({ id: 'injected', name: 'Browser Wallet', provider: window.ethereum })
+    }
+  }
+  return wallets
+}
+
+// Falls back to best-available provider when no preferred one is set.
 // Priority: OKX Wallet → window.ethereum (MetaMask, Rabby, Coinbase, etc.)
 function resolveProvider(): EthProvider | undefined {
   return window.okxwallet ?? window.ethereum
@@ -64,9 +91,19 @@ export class MantleBlockchainService {
   private signer: ethers.Signer | null = null
   private contract: Contract | null = null
   private currentNetwork = DEFAULT_NETWORK
+  private preferredProvider: EthProvider | null = null
+
+  // Called by WalletConnect picker before connectWallet() to set a specific provider.
+  setPreferredProvider(provider: EthProvider | null): void {
+    this.preferredProvider = provider
+  }
+
+  private getEthProvider(): EthProvider | undefined {
+    return this.preferredProvider ?? resolveProvider()
+  }
 
   async connectWallet(): Promise<{ address: string; network: string }> {
-    const ethProvider = resolveProvider()
+    const ethProvider = this.getEthProvider()
     if (!ethProvider) {
       throw new Error('No Web3 wallet found. Please install MetaMask, OKX Wallet, or another EVM-compatible wallet.')
     }
@@ -104,7 +141,7 @@ export class MantleBlockchainService {
   }
 
   async switchToMantleNetwork(): Promise<void> {
-    const ethProvider = resolveProvider()
+    const ethProvider = this.getEthProvider()
     if (!ethProvider) {
       throw new Error('No wallet found')
     }
@@ -125,7 +162,7 @@ export class MantleBlockchainService {
   }
 
   private async addMantleNetwork(): Promise<void> {
-    const ethProvider = resolveProvider()
+    const ethProvider = this.getEthProvider()
     if (!ethProvider) {
       throw new Error('No wallet found')
     }
@@ -439,6 +476,7 @@ export class MantleBlockchainService {
     this.provider = null
     this.signer = null
     this.contract = null
+    this.preferredProvider = null
   }
 }
 
