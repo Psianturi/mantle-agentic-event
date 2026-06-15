@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Card } from '@/components/ui/card'
 import { Factory, Robot, FileText, Lightbulb, CheckCircle } from '@phosphor-icons/react'
@@ -7,6 +8,18 @@ interface ArchitectureFlowProps {
 }
 
 export function ArchitectureFlow({ currentPhase = 0 }: ArchitectureFlowProps) {
+  const isIdle = currentPhase === 0
+  const [demoPhase, setDemoPhase] = useState(1)
+
+  useEffect(() => {
+    if (!isIdle) return
+    const interval = setInterval(() => {
+      setDemoPhase(p => (p >= 4 ? 1 : p + 1))
+    }, 1200)
+    return () => clearInterval(interval)
+  }, [isIdle])
+
+  const activePipeline = isIdle ? demoPhase : currentPhase
   const phases = [
     {
       id: 1,
@@ -153,28 +166,41 @@ export function ArchitectureFlow({ currentPhase = 0 }: ArchitectureFlowProps) {
 
       {/* Live Pipeline Visualization */}
       <Card className="glass-card-hover p-4 border border-primary/20">
-        <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-            <Robot className="text-primary" weight="duotone" size={15} />
-          </div>
-          <span>Live Pipeline</span>
-        </h3>
-        
-        <div className="flex items-center justify-between gap-4">
-          <PipelineStage title="Agent" subtitle="Spawn" active={currentPhase >= 1} />
-          <PipelineArrow active={currentPhase >= 1} />
-          <PipelineStage title="Delegate" subtitle="Sub-Agents" active={currentPhase >= 2} />
-          <PipelineArrow active={currentPhase >= 2} />
-          <PipelineStage title="Execute" subtitle="On-Chain" active={currentPhase >= 3} />
-          <PipelineArrow active={currentPhase >= 3} />
-          <PipelineStage title="Wisdom" subtitle="Insights" active={currentPhase >= 4} />
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
+              <Robot className="text-primary" weight="duotone" size={15} />
+            </div>
+            <span>Live Pipeline</span>
+          </h3>
+          {isIdle && (
+            <span className="text-[9px] font-mono text-primary/60 bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-full animate-pulse">
+              Preview Mode
+            </span>
+          )}
         </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <PipelineStage title="Agent" subtitle="Spawn" active={activePipeline >= 1} highlight={isIdle && demoPhase === 1} />
+          <PipelineArrow active={activePipeline >= 2} />
+          <PipelineStage title="Delegate" subtitle="Sub-Agents" active={activePipeline >= 2} highlight={isIdle && demoPhase === 2} />
+          <PipelineArrow active={activePipeline >= 3} />
+          <PipelineStage title="Execute" subtitle="On-Chain" active={activePipeline >= 3} highlight={isIdle && demoPhase === 3} />
+          <PipelineArrow active={activePipeline >= 4} />
+          <PipelineStage title="Wisdom" subtitle="Insights" active={activePipeline >= 4} highlight={isIdle && demoPhase === 4} />
+        </div>
+
+        {isIdle && (
+          <p className="text-[9px] text-muted-foreground/50 font-mono text-center mt-3">
+            Connect wallet to track your agent's live pipeline status
+          </p>
+        )}
       </Card>
     </div>
   )
 }
 
-function PipelineStage({ title, subtitle, active }: { title: string; subtitle: string; active: boolean }) {
+function PipelineStage({ title, subtitle, active, highlight }: { title: string; subtitle: string; active: boolean; highlight?: boolean }) {
   return (
     <motion.div
       className={`flex flex-col items-center gap-2 transition-all duration-500 ${
@@ -183,8 +209,10 @@ function PipelineStage({ title, subtitle, active }: { title: string; subtitle: s
       animate={active ? { scale: [1, 1.05, 1] } : {}}
       transition={{ duration: 2, repeat: Infinity }}
     >
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-all ${
-        active
+      <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-all duration-300 ${
+        highlight
+          ? 'bg-gradient-to-br from-primary/50 to-secondary/50 border-primary shadow-lg shadow-primary/40 scale-110'
+          : active
           ? 'bg-gradient-to-br from-primary/30 to-secondary/30 border-primary/60 shadow-md shadow-primary/20'
           : 'bg-card/30 border-border'
       }`}>
