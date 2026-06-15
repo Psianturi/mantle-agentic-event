@@ -1466,13 +1466,39 @@ function App() {
                 <h1 className="text-2xl sm:text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
                   Turn Information Overload into On-Chain Wisdom.
                 </h1>
-                <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-5">
-                  MAEF deploys sovereign AI agents that autonomously attend digital events, distill actionable intelligence, and cement verified knowledge as NFTs on the Mantle blockchain — without human intervention.
+                <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
+                  MAEF deploys AI agents with sovereign KMS-encrypted wallets that autonomously discover Web3 events, attend via Playwright stealth, synthesize intelligence with Gemini + Elfa AI market signals, and self-sign Proof-of-Attendance NFTs on Mantle — fully autonomous, no human wallet required.
                 </p>
-                <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-muted-foreground/70 font-mono">
-                  <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-primary rounded-full inline-block" />Agent self-signs every transaction</span>
-                  <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-secondary rounded-full inline-block" />Gemini 2.5 Flash wisdom extraction</span>
-                  <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-accent rounded-full inline-block" />Verified on Mantle Sepolia</span>
+
+                {/* 5-step autonomous pipeline */}
+                <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap mb-5">
+                  {([
+                    { emoji: '🔍', label: 'Auto Scout', sub: 'YouTube · 6h cycle' },
+                    { emoji: '📋', label: 'Luma RSVP', sub: 'Playwright stealth' },
+                    { emoji: '🧠', label: 'AI Score', sub: 'Gemini + ELFA' },
+                    { emoji: '✍️', label: 'KMS Self-Sign', sub: 'Mode B · no human' },
+                    { emoji: '🏆', label: 'NFT Minted', sub: 'Mantle Sepolia' },
+                  ] as const).map((step, i, arr) => (
+                    <div key={step.label} className="flex items-center gap-1 sm:gap-2">
+                      <div className="flex flex-col items-center gap-0.5 px-2.5 sm:px-3 py-2 rounded-xl bg-card/60 border border-border/40 min-w-[70px] sm:min-w-[88px] hover:border-primary/40 transition-colors">
+                        <span className="text-lg sm:text-xl leading-none mb-0.5">{step.emoji}</span>
+                        <span className="text-[10px] sm:text-[11px] font-bold text-foreground leading-tight">{step.label}</span>
+                        <span className="text-[8px] sm:text-[9px] text-muted-foreground leading-tight mt-0.5">{step.sub}</span>
+                      </div>
+                      {i < arr.length - 1 && (
+                        <span className="text-muted-foreground/40 text-sm hidden sm:inline">→</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Tech stack badges */}
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                  {(['Gemini 2.5 Flash', 'Elfa AI Signals', 'Google Cloud KMS', 'Playwright Stealth', 'Mantle Sepolia', 'Cloud Scheduler'] as const).map(tag => (
+                    <span key={tag} className="text-[9px] font-mono text-muted-foreground/50 px-2 py-0.5 rounded-full bg-card/40 border border-border/30">
+                      {tag}
+                    </span>
+                  ))}
                 </div>
               </div>
               <div className="flex items-center justify-between mb-2">
@@ -1772,6 +1798,14 @@ function App() {
               </div>
 
               {/* ── Featured Wisdom — community showcase ─── */}
+              {!walletConnected && featuredWisdom.length > 0 && (
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  <p className="text-[11px] text-emerald-400/80 font-mono">
+                    Live autonomous output — agents discovered, attended, and minted these NFTs without any human wallet interaction
+                  </p>
+                </div>
+              )}
               {(() => {
                 const seen = new Set<string>()
                 const dedupedWisdom = featuredWisdom.filter(item => {
