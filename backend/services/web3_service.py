@@ -211,6 +211,11 @@ class Web3Service:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._sync_native_balance, address)
 
+    async def get_balance(self, address: str) -> int:
+        """Return the wallet's native balance in wei (for gas monitoring endpoints)."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._sync_balance_wei, address)
+
     # ── Synchronous implementations (run in thread pool) ─────────────────────
 
     def _sync_mint(
@@ -351,6 +356,19 @@ class Web3Service:
             raise ConnectionError(f"Failed to fetch native balance from Mantle RPC: {exc}") from exc
 
         return float(Web3.from_wei(wei_balance, "ether"))
+
+    def _sync_balance_wei(self, address: str) -> int:
+        """Return wallet's native balance in wei (int) for gas monitoring."""
+        w3 = self._init_w3()
+        if not Web3.is_address(address):
+            raise ValueError("Invalid Ethereum wallet address")
+
+        try:
+            wei_balance = w3.eth.get_balance(Web3.to_checksum_address(address))
+        except Exception as exc:
+            raise ConnectionError(f"Failed to fetch balance from Mantle RPC: {exc}") from exc
+
+        return int(wei_balance)
 
     async def send_spawn_bred_agent_tx(
         self,
