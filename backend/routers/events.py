@@ -28,7 +28,6 @@ from web3 import Web3
 from core.config import settings
 from core.database import get_db
 from core.kms_service import decrypt_private_key
-from services.elfa_service import determine_elfa_query, get_elfa_market_signals
 from services.llm_service import summarize_event
 from services.luma_service import fetch_luma_event, get_luma_event_status, is_luma_url
 from services.web3_service import web3_service
@@ -240,7 +239,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     luma_event_data: dict | None = None
     luma_status: str | None = None      # 'scheduled' | 'completed' | 'unknown'
     luma_start_at: str | None = None
-    elfa_task: asyncio.Task | None = None
     if is_luma_url(req.event_url):
         req.platform = "Luma"
         try:
@@ -255,17 +253,12 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "Luma event '%s' resolved — status=%s start_at=%s",
                 req.event_title, luma_status, luma_start_at,
             )
-            # Fire ELFA market intelligence fetch in background — runs while agent key loads
-            elfa_query = determine_elfa_query(req.event_title, req.niche)
-            elfa_task = asyncio.create_task(get_elfa_market_signals(elfa_query))
-            logger.info("ELFA task started for query '%s'", elfa_query)
         except Exception as exc:
             logger.info("Luma pre-fetch failed: %s", exc)
     if not req.event_title:
         req.event_title = "Luma Event"
 
     # ── Mode B: load agent private key for true autonomous signing ────────
-    # (moved before Step A so ELFA task runs in parallel with Firestore key lookup)
     agent_private_key: str | None = None
     agent_is_funded = False
     if req.mode_b:
@@ -297,21 +290,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             logger.error("Failed to load agent key for Mode B: %s", exc)
             raise HTTPException(status_code=503, detail="Failed to retrieve agent credentials")
 
-    # ── Collect ELFA result (task has been running during key load above) ──
-    elfa_signals: dict | None = None
-    if elfa_task:
-        try:
-            elfa_signals = await elfa_task
-            if elfa_signals:
-                logger.info(
-                    "ELFA signals collected: query=%s velocity=%s sentiment=%d%%",
-                    elfa_signals.get("query_used"),
-                    elfa_signals.get("mentions_velocity_24h"),
-                    elfa_signals.get("sentiment_bullish_pct", 0),
-                )
-        except Exception as exc:
-            logger.warning("ELFA task failed: %s — continuing without signals", exc)
-
     # ── Step A: Wisdom Summary ─────────────────────────────────────────────
     wisdom_summary = await summarize_event(
         event_title=req.event_title,
@@ -320,7 +298,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
         agent_name=req.agent_name,
         luma_event_data=luma_event_data,
         luma_status=luma_status,
-        elfa_signals=elfa_signals,
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 
@@ -346,7 +323,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "mode": "B" if req.mode_b else "A",
                 "luma_status": "scheduled",
                 "luma_start_at": luma_start_at,
-                "elfa_signals": elfa_signals,
             })
             logger.info(
                 "Scouting brief saved for agent %s — future event '%s' (no NFT minted)",
@@ -490,8 +466,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 # Luma-specific fields (None for non-Luma events)
                 "luma_status": luma_status,
                 "luma_start_at": luma_start_at,
-                # ELFA market intelligence snapshot (None if API key missing or call failed)
-                "elfa_signals": elfa_signals,
             }
             await db.collection(EVENTS_COLLECTION).add(event_doc)
         except Exception as exc:
