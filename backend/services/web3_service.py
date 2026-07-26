@@ -138,11 +138,17 @@ class Web3Service:
             return self._w3
 
         rpc_url = get_mantle_rpc_url()
-        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 30}))
+        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 60}))
         # Mantle is OP Stack (L2) — does not need PoA middleware
 
         if not w3.is_connected():
-            raise ConnectionError(f"Cannot connect to Mantle RPC: {rpc_url}")
+            logger.warning("Initial connection check failed for RPC: %s", rpc_url)
+            # Try one more time before failing
+            try:
+                w3.eth.get_block('latest')
+                logger.info("RPC connection verified via get_block")
+            except Exception as retry_exc:
+                raise ConnectionError(f"Cannot connect to Mantle RPC: {rpc_url} | Error: {retry_exc}") from retry_exc
 
         self._w3 = w3
         return w3

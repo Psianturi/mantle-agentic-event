@@ -39,9 +39,15 @@ async def get_agent_gas_status(agent_wallet: str) -> dict:
     try:
         balance_wei = await web3_service.get_balance(agent_wallet)
         balance_mnt = Web3.from_wei(balance_wei, "ether")
+    except ConnectionError as exc:
+        logger.error("RPC connection failed for %s: %s", agent_wallet, exc)
+        raise HTTPException(status_code=503, detail="Blockchain RPC temporarily unavailable")
+    except ValueError as exc:
+        logger.error("Invalid wallet address for %s: %s", agent_wallet, exc)
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        logger.error("Failed to fetch balance for %s: %s", agent_wallet, exc)
-        raise HTTPException(status_code=503, detail="Blockchain query failed")
+        logger.error("Unexpected error fetching balance for %s: %s", agent_wallet, exc, exc_info=True)
+        raise HTTPException(status_code=503, detail=f"Blockchain query failed: {str(exc)}")
 
     # Thresholds match Auto Scout dynamic logic
     HEALTHY_THRESHOLD = 0.15
