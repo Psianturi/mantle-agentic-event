@@ -56,7 +56,7 @@ import { CONTRACT_ADDRESSES } from '@/lib/blockchain/config'
 import { mantleService } from '@/lib/blockchain/mantleService'
 import { ChainSelector } from '@/components/ChainSelector'
 import { NetworkMismatchAlert } from '@/components/NetworkMismatchAlert'
-import { DEFAULT_CHAIN_ID } from '@/lib/blockchain/chains'
+import { DEFAULT_CHAIN_ID, getChain } from '@/lib/blockchain/chains'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -229,6 +229,29 @@ function App() {
     return () => eth.removeListener('accountsChanged', onAccountsChanged)
   }, [walletAddress]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Listen to chainChanged events - auto-sync when user switches network in wallet
+  useEffect(() => {
+    if (typeof window === 'undefined' || !walletConnected) return
+    const eth = window.okxwallet ?? window.ethereum
+    if (!eth) return
+    
+    const onChainChanged = (...args: unknown[]) => {
+      const chainIdHex = args[0] as string
+      const newChainId = parseInt(chainIdHex, 16)
+      setWalletChainId(newChainId)
+      setSelectedChainId(newChainId)
+      const chain = getChain(newChainId)
+      if (chain) {
+        toast.info(`Network changed to ${chain.name}`)
+      } else {
+        toast.warning(`Switched to unsupported chain ${newChainId}`)
+      }
+    }
+    
+    eth.on('chainChanged', onChainChanged)
+    return () => eth.removeListener('chainChanged', onChainChanged)
+  }, [walletConnected]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [lastSocialPost, setLastSocialPost] = useState<{ agentId: string; text: string; eventTitle: string } | null>(null)
 
   const [featuredWisdom, setFeaturedWisdom] = useState<WisdomFeedItem[]>([])
@@ -390,15 +413,59 @@ function App() {
 
   const handleSwitchNetwork = async () => {
     const eth = (window as any).okxwallet ?? (window as any).ethereum
-    if (!eth) return
+    if (!eth?.request) {
+      toast.error('No wallet detected')
+      return
+    }
+
+    const targetChain = getChain(selectedChainId)
+    if (!targetChain) return
+
     try {
+      // Try to switch to the target chain
       await eth.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: `0x${selectedChainId.toString(16)}` }],
       })
       setWalletChainId(selectedChainId)
-    } catch {
-      toast.error('Failed to switch network', { description: 'Switch manually in your wallet.' })
+      toast.success(`Switched to ${targetChain.name}`)
+    } catch (switchError: any) {
+      // Error 4902: chain not added to wallet yet
+      if (switchError.code === 4902) {
+        try {
+          // Add the chain first, then switch
+          await eth.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: `0x${targetChain.chainId.toString(16)}`,
+              chainName: targetChain.name,
+              nativeCurrency: {
+                name: targetChain.nativeSymbol,
+                symbol: targetChain.nativeSymbol,
+                decimals: 18,
+              },
+              rpcUrls: [targetChain.rpcUrl],
+              blockExplorerUrls: [targetChain.explorerUrl],
+            }],
+          })
+          setWalletChainId(selectedChainId)
+          toast.success(`Added and switched to ${targetChain.name}`)
+        } catch (addError: any) {
+          console.error('Failed to add chain:', addError)
+          toast.error('Failed to add network', { 
+            description: addError.message || 'Add manually in wallet settings.' 
+          })
+        }
+      } else if (switchError.code === 4001) {
+        // User rejected the request
+        toast.info('Network switch cancelled')
+      } else {
+        // Other error
+        console.error('Switch network error:', switchError)
+        toast.error('Failed to switch network', { 
+          description: switchError.message || 'Try manually in your wallet.' 
+        })
+      }
     }
   }
 
