@@ -9,6 +9,8 @@ import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle,
 import { motion } from 'framer-motion'
 import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
 import { GasStatusBadge } from './GasStatusBadge'
+import { ChainBadge } from './ChainBadge'
+import { DEFAULT_CHAIN_ID } from '@/lib/blockchain/chains'
 
 interface AgentCardProps {
   agent: Agent
@@ -141,9 +143,12 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                     </Badge>
                   )}
                 </h3>
-                <p className="text-xs text-muted-foreground font-mono">
-                  {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs text-muted-foreground font-mono">
+                    {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
+                  </p>
+                  <ChainBadge chainId={(agent as any).chainId ?? DEFAULT_CHAIN_ID} />
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">

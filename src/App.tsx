@@ -54,6 +54,9 @@ import { CloudRunAPIError, cloudRunService, validateEventUrl } from '@/services/
 import { ContractVerificationData, verificationService } from '@/lib/blockchain/verificationService'
 import { CONTRACT_ADDRESSES } from '@/lib/blockchain/config'
 import { mantleService } from '@/lib/blockchain/mantleService'
+import { ChainSelector } from '@/components/ChainSelector'
+import { NetworkMismatchAlert } from '@/components/NetworkMismatchAlert'
+import { DEFAULT_CHAIN_ID } from '@/lib/blockchain/chains'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -152,6 +155,8 @@ function App() {
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
+  const [selectedChainId, setSelectedChainId] = useState(DEFAULT_CHAIN_ID)
+  const [walletChainId, setWalletChainId] = useState<number | undefined>()
   type MainView = 'dashboard' | 'analytics' | 'vault' | 'marketplace'
   const HASH_TO_VIEW: Record<string, MainView> = { analytics: 'analytics', 'nft-vault': 'vault', marketplace: 'marketplace' }
   const VIEW_TO_HASH: Record<MainView, string> = { dashboard: '', analytics: 'analytics', vault: 'nft-vault', marketplace: 'marketplace' }
@@ -383,11 +388,31 @@ function App() {
     return () => { window.removeEventListener('keydown', handler); clearTimeout(timer) }
   }, [])
 
+  const handleSwitchNetwork = async () => {
+    const eth = (window as any).okxwallet ?? (window as any).ethereum
+    if (!eth) return
+    try {
+      await eth.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${selectedChainId.toString(16)}` }],
+      })
+      setWalletChainId(selectedChainId)
+    } catch {
+      toast.error('Failed to switch network', { description: 'Switch manually in your wallet.' })
+    }
+  }
+
   const handleWalletConnect = async (address: string) => {
     try {
       const connectedAddress = await blockchain.connectWallet()
       setWalletConnected(true)
       setWalletAddress(connectedAddress)
+      // Detect wallet's current chain
+      try {
+        const eth = (window as any).okxwallet ?? (window as any).ethereum
+        const chainHex: string = await eth.request({ method: 'eth_chainId' })
+        setWalletChainId(parseInt(chainHex, 16))
+      } catch { /* non-fatal */ }
       const now = Date.now().toString()
       localStorage.setItem(WALLET_SESSION_KEY, now)
       localStorage.setItem(WALLET_LAST_ACTIVITY_KEY, now)
@@ -515,6 +540,7 @@ function App() {
     localStorage.removeItem(WALLET_SESSION_KEY)
     setWalletConnected(false)
     setWalletAddress(undefined)
+    setWalletChainId(undefined)
     setAgents([])
     setNFTs([])
     setEvents([])
@@ -1403,6 +1429,12 @@ function App() {
         onHealthConfirmed={handleHealthConfirmed}
       />
 
+      <NetworkMismatchAlert
+        walletChainId={walletChainId}
+        selectedChainId={selectedChainId}
+        onSwitch={handleSwitchNetwork}
+      />
+
       <div className="relative z-10">
         <header className="border-b border-primary/20 backdrop-blur-xl bg-background/70 sticky top-0 z-40 shadow-lg shadow-primary/5">
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3">
@@ -1468,6 +1500,10 @@ function App() {
                   {backendStatus === 'live' ? 'Live' : backendStatus === 'checking' ? '...' : 'Offline'}
                 </div>
 
+                <ChainSelector
+                  selectedChainId={selectedChainId}
+                  onChainChange={setSelectedChainId}
+                />
                 {walletConnected && <GasPriceMonitor />}
                 <WalletConnect
                   onConnect={handleWalletConnect}
