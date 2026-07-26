@@ -18,5 +18,9 @@
     "dotenv": "^17.4.2",
     "erc721a": "^4.3.0"
   },
-  "type": "module"
+  "type": "module",
+  "overrides": {
+    "adm-zip": "^0.6.0",
+    "elliptic": "^6.6.1"
+  }
 }
