@@ -1571,7 +1571,6 @@ function App() {
                 <ChainSelector
                   selectedChainId={selectedChainId}
                   onChainChange={setSelectedChainId}
-                  disabled={!walletConnected}
                 />
                 {walletConnected && <GasPriceMonitor />}
                 <WalletConnect
