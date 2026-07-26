@@ -65,7 +65,7 @@ async def get_agent_gas_status(agent_wallet: str) -> dict:
 
     # Rough estimate: ~0.02 MNT per mint (gas + overhead)
     GAS_PER_MINT = 0.02
-    estimated_mints = int(balance_mnt / GAS_PER_MINT) if balance_mnt > 0 else 0
+    estimated_mints = int(float(balance_mnt) / GAS_PER_MINT) if balance_mnt > 0 else 0
 
     return {
         "agent_wallet": agent_wallet,
