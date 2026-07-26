@@ -411,7 +411,9 @@ function App() {
       try {
         const eth = (window as any).okxwallet ?? (window as any).ethereum
         const chainHex: string = await eth.request({ method: 'eth_chainId' })
-        setWalletChainId(parseInt(chainHex, 16))
+        const detectedChainId = parseInt(chainHex, 16)
+        setWalletChainId(detectedChainId)
+        setSelectedChainId(detectedChainId)
       } catch { /* non-fatal */ }
       const now = Date.now().toString()
       localStorage.setItem(WALLET_SESSION_KEY, now)
@@ -1503,6 +1505,7 @@ function App() {
                 <ChainSelector
                   selectedChainId={selectedChainId}
                   onChainChange={setSelectedChainId}
+                  disabled={!walletConnected}
                 />
                 {walletConnected && <GasPriceMonitor />}
                 <WalletConnect
