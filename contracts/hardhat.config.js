@@ -31,6 +31,22 @@ export default defineConfig({
         ? [process.env.DEPLOYER_PRIVATE_KEY]
         : [],
     },
+    ethereumSepolia: {
+      type: "http",
+      url: "https://ethereum-sepolia-rpc.publicnode.com",
+      chainId: 11155111,
+      accounts: process.env.DEPLOYER_PRIVATE_KEY
+        ? [process.env.DEPLOYER_PRIVATE_KEY]
+        : [],
+    },
+    polygonAmoy: {
+      type: "http",
+      url: "https://rpc-amoy.polygon.technology",
+      chainId: 80002,
+      accounts: process.env.DEPLOYER_PRIVATE_KEY
+        ? [process.env.DEPLOYER_PRIVATE_KEY]
+        : [],
+    },
   },
   verify: {
     etherscan: {
