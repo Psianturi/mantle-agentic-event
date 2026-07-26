@@ -8,6 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature, Dna, Lightbulb, Trash, Warning } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
+import { GasStatusBadge } from './GasStatusBadge'
 
 interface AgentCardProps {
   agent: Agent
@@ -269,7 +270,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                   <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Agentic Smart Account</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-muted-foreground">Agent Gas Balance:</span>
                 <TooltipProvider>
                   <Tooltip>
@@ -281,6 +282,12 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+              </div>
+
+              {/* Real-time gas status from backend monitoring */}
+              <div className="mb-3 flex items-center justify-between px-2 py-1.5 rounded-md bg-background/30 border border-border/30">
+                <span className="text-xs text-muted-foreground">Live Status:</span>
+                <GasStatusBadge agentWallet={agent.walletAddress} showLabel={true} />
               </div>
               
               {(agent.agentGasBalance ?? 0) > 0 && (agent.agentGasBalance ?? 0) < 0.08 && (

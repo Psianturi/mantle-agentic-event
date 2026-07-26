@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,7 @@ import { Sparkle, Lightning, CheckCircle, XCircle, Info } from '@phosphor-icons/
 import { motion, AnimatePresence } from 'framer-motion'
 import { cloudRunService } from '@/services/cloudRunService'
 import { mantleService } from '@/lib/blockchain/mantleService'
+import { monitoringService, SpawnQuotaResponse } from '@/services/monitoringService'
 import { toast } from 'sonner'
 
 const ORIGINAL_AGENT_LIMIT = 3
@@ -35,6 +36,28 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
   const [deploymentSteps, setDeploymentSteps] = useState<{step: string, status: 'pending' | 'active' | 'complete' | 'error'}[]>([])
   const [errorMessage, setErrorMessage] = useState('')
   const [deployedAgent, setDeployedAgent] = useState<Agent | null>(null)
+  const [spawnQuota, setSpawnQuota] = useState<SpawnQuotaResponse | null>(null)
+  const [loadingQuota, setLoadingQuota] = useState(false)
+
+  // Fetch real-time spawn quota from backend when dialog opens
+  useEffect(() => {
+    if (open && userWallet && phase === 'form') {
+      const fetchSpawnQuota = async () => {
+        try {
+          setLoadingQuota(true)
+          const quota = await monitoringService.getSpawnQuota(userWallet)
+          setSpawnQuota(quota)
+        } catch (error) {
+          console.error('Failed to fetch spawn quota:', error)
+          // Silently fail - we still have the prop-based counts as fallback
+        } finally {
+          setLoadingQuota(false)
+        }
+      }
+      
+      fetchSpawnQuota()
+    }
+  }, [open, userWallet, phase])
 
   const handleSpawn = async () => {
     if (!name.trim()) return
@@ -254,31 +277,74 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
                 </Select>
               </div>
 
-              {/* Spawn quota counter */}
-              <div className={`flex flex-col gap-1 px-3 py-2 rounded-md text-xs border ${
-                originalAgentCount >= ORIGINAL_AGENT_LIMIT
-                  ? 'bg-destructive/10 border-destructive/30 text-destructive'
-                  : originalAgentCount >= ORIGINAL_AGENT_LIMIT - 1
-                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                    : 'bg-muted/40 border-border/40 text-muted-foreground'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <Info size={13} weight="fill" className="flex-shrink-0" />
-                  <span>
-                    <span className="font-mono font-bold">{originalAgentCount}/{ORIGINAL_AGENT_LIMIT}</span>
-                    {' '}original slots used
-                    {originalAgentCount >= ORIGINAL_AGENT_LIMIT
-                      ? ' — limit reached. Use Neural Fusion to breed offspring.'
-                      : ' · bred offspring don\'t count toward this limit.'}
-                  </span>
+              {/* Spawn quota counter - real-time backend data */}
+              {loadingQuota ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-md text-xs border bg-muted/40 border-border/40">
+                  <motion.div
+                    animate={{ opacity: [0.4, 1, 0.4] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="w-3 h-3 bg-primary/50 rounded-full"
+                  />
+                  <span className="text-muted-foreground">Loading spawn quota...</span>
                 </div>
-                {bredAgentCount > 0 && (
-                  <div className="flex items-center gap-2 pl-[21px] text-muted-foreground">
-                    <span className="font-mono font-bold text-violet-400">{bredAgentCount}</span>
-                    <span>Neural Fusion offspring (unlimited)</span>
+              ) : spawnQuota ? (
+                <div className={`flex flex-col gap-1.5 px-3 py-2 rounded-md text-xs border ${
+                  !spawnQuota.can_spawn
+                    ? 'bg-destructive/10 border-destructive/30 text-destructive'
+                    : spawnQuota.remaining_slots <= 1
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                      : 'bg-muted/40 border-border/40 text-muted-foreground'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Info size={13} weight="fill" className="flex-shrink-0" />
+                    <span>
+                      <span className="font-mono font-bold">{spawnQuota.spawned_count}/{spawnQuota.max_spawn_limit}</span>
+                      {' '}original slots used
+                      {!spawnQuota.can_spawn
+                        ? ' — limit reached. Use Neural Fusion to breed offspring.'
+                        : ` · ${spawnQuota.remaining_slots} slot${spawnQuota.remaining_slots !== 1 ? 's' : ''} remaining.`}
+                    </span>
                   </div>
-                )}
-              </div>
+                  {spawnQuota.agents && spawnQuota.agents.length > 0 && (
+                    <div className="pl-[21px] space-y-0.5">
+                      {spawnQuota.agents.map((agent, idx) => (
+                        <div key={idx} className="text-muted-foreground/70 text-[10px]">
+                          • {agent.agent_name} ({agent.agent_wallet.slice(0, 6)}...{agent.agent_wallet.slice(-4)})
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5 pl-[21px] pt-0.5">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] text-green-500 font-semibold">Live data from backend</span>
+                  </div>
+                </div>
+              ) : (
+                <div className={`flex flex-col gap-1 px-3 py-2 rounded-md text-xs border ${
+                  originalAgentCount >= ORIGINAL_AGENT_LIMIT
+                    ? 'bg-destructive/10 border-destructive/30 text-destructive'
+                    : originalAgentCount >= ORIGINAL_AGENT_LIMIT - 1
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                      : 'bg-muted/40 border-border/40 text-muted-foreground'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Info size={13} weight="fill" className="flex-shrink-0" />
+                    <span>
+                      <span className="font-mono font-bold">{originalAgentCount}/{ORIGINAL_AGENT_LIMIT}</span>
+                      {' '}original slots used
+                      {originalAgentCount >= ORIGINAL_AGENT_LIMIT
+                        ? ' — limit reached. Use Neural Fusion to breed offspring.'
+                        : ' · bred offspring don\'t count toward this limit.'}
+                    </span>
+                  </div>
+                  {bredAgentCount > 0 && (
+                    <div className="flex items-center gap-2 pl-[21px] text-muted-foreground">
+                      <span className="font-mono font-bold text-violet-400">{bredAgentCount}</span>
+                      <span>Neural Fusion offspring (unlimited)</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <Button
                 onClick={handleSpawn}

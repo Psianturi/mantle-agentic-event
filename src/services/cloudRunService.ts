@@ -1,7 +1,7 @@
 import { Agent, BackendProposal, Event, Niche, Personality, SubAgentType } from '@/lib/types'
 import { config as appConfig } from '@/lib/config'
 
-const GCP_BACKEND_URL =
+export const GCP_BACKEND_URL =
   import.meta.env.VITE_GCP_BACKEND_URL ||
   'https://mantle-agentic-event-21898396920.asia-southeast1.run.app'
 
