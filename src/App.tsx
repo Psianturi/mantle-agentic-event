@@ -1498,13 +1498,12 @@ function App() {
         onHealthConfirmed={handleHealthConfirmed}
       />
 
-      <NetworkMismatchAlert
-        walletChainId={walletChainId}
-        selectedChainId={selectedChainId}
-        onSwitch={handleSwitchNetwork}
-      />
-
       <div className="relative z-10">
+        <NetworkMismatchAlert
+          walletChainId={walletChainId}
+          selectedChainId={selectedChainId}
+          onSwitch={handleSwitchNetwork}
+        />
         <header className="border-b border-primary/20 backdrop-blur-xl bg-background/70 sticky top-0 z-40 shadow-lg shadow-primary/5">
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3">
             <div className="flex items-center gap-3">
