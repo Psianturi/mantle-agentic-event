@@ -753,49 +753,54 @@ export const cloudRunService = {
   async getAgentDetails(agentId: string): Promise<AgentDetailsResponse> {
     try {
       const response = await fetchWithTimeout(
-        `${GCP_BACKEND_URL}/api/agents/${agentId}`,
-        {
-          method: 'GET',
-        }
+        `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}`
       )
-
-      return handleAPIResponse<AgentDetailsResponse>(response)
-    } catch (error) {
-      if (error instanceof CloudRunAPIError) {
-        throw error
+      const raw = await handleAPIResponse<{
+        agent_id: string
+        agent_wallet: string
+        agent_name: string
+        niche: string
+        user_wallet: string
+        level: number
+        total_events: number
+        needs_funding: boolean
+      }>(response)
+      const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
+      return {
+        success: true,
+        agent: {
+          id: raw.agent_id,
+          name: raw.agent_name,
+          personality: 'Analytical' as const,
+          niche: (validNiches.includes(raw.niche as Niche) ? raw.niche : 'Blockchain/DeFi') as Niche,
+          walletAddress: raw.agent_wallet,
+          eventsAttended: raw.total_events,
+          level: raw.level,
+          status: 'idle' as const,
+          createdAt: Date.now(),
+          subAgents: [],
+          wisdomUnlocked: raw.level >= 3,
+          needsFunding: raw.needs_funding,
+          agentGasBalance: 0,
+          mantleBalance: 0,
+        },
+        events: [],
+        totalGasSpent: 0,
+        totalNFTsMinted: raw.total_events,
       }
-
-      console.error('Error fetching agent details:', error)
-      throw new CloudRunAPIError(
-        'Failed to fetch agent details',
-        undefined,
-        error
-      )
+    } catch (error) {
+      if (error instanceof CloudRunAPIError) throw error
+      throw new CloudRunAPIError('Failed to fetch agent details', undefined, error)
     }
   },
 
   async updateAgentInstructions(agentId: string, instructions: string): Promise<{ success: boolean }> {
     try {
-      const response = await fetchWithTimeout(
-        `${GCP_BACKEND_URL}/api/agents/${agentId}/instructions`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ customInstructions: instructions }),
-        }
-      )
-
-      return handleAPIResponse<{ success: boolean }>(response)
+      await cloudRunService.updateAgentState(agentId, { customInstructions: instructions })
+      return { success: true }
     } catch (error) {
-      if (error instanceof CloudRunAPIError) {
-        throw error
-      }
-
-      console.error('Error updating agent instructions:', error)
-      throw new CloudRunAPIError(
-        'Failed to update agent instructions',
-        undefined,
-        error
-      )
+      if (error instanceof CloudRunAPIError) throw error
+      throw new CloudRunAPIError('Failed to update agent instructions', undefined, error)
     }
   },
 

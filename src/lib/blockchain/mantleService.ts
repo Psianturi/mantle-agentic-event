@@ -7,6 +7,7 @@ type EthProvider = {
   isMetaMask?: boolean
   isOKExWallet?: boolean
   isRabby?: boolean
+  isBitKeep?: boolean
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
   on: (event: string, callback: (...args: unknown[]) => void) => void
   removeListener: (event: string, callback: (...args: unknown[]) => void) => void
@@ -16,11 +17,14 @@ declare global {
   interface Window {
     ethereum?: EthProvider
     okxwallet?: EthProvider      // OKX Wallet primary injection point
+    bitkeep?: {                  // Bitget Wallet injection point
+      ethereum?: EthProvider
+    }
   }
 }
 
 export interface DetectedWallet {
-  id: 'okx' | 'metamask' | 'rabby' | 'injected'
+  id: 'okx' | 'metamask' | 'rabby' | 'bitget' | 'injected'
   name: string
   provider: EthProvider
 }
@@ -30,9 +34,17 @@ export function detectWallets(): DetectedWallet[] {
   const wallets: DetectedWallet[] = []
   if (typeof window === 'undefined') return wallets
 
+  // OKX Wallet (priority injection point)
   if (window.okxwallet) {
     wallets.push({ id: 'okx', name: 'OKX Wallet', provider: window.okxwallet })
   }
+
+  // Bitget Wallet (bitkeep.ethereum injection point)
+  if (window.bitkeep?.ethereum) {
+    wallets.push({ id: 'bitget', name: 'Bitget Wallet', provider: window.bitkeep.ethereum })
+  }
+
+  // Standard window.ethereum (MetaMask, Rabby, Coinbase, etc.)
   if (window.ethereum) {
     if (window.ethereum.isRabby) {
       wallets.push({ id: 'rabby', name: 'Rabby', provider: window.ethereum })
@@ -46,9 +58,9 @@ export function detectWallets(): DetectedWallet[] {
 }
 
 // Falls back to best-available provider when no preferred one is set.
-// Priority: OKX Wallet → window.ethereum (MetaMask, Rabby, Coinbase, etc.)
+// Priority: OKX Wallet → Bitget Wallet → window.ethereum (MetaMask, Rabby, Coinbase, etc.)
 function resolveProvider(): EthProvider | undefined {
-  return window.okxwallet ?? window.ethereum
+  return window.okxwallet ?? window.bitkeep?.ethereum ?? window.ethereum
 }
 
 export interface MintNFTParams {
@@ -269,7 +281,10 @@ export class MantleBlockchainService {
         value: ethers.parseEther(amountMnt.toString()),
       })
 
-      const receipt: TransactionReceipt = await tx.wait()
+      const receipt = await tx.wait()
+      if (!receipt) {
+        throw new Error('Transaction receipt not available')
+      }
       const gasUsed = receipt.gasUsed.toString()
       const gasPrice = receipt.gasPrice || BigInt(0)
       const gasCost = (Number(gasUsed) * Number(gasPrice)) / 1e18

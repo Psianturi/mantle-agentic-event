@@ -170,9 +170,17 @@ function App() {
   }, [mainView])
 
   // Auto-reconnect on page load if any EIP-1193 wallet is already authorized.
-  // TTL: session expires after 24h — user must manually reconnect after that.
   const WALLET_SESSION_KEY = 'maef-wallet-session-at'
-  const WALLET_SESSION_TTL = 24 * 60 * 60 * 1000 // 24 hours
+  const WALLET_LAST_ACTIVITY_KEY = 'maef-wallet-last-activity'
+  const WALLET_SESSION_TTL = 20 * 60 * 60 * 1000 // 20 hours max session
+  const WALLET_IDLE_TIMEOUT = 5 * 60 * 60 * 1000 // 5 hours idle timeout
+
+  // Activity tracker: updates last activity timestamp to reset idle timeout
+  const updateActivity = () => {
+    if (walletConnected) {
+      localStorage.setItem(WALLET_LAST_ACTIVITY_KEY, Date.now().toString())
+    }
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -182,10 +190,18 @@ function App() {
       .then((accounts) => {
         if ((accounts as string[]).length === 0) return
         const savedAt = parseInt(localStorage.getItem(WALLET_SESSION_KEY) || '0')
-        if (Date.now() - savedAt < WALLET_SESSION_TTL) {
-          handleWalletConnect('')
-        } else {
+        const lastActivity = parseInt(localStorage.getItem(WALLET_LAST_ACTIVITY_KEY) || '0')
+        const now = Date.now()
+        
+        // Check both TTL and idle timeout
+        const sessionExpired = now - savedAt >= WALLET_SESSION_TTL
+        const idleExpired = now - lastActivity >= WALLET_IDLE_TIMEOUT
+        
+        if (sessionExpired || idleExpired) {
           localStorage.removeItem(WALLET_SESSION_KEY)
+          localStorage.removeItem(WALLET_LAST_ACTIVITY_KEY)
+        } else {
+          handleWalletConnect('')
         }
       })
       .catch(() => {})
@@ -196,7 +212,8 @@ function App() {
     if (typeof window === 'undefined') return
     const eth = window.okxwallet ?? window.ethereum
     if (!eth) return
-    const onAccountsChanged = (accounts: unknown[]) => {
+    const onAccountsChanged = (...args: unknown[]) => {
+      const accounts = args[0] as unknown[]
       if (accounts.length === 0) {
         handleWalletDisconnect()
       } else if ((accounts[0] as string)?.toLowerCase() !== walletAddress?.toLowerCase()) {
@@ -371,7 +388,9 @@ function App() {
       const connectedAddress = await blockchain.connectWallet()
       setWalletConnected(true)
       setWalletAddress(connectedAddress)
-      localStorage.setItem(WALLET_SESSION_KEY, Date.now().toString())
+      const now = Date.now().toString()
+      localStorage.setItem(WALLET_SESSION_KEY, now)
+      localStorage.setItem(WALLET_LAST_ACTIVITY_KEY, now)
       // Clear any previous wallet's data before loading new wallet's data
       setAgents([])
       setEvents([])
@@ -629,6 +648,7 @@ function App() {
   }
 
   const handleAttendEvent = async () => {
+    updateActivity() // Track user interaction
     if (!walletConnected) {
       toast.error('Please connect your wallet first!')
       return
@@ -855,6 +875,7 @@ function App() {
   }
 
   const handleTopUpAgentGas = async (agentId: string, amount: number): Promise<void> => {
+    updateActivity() // Track user interaction
     const agent = (agents ?? []).find((a) => a.id === agentId)
     if (!agent) {
       throw new Error('Agent not found for gas top-up')
@@ -986,6 +1007,7 @@ function App() {
   }, [isProcessingEvent, activeAgentId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRunAutoScout = async (agentId: string) => {
+    updateActivity() // Track user interaction
     if (!backendConnected) {
       toast.error('Backend not available', { description: 'Connect to Cloud Run backend first.' })
       return
