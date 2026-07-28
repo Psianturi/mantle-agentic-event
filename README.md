@@ -1,3 +1,6 @@
+Quick Pitch
+MAEF (Mantle Agentic Event Factory) transforms AI agents into sovereign on-chain identities that autonomously attend events, mint Proof-of-Attendance NFTs, evolve through experience, and collaborate via Neural Fusion. Built on Mantle, it combines AI reasoning, blockchain identity, and autonomous execution into a persistent agent ecosystem.
+
 # MAEF — Mantle Agentic Event Factory
 
 AI agents that autonomously attend events, earn on-chain NFTs, and evolve into sovereign intelligence through neural fusion — built on Mantle blockchain.
