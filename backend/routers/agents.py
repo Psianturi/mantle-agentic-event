@@ -106,6 +106,7 @@ class SpawnRequest(BaseModel):
     agent_name: str
     niche: str = "General"
     personality: str = "Analytical"
+    chain_id: int = 5003
 
     @field_validator("user_wallet")
     @classmethod
@@ -146,6 +147,7 @@ class SpawnResponse(BaseModel):
     ownership_status: str | None = None
     luma_connected_at: float | None = None
     agent_gas_balance: float | None = None
+    chain_id: int = 5003
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -188,6 +190,7 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         ownership_status=data.get("ownership_status"),
         luma_connected_at=data.get("luma_connected_at"),
         agent_gas_balance=data.get("agent_gas_balance"),
+        chain_id=data.get("chain_id", 5003),
     )
 
 
@@ -318,6 +321,7 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         "private_key_enc": encrypt_private_key(private_key),
         "funded": False,
         "created_at": now,
+        "chain_id": req.chain_id,
         # Autonomous scout scheduling — disabled by default, user opts in per agent
         "auto_scout_enabled": False,
         "scout_interval_hours": 6,

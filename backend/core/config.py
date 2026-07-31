@@ -1,5 +1,35 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Multi-chain configuration — mirrors src/lib/blockchain/chains.ts
+# Add new chains here; both backend and frontend must stay in sync.
+CHAIN_CONFIGS: dict[int, dict] = {
+    5003: {
+        "name": "Mantle Sepolia",
+        "native_symbol": "MNT",
+        "rpc_url": "https://rpc.sepolia.mantle.xyz",
+        # contract_address for Mantle is read from settings.contract_address (Cloud Run env var)
+        # so it can be updated without code changes.
+        "contract_address": "",
+        "explorer_url": "https://explorer.sepolia.mantle.xyz",
+    },
+    11155111: {
+        "name": "Ethereum Sepolia",
+        "native_symbol": "ETH",
+        "rpc_url": "https://ethereum-sepolia-rpc.publicnode.com",
+        "contract_address": "0x110edEa5DB874589ec4492d15660082634E173f0",
+        "explorer_url": "https://sepolia.etherscan.io",
+    },
+}
+
+
+def get_chain_config(chain_id: int) -> dict:
+    """Return chain config or raise ValueError for unsupported chain_id."""
+    cfg = CHAIN_CONFIGS.get(chain_id)
+    if not cfg:
+        supported = list(CHAIN_CONFIGS.keys())
+        raise ValueError(f"Unsupported chain_id {chain_id}. Supported: {supported}")
+    return cfg
+
 
 class Settings(BaseSettings):
     # GCP Project

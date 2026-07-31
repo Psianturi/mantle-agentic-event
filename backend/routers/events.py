@@ -52,17 +52,15 @@ _ALLOWED_HOSTS: frozenset[str] = frozenset(
     }
 )
 
-_MANTLE_EXPLORER_BY_CHAIN: dict[int, str] = {
-    5003: "https://explorer.sepolia.mantle.xyz",
-    5000: "https://explorer.mantle.xyz",
-}
-
-
-def _resolve_explorer_base() -> str:
-    configured = settings.mantle_explorer_url.strip()
-    if configured:
-        return configured.rstrip("/")
-    return _MANTLE_EXPLORER_BY_CHAIN.get(settings.chain_id, _MANTLE_EXPLORER_BY_CHAIN[5003])
+def _resolve_explorer_base(chain_id: int = 5003) -> str:
+    from core.config import CHAIN_CONFIGS
+    # Allow Cloud Run env var override for Mantle only
+    if chain_id == 5003 and settings.mantle_explorer_url.strip():
+        return settings.mantle_explorer_url.strip().rstrip("/")
+    cfg = CHAIN_CONFIGS.get(chain_id)
+    if cfg:
+        return cfg["explorer_url"].rstrip("/")
+    return "https://explorer.sepolia.mantle.xyz"
 
 
 # ── Request / Response models ─────────────────────────────────────────────────
@@ -77,6 +75,7 @@ class AttendRequest(BaseModel):
     platform: str = "YouTube"
     niche: str = "General"
     mode_b: bool = False    # If True, agent signs with its own private key (autonomous); else backend signs (Mode A)
+    chain_id: int = 5003
 
     @field_validator("agent_wallet")
     @classmethod
@@ -226,12 +225,18 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     Step C — Return: tx hash, token ID, explorer link, and wisdom text.
     """
     # Guard: contract must be deployed before minting
-    if not settings.contract_address or not Web3.is_address(settings.contract_address):
+    from core.config import CHAIN_CONFIGS
+    if req.chain_id == 5003:
+        contract_addr_check = settings.contract_address
+    else:
+        contract_addr_check = CHAIN_CONFIGS.get(req.chain_id, {}).get("contract_address", "")
+
+    if not contract_addr_check or not Web3.is_address(contract_addr_check):
         raise HTTPException(
             status_code=503,
             detail=(
-                "Smart contract is not configured. "
-                "Deploy the contract and set CONTRACT_ADDRESS env var."
+                f"Smart contract not configured for chain {req.chain_id}. "
+                "Deploy the contract and update CHAIN_CONFIGS or CONTRACT_ADDRESS env var."
             ),
         )
 
@@ -359,6 +364,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             niche=req.niche,
             agent_private_key=agent_private_key,
             allow_mode_b_fallback=False,  # strict: agent must pay own gas, no silent minter fallback
+            chain_id=req.chain_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -396,7 +402,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     level_up = mint_result.get("level_up", False)
     # signing_mode from web3_service reflects what actually signed (agent vs minter service)
     signing_mode = mint_result.get("signing_mode", "B" if req.mode_b else "A")
-    explorer_base = _resolve_explorer_base()
+    explorer_base = _resolve_explorer_base(req.chain_id)
 
     # ── Update agent stats in Firestore ───────────────────────────────────
     # Scheduled Luma events (future) earn 0 XP — agent scouted, not yet attended.
