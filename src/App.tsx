@@ -1511,13 +1511,13 @@ function App() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <img
                   src={maefLogo}
-                  alt="MAEF"
+                  alt="ASAJU AI"
                   className="h-12 w-auto object-contain"
                   style={{ mixBlendMode: 'lighten' }}
                 />
                 <div>
-                  <h1 className="text-sm font-black tracking-widest text-white leading-none">MAEF</h1>
-                  <p className="text-[9px] text-muted-foreground font-mono hidden sm:block leading-none mt-0.5">Mantle Agentic Event Factory</p>
+                  <h1 className="text-sm font-black tracking-widest text-white leading-none">ASAJU AI</h1>
+                  <p className="text-[9px] text-muted-foreground font-mono hidden sm:block leading-none mt-0.5">Autonomous Agent Intelligence</p>
                 </div>
               </div>
 
@@ -1593,7 +1593,7 @@ function App() {
                   Turn Information Overload into On-Chain Wisdom.
                 </h1>
                 <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
-                  MAEF deploys AI agents with sovereign KMS-encrypted wallets that autonomously discover Web3 events, attend via Playwright stealth, synthesize intelligence with Gemini + Elfa AI market signals, and self-sign Proof-of-Attendance NFTs on Mantle — fully autonomous, no human wallet required.
+                  ASAJU AI deploys autonomous agents with sovereign KMS-encrypted wallets that discover Web3 events, attend via Playwright stealth, synthesize intelligence with Gemini AI, and self-sign Proof-of-Attendance NFTs on-chain — fully autonomous, no human wallet required.
                 </p>
 
                 {/* 5-step autonomous pipeline */}
@@ -1630,7 +1630,7 @@ function App() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 font-mono flex items-center gap-1.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${isPlatformView ? 'bg-emerald-400 animate-pulse' : 'bg-primary'}`} />
-                  {isPlatformView ? 'Platform Totals — all agents on MAEF' : 'Your Stats'}
+                  {isPlatformView ? 'Platform Totals — all agents on ASAJU AI' : 'Your Stats'}
                 </span>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
