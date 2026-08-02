@@ -1,6 +1,6 @@
 """
 GET /api/v1/monitoring/gas-status/{agent_wallet}  — Check agent gas balance & minting capacity
-GET /api/v1/monitoring/spawn-quota/{user_wallet}  — Check user's spawn quota (max 3 direct spawns)
+GET /api/v1/monitoring/spawn-quota/{user_wallet}  — Check user's per-chain spawn quota (max 3 direct spawns)
 
 Read-only monitoring endpoints for frontend visibility.
 """
@@ -90,9 +90,9 @@ async def get_agent_gas_status(agent_wallet: str, chain_id: int = Query(default=
 
 
 @router.get("/spawn-quota/{user_wallet}")
-async def get_spawn_quota(user_wallet: str) -> dict:
+async def get_spawn_quota(user_wallet: str, chain_id: int = Query(default=5003)) -> dict:
     """
-    Read-only endpoint: check how many agents user has spawned (max 3 direct spawns).
+    Read-only endpoint: check how many agents user has spawned on a chain (max 3 direct spawns).
     Bred offspring are excluded from the count (ownership_status != 'bred').
     
     Response shows:
@@ -104,6 +104,10 @@ async def get_spawn_quota(user_wallet: str) -> dict:
     if not Web3.is_address(user_wallet):
         raise HTTPException(status_code=400, detail="Invalid wallet address")
     user_wallet = Web3.to_checksum_address(user_wallet)
+    try:
+        get_chain_config(chain_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     MAX_SPAWN_LIMIT = 3
     db = get_db()
@@ -119,7 +123,7 @@ async def get_spawn_quota(user_wallet: str) -> dict:
     for doc in docs:
         data = doc.to_dict() or {}
         # Count only direct spawns, exclude bred offspring
-        if data.get("ownership_status") != "bred":
+        if data.get("ownership_status") != "bred" and data.get("chain_id", 5003) == chain_id:
             spawned_agents.append({
                 "agent_wallet": data.get("agent_wallet"),
                 "agent_name": data.get("agent_name"),
@@ -131,6 +135,7 @@ async def get_spawn_quota(user_wallet: str) -> dict:
 
     return {
         "user_wallet": user_wallet,
+        "chain_id": chain_id,
         "spawned_count": spawned_count,
         "max_spawn_limit": MAX_SPAWN_LIMIT,
         "remaining_slots": remaining_slots,

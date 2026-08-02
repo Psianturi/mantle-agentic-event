@@ -24,6 +24,7 @@ export interface GasStatusResponse {
 
 export interface SpawnQuotaResponse {
   user_wallet: string
+  chain_id: number
   spawned_count: number
   max_spawn_limit: number
   remaining_slots: number
@@ -52,8 +53,8 @@ class MonitoringService {
   /**
    * Get spawn quota untuk user wallet
    */
-  async getSpawnQuota(userWallet: string): Promise<SpawnQuotaResponse> {
-    const response = await fetch(`${GCP_BACKEND_URL}/api/v1/monitoring/spawn-quota/${userWallet}`)
+  async getSpawnQuota(userWallet: string, chainId = 5003): Promise<SpawnQuotaResponse> {
+    const response = await fetch(`${GCP_BACKEND_URL}/api/v1/monitoring/spawn-quota/${userWallet}?chain_id=${chainId}`)
     
     if (!response.ok) {
       throw new Error(`Failed to fetch spawn quota: ${response.statusText}`)

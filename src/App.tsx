@@ -2369,8 +2369,12 @@ function App() {
         onAgentCreated={handleAgentCreated}
         userWallet={walletAddress}
         chainId={selectedChainId}
-        originalAgentCount={displayedAgents.filter(a => a.ownershipStatus === 'original-creator').length}
-        bredAgentCount={displayedAgents.filter(a => a.ownershipStatus === 'bred').length}
+        originalAgentCount={displayedAgents.filter(a =>
+          a.ownershipStatus === 'original-creator' && (a.chainId ?? DEFAULT_CHAIN_ID) === selectedChainId
+        ).length}
+        bredAgentCount={displayedAgents.filter(a =>
+          a.ownershipStatus === 'bred' && (a.chainId ?? DEFAULT_CHAIN_ID) === selectedChainId
+        ).length}
       />
 
       {selectedAgent && (

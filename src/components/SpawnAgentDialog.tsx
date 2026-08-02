@@ -48,7 +48,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
       const fetchSpawnQuota = async () => {
         try {
           setLoadingQuota(true)
-          const quota = await monitoringService.getSpawnQuota(userWallet)
+          const quota = await monitoringService.getSpawnQuota(userWallet, chainId)
           setSpawnQuota(quota)
         } catch (error) {
           console.error('Failed to fetch spawn quota:', error)
@@ -60,7 +60,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
       
       fetchSpawnQuota()
     }
-  }, [open, userWallet, phase])
+  }, [open, userWallet, chainId, phase])
 
   const handleSpawn = async () => {
     if (!name.trim()) return
@@ -216,6 +216,10 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
     setDeploymentSteps([])
   }
 
+  const isQuotaReached = spawnQuota
+    ? !spawnQuota.can_spawn
+    : originalAgentCount >= ORIGINAL_AGENT_LIMIT
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[550px] glass-card border-primary/30">
@@ -353,7 +357,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
 
               <Button
                 onClick={handleSpawn}
-                disabled={!name.trim() || originalAgentCount >= ORIGINAL_AGENT_LIMIT}
+                disabled={!name.trim() || isQuotaReached}
                 className="w-full bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 <Lightning className="mr-2" weight="fill" />

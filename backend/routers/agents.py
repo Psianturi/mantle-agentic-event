@@ -24,6 +24,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, field_validator
 from web3 import Web3
 
+from core.config import get_chain_config
 from core.database import get_db
 from core.kms_service import decrypt_private_key, encrypt_private_key
 from services.llm_service import chat_with_agent, generate_lineage_biography, generate_wisdom_report
@@ -114,6 +115,12 @@ class SpawnRequest(BaseModel):
         if not Web3.is_address(v):
             raise ValueError("Invalid Ethereum wallet address")
         return Web3.to_checksum_address(v)
+
+    @field_validator("chain_id")
+    @classmethod
+    def validate_chain_id(cls, value: int) -> int:
+        get_chain_config(value)
+        return value
 
 
 class SpawnResponse(BaseModel):
@@ -266,7 +273,7 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
     fund the agent with 0.5 MNT for gas autonomy.
     """
     agent_id = hashlib.sha256(
-        f"{req.user_wallet}:{req.agent_name}".encode()
+        f"{req.user_wallet}:{req.chain_id}:{req.agent_name}".encode()
     ).hexdigest()[:16]
 
     db = get_db()
@@ -283,7 +290,7 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         data = doc.to_dict()
         return _to_response(data, needs_funding=not data.get("funded", False))
 
-    # Per-wallet agent limit applies only to directly spawned agents (ownership_status='original-creator').
+    # Per-wallet, per-chain limit applies only to directly spawned agents.
     # Bred offspring are excluded — their slot cost is paid via breedAgents() on-chain.
     MAX_AGENTS_PER_WALLET = 3
     try:
@@ -292,11 +299,12 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         existing_count = sum(
             1 for doc in existing_docs
             if (doc.to_dict() or {}).get("ownership_status") != "bred"
+            and (doc.to_dict() or {}).get("chain_id", 5003) == req.chain_id
         )
         if existing_count >= MAX_AGENTS_PER_WALLET:
             raise HTTPException(
                 status_code=422,
-                detail=f"Wallet has reached the maximum of {MAX_AGENTS_PER_WALLET} agents. Breed existing agents to create stronger hybrids.",
+                detail=f"Wallet has reached the maximum of {MAX_AGENTS_PER_WALLET} direct agents on this network. Breed existing agents to create stronger hybrids.",
             )
     except HTTPException:
         raise

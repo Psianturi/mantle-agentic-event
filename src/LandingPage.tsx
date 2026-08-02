@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
-import { DataFlowBackground } from '@/components/DataFlowBackground'
 import { FeaturedWisdomFeed, type WisdomFeedItem } from '@/components/FeaturedWisdomFeed'
 import { cloudRunService } from '@/services/cloudRunService'
 import {
@@ -127,18 +126,15 @@ export function LandingPage() {
   }, [])
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#F5FAFC]">
-      <DataFlowBackground variant="light" />
-      <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(0,180,200,0.07),transparent_50%),radial-gradient(ellipse_at_bottom_right,rgba(0,140,180,0.05),transparent_50%)]" />
-      {/* subtle grid — teal stroke at 6% opacity */}
-      <div className="fixed inset-0 opacity-60" style={{
+    <div className="min-h-screen relative overflow-hidden bg-[#FBFCFE]">
+      <div className="fixed inset-0 opacity-25" style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='g' width='60' height='60' patternUnits='userSpaceOnUse'%3E%3Cpath d='M 60 0 L 0 0 0 60' fill='none' stroke='rgba(0,160,180,0.06)' stroke-width='1'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23g)'/%3E%3C/svg%3E")`
       }} />
 
       <div className="relative z-10">
 
         {/* ── Nav ──────────────────────────────────────────────────────────── */}
-        <nav className="border-b border-cyan-200/60 backdrop-blur-xl bg-white/80 sticky top-0 z-40">
+        <nav className="border-b border-slate-200 bg-white sticky top-0 z-40">
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <img src={maefLogo} alt="ASAJU AI" className="h-10 w-auto object-contain" />
@@ -158,14 +154,9 @@ export function LandingPage() {
         </nav>
 
         {/* ── Section 1: Hero ───────────────────────────────────────────────── */}
-        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 pt-20 pb-10 text-center">
+        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 pt-24 pb-14 text-center">
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-50 border border-cyan-200 text-cyan-700 text-xs font-mono font-semibold mb-6">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
-              For Web3 builders and researchers
-            </div>
-
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-5 leading-tight text-slate-900">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-5 leading-tight text-slate-950">
               Stop missing what matters in Web3.
             </h1>
 

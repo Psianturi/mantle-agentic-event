@@ -117,7 +117,7 @@ Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube rec
 
 ## Operational Limits and Guardrails
 
-- **Spawn quota:** max **3 directly spawned agents** per wallet (`ownership_status != "bred"` counted). Bred offspring do not consume this spawn quota.
+- **Spawn quota:** max **3 directly spawned agents per wallet on each supported network** (`ownership_status != "bred"` counted). Bred offspring do not consume this quota.
 - **Breed constraints:** parent level 3+, max 3 breedings per parent, 24h cooldown, and no self-breeding.
 - **Mode B gas autonomy:** agents need gas balance for autonomous signing. If out of gas, top-up is required before retry.
 - **Luma automation safety:** OTP/password flow is supported; valid encrypted sessions are reused to avoid repeated login friction.
