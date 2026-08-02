@@ -46,6 +46,7 @@ export interface SpawnAgentRequest {
   name: string
   niche: Niche
   personality: Personality
+  chainId: number
   customInstructions?: string
   userWallet?: string  // Connected MetaMask address (optional, used as owner ref)
 }
@@ -56,6 +57,7 @@ export interface SpawnAgentResponse {
   mantleAddress: string
   initialBalance: number
   needsFunding: boolean
+  chainId: number
   message: string
   error?: string
 }
@@ -131,6 +133,7 @@ export interface AttendEventRequest {
   eventTitle: string
   platform: string
   niche: string
+  chainId: number
   modeB?: boolean  // If true, agent signs autonomously with its own private key (Mode B); else backend signs (Mode A)
 }
 
@@ -152,6 +155,7 @@ export interface AttendEventResponse {
 export interface EventHistoryItem {
   id: string
   agentId: string
+  chainId: number
   eventUrl: string
   eventTitle: string
   platform: string
@@ -293,6 +297,8 @@ export const cloudRunService = {
         agent_name: request.name,
         niche: request.niche,
         user_wallet: request.userWallet,
+        personality: request.personality,
+        chain_id: request.chainId,
       }
 
       const response = await fetchWithTimeout(
@@ -312,6 +318,7 @@ export const cloudRunService = {
         level: number
         total_events: number
         needs_funding: boolean
+        chain_id?: number
       }>(response)
 
       // Map backend snake_case → frontend camelCase
@@ -321,7 +328,8 @@ export const cloudRunService = {
         mantleAddress: raw.agent_wallet,
         initialBalance: 0,
         needsFunding: raw.needs_funding,
-        message: `Agent ${raw.agent_name} spawned on Mantle Network`,
+        chainId: raw.chain_id ?? request.chainId,
+        message: `Agent ${raw.agent_name} spawned successfully`,
       }
     } catch (error) {
       if (error instanceof CloudRunAPIError) {
@@ -450,6 +458,7 @@ export const cloudRunService = {
         luma_connected_at?: number
         luma_last_rsvp_at?: number
         agent_gas_balance?: number | null
+        chain_id?: number
       }>>(response)
 
       const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -460,6 +469,7 @@ export const cloudRunService = {
         personality: 'Analytical' as const,
         niche: (validNiches.includes(r.niche as Niche) ? r.niche : 'Blockchain/DeFi') as Niche,
         walletAddress: r.agent_wallet,
+        chainId: r.chain_id ?? 5003,
         eventsAttended: r.total_events,
         level: r.level,
         status: 'idle' as const,
@@ -505,6 +515,7 @@ export const cloudRunService = {
       const raw = await handleAPIResponse<Array<{
         id: string
         agent_id: string
+        chain_id?: number
         event_url: string
         event_title: string
         platform: string
@@ -522,6 +533,7 @@ export const cloudRunService = {
       return raw.map((r) => ({
         id: r.id,
         agentId: r.agent_id,
+        chainId: r.chain_id ?? 5003,
         eventUrl: r.event_url,
         eventTitle: r.event_title,
         platform: r.platform,
@@ -626,6 +638,7 @@ export const cloudRunService = {
         event_title: request.eventTitle,
         platform: request.platform,
         niche: request.niche,
+        chain_id: request.chainId,
         mode_b: request.modeB ?? false,  // Mode B: agent signs autonomously; Mode A: backend signs (default)
       }
 

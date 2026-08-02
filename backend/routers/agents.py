@@ -1298,6 +1298,7 @@ async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> 
         platform="YouTube",
         niche=niche,
         mode_b=is_funded,
+        chain_id=int(data.get("chain_id", 5003)),
     )
 
     try:

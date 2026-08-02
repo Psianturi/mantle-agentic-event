@@ -7,11 +7,12 @@ Read-only monitoring endpoints for frontend visibility.
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from google.cloud.firestore_v1.base_query import FieldFilter
 from web3 import Web3
 
 from core.database import get_db
+from core.config import get_chain_config
 from services.web3_service import web3_service
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ AGENTS_COLLECTION = "agents"
 
 
 @router.get("/gas-status/{agent_wallet}")
-async def get_agent_gas_status(agent_wallet: str) -> dict:
+async def get_agent_gas_status(agent_wallet: str, chain_id: int = Query(default=5003)) -> dict:
     """
     Read-only endpoint: check agent's gas balance and minting capacity.
     Returns status (healthy/warning/critical) based on balance thresholds.
@@ -35,9 +36,13 @@ async def get_agent_gas_status(agent_wallet: str) -> dict:
     if not Web3.is_address(agent_wallet):
         raise HTTPException(status_code=400, detail="Invalid agent wallet address")
     agent_wallet = Web3.to_checksum_address(agent_wallet)
+    try:
+        chain_config = get_chain_config(chain_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
-        balance_wei = await web3_service.get_balance(agent_wallet)
+        balance_wei = await web3_service.get_balance(agent_wallet, chain_id)
         balance_mnt = Web3.from_wei(balance_wei, "ether")
     except ConnectionError as exc:
         logger.error("RPC connection failed for %s: %s", agent_wallet, exc)
@@ -69,6 +74,8 @@ async def get_agent_gas_status(agent_wallet: str) -> dict:
 
     return {
         "agent_wallet": agent_wallet,
+        "chain_id": chain_id,
+        "native_symbol": chain_config["native_symbol"],
         "gas_balance_wei": str(balance_wei),
         "gas_balance_mnt": f"{balance_mnt:.4f}",
         "status": status,

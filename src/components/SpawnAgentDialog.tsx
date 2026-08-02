@@ -9,6 +9,7 @@ import { Sparkle, Lightning, CheckCircle, XCircle, Info } from '@phosphor-icons/
 import { motion, AnimatePresence } from 'framer-motion'
 import { cloudRunService } from '@/services/cloudRunService'
 import { mantleService } from '@/lib/blockchain/mantleService'
+import { getChain } from '@/lib/blockchain/chains'
 import { monitoringService, SpawnQuotaResponse } from '@/services/monitoringService'
 import { toast } from 'sonner'
 
@@ -19,6 +20,7 @@ interface SpawnAgentDialogProps {
   onOpenChange: (open: boolean) => void
   onAgentCreated: (agent: Agent) => void
   userWallet?: string
+  chainId: number
   originalAgentCount?: number  // Directly spawned agents (counts toward 3-slot limit)
   bredAgentCount?: number      // Neural Fusion offspring (does NOT count toward limit)
 }
@@ -28,7 +30,8 @@ const personalities: Personality[] = ['Aggressive', 'Analytical', 'Creative']
 
 type SpawnPhase = 'form' | 'spawning' | 'deploying' | 'success' | 'error'
 
-export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWallet, originalAgentCount = 0, bredAgentCount = 0 }: SpawnAgentDialogProps) {
+export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWallet, chainId, originalAgentCount = 0, bredAgentCount = 0 }: SpawnAgentDialogProps) {
+  const chain = getChain(chainId)
   const [name, setName] = useState('')
   const [personality, setPersonality] = useState<Personality>('Analytical')
   const [niche, setNiche] = useState<Niche>('Blockchain/DeFi')
@@ -73,7 +76,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
     
     const steps = [
       { step: 'Generating deterministic wallet...', status: 'pending' as const },
-      { step: 'Provisioning gas reserves (0.5 MNT)...', status: 'pending' as const },
+      { step: `Provisioning gas reserves (0.5 ${chain?.nativeSymbol ?? 'token'})...`, status: 'pending' as const },
       { step: 'Finalizing agent identity...', status: 'pending' as const },
     ]
     setDeploymentSteps(steps)
@@ -93,14 +96,15 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
         niche,
         personality,
         userWallet,
+        chainId,
       })
 
       if (response.success) {
         const fundingTx = response.needsFunding
-          ? await mantleService.spawnAgent(response.mantleAddress)
+            ? await mantleService.spawnAgent(response.mantleAddress, chainId)
           : {
               success: true,
-              contractAddress: mantleService.getContractAddress(),
+              contractAddress: mantleService.getContractAddress(chainId),
               provisionAmount: '0.5',
             }
 
@@ -147,6 +151,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
           personality,
           niche,
           walletAddress: response.mantleAddress,
+          chainId: response.chainId,
           eventsAttended: 0,
           level: 1,
           status: 'idle',
@@ -166,8 +171,8 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
 
         toast.success('Agent deployed successfully!', {
           description: fundingTx.transactionHash
-            ? 'Agent registered and funded on Mantle Network'
-            : 'Agent already registered on Mantle Network'
+            ? `Agent registered and funded on ${chain?.name ?? 'the selected network'}`
+            : `Agent already registered on ${chain?.name ?? 'the selected network'}`
         })
 
         setTimeout(() => {
@@ -220,7 +225,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
             Spawn New Agent
           </DialogTitle>
           <DialogDescription>
-            Create an autonomous AI agent with an on-chain wallet identity on Mantle
+            Create an autonomous AI agent with an on-chain wallet identity on {chain?.name ?? 'the selected network'}
           </DialogDescription>
         </DialogHeader>
 
@@ -378,7 +383,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
                 >
                   <Sparkle size={32} className="text-background" weight="fill" />
                 </motion.div>
-                <h3 className="text-xl font-bold mb-2">Registering Agent on Mantle Network</h3>
+                <h3 className="text-xl font-bold mb-2">Registering Agent on {chain?.name ?? 'the selected network'}</h3>
                 <p className="text-sm text-muted-foreground">Initializing agentic wallet and gas reserves...</p>
               </div>
 
@@ -433,7 +438,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
               <h3 className="text-2xl font-bold mb-2 text-green-500">Registration Successful!</h3>
               {deployedAgent && (
                 <div className="text-center space-y-2 mt-4">
-                  <p className="text-sm text-muted-foreground">Agent registered and funded on Mantle Network</p>
+                  <p className="text-sm text-muted-foreground">Agent registered and funded on {chain?.name ?? 'the selected network'}</p>
                   <p className="text-xs font-mono bg-card px-3 py-2 rounded border border-border">
                     {deployedAgent.walletAddress}
                   </p>

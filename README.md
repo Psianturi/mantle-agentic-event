@@ -1,25 +1,23 @@
-Quick Pitch
-MAEF (Mantle Agentic Event Factory) transforms AI agents into sovereign on-chain identities that autonomously attend events, mint Proof-of-Attendance NFTs, evolve through experience, and collaborate via Neural Fusion. Built on Mantle, it combines AI reasoning, blockchain identity, and autonomous execution into a persistent agent ecosystem.
+# ASAJU AI
 
-# MAEF — Mantle Agentic Event Factory
+ASAJU AI gives people autonomous on-chain agents that turn digital events into AI summaries and Proof-of-Attendance NFTs. The original MAEF contract name remains in the codebase and deployed contracts.
 
-AI agents that autonomously attend events, earn on-chain NFTs, and evolve into sovereign intelligence through neural fusion — built on Mantle blockchain.
-
-> **Live:** [mantle-agentic-event.vercel.app](https://mantle-agentic-event.vercel.app)
+> **Live:** [asaju.vercel.app](https://asaju.vercel.app)
 
 ## Status Snapshot 
 
-- **Production-verified:** agent connect to Luma, auto-RSVP a real Luma event, then continue through `attend` and mint/update state on Mantle Sepolia.
-- **Luma auth hardening:** OTP + password login supported, session cookies stored KMS-encrypted in Firestore, valid sessions reused without forcing re-login.
+- **Active contracts:** Mantle Sepolia and Ethereum Sepolia contracts are deployed; the minter service wallet has the required role on both.
+- **Multi-chain frontend wiring:** chain selection is propagated through spawn, wallet funding, event attendance, gas monitoring/top-up, event history, balances, and explorer links. Manual Ethereum Sepolia end-to-end verification remains required before calling it production-verified.
+- **Luma auth hardening:** OTP + password login and KMS-encrypted sessions are implemented. Auto-RSVP needs fresh production reproduction before it is called verified.
 - **Dual-State Luma hardening:** future events now rely on `start_at` extracted from `__NEXT_DATA__`, JSON-LD, or embedded page metadata before falling back to OpenGraph-only parsing.
 - **Upcoming Scouts sync:** frontend derives Luma scheduled/completed state from `lumaStartAt`, so future events stay visible in the NFT Vault's **Upcoming Scouts** tab.
 - **Still pending config:** `AUTONOMOUS_VAULT_ADDRESS` is not yet active in runtime config.
 
 ---
 
-## What Is MAEF?
+## What Is ASAJU AI?
 
-MAEF lets you spawn AI agents that work for you 24/7 in the Web3 knowledge economy. Each agent:
+ASAJU AI lets you spawn agents that build persistent knowledge from events. Each agent:
 
 - **Autonomously attends** digital events (YouTube live, conferences, webinars)
 - **Mints Proof-of-Attendance NFTs** on Mantle after generating AI summaries
@@ -33,9 +31,10 @@ MAEF lets you spawn AI agents that work for you 24/7 in the Web3 knowledge econo
 
 | Component | URL / Address |
 |-----------|--------------|
-| Frontend | https://mantle-agentic-event.vercel.app |
+| Frontend | https://asaju.vercel.app |
 | Backend (Cloud Run) | https://mantle-agentic-event-21898396920.asia-southeast1.run.app |
-| **Contract V4 (ACTIVE)** | [`0x66fD8b5411856D42c08D9356e879a6e7dF0c9419`](https://explorer.sepolia.mantle.xyz/address/0x66fD8b5411856D42c08D9356e879a6e7dF0c9419) |
+| **Mantle Sepolia V4** | [`0x66fD8b5411856D42c08D9356e879a6e7dF0c9419`](https://explorer.sepolia.mantle.xyz/address/0x66fD8b5411856D42c08D9356e879a6e7dF0c9419) |
+| **Ethereum Sepolia V4** | [`0x110edEa5DB874589ec4492d15660082634E173f0`](https://sepolia.etherscan.io/address/0x110edEa5DB874589ec4492d15660082634E173f0) |
 | Contract V3 (deprecated) | `0x460b794FD0afaA04bf3BFFfc6c29386c1Be8C334` — do not use |
 
 ---
@@ -43,8 +42,8 @@ MAEF lets you spawn AI agents that work for you 24/7 in the Web3 knowledge econo
 ## Full Agent Lifecycle
 
 ```
-1. SPAWN     User pays 1 MNT → spawnAgent() on V4
-             Agent wallet gets 0.5 MNT gas reserve + isAgentSpawned=true
+1. SPAWN     User pays the configured testnet fee → spawnAgent() on the selected V4 contract
+             Agent wallet gets its configured native-token gas reserve + isAgentSpawned=true
              Agent receives unique identity, personality, niche, sub-agent squad
 
 2. ATTEND    User submits event URL → Secretary sub-agent registers
@@ -64,7 +63,7 @@ MAEF lets you spawn AI agents that work for you 24/7 in the Web3 knowledge econo
    (HITL)    User reviews and approves on-chain via MetaMask
              +5 Heritage Score per approved proposal on V4
 
-6. BREED     User selects 2 level-3+ agents → pays 2.5 MNT → breedAgents() on V4
+6. BREED     User selects 2 level-3+ Mantle agents → pays 2.5 MNT → breedAgents() on V4
              Offspring inherits genetic traits, niches, Wisdom Heritage Score
              Gemini generates unique Lineage Biography
              spawnBredAgent() registers offspring → 0.5 MNT provisioned
@@ -97,7 +96,7 @@ Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube rec
 - **Past event (completed):** Full Wisdom NFT minted on Mantle. XP awarded.
 - **Unknown timestamp fallback:** If Luma blocks richer metadata, MAEF falls back to embedded page metadata before treating the event as unknown. This reduces false mints for future events.
 
-**Luma Auto-RSVP Flow:**
+**Luma Auto-RSVP Flow (implemented; production re-verification pending):**
 1. User connects Luma account via OTP (email → 6-digit code, Playwright-driven)
 2. Session encrypted with GCP KMS, stored in Firestore (multi-instance safe)
 3. On event attend: agent auto-RSVPs via headless Chromium before minting NFT
@@ -132,10 +131,16 @@ Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube rec
   - Current UX and error copy is still MetaMask-centric in some paths.
   - Improve injected provider detection/selection so other EIP-1193 wallets connect reliably.
 
-2. **E2E Luma reliability verification on Cloud Run**
+2. **E2E verification on Cloud Run**
   - OTP and RSVP flows are implemented, but should be validated repeatedly as an end-to-end demo path under production latency.
 
-3. **Demo-first resilience checks**
+3. **Ethereum Sepolia manual E2E verification**
+  - Verify wallet connect, spawn, top-up, autonomous attendance, and history explorer URLs on Ethereum Sepolia before describing it as production-verified.
+
+4. **Metric definition reconciliation**
+  - `total_wisdom_nfts` and `total_events_attended` use different backend sources and should not be compared until unified.
+
+5. **Demo-first resilience checks**
   - Validate spawn quota messaging and bred-agent behavior are clearly communicated in UI.
 
 
@@ -238,8 +243,9 @@ User Browser (React + Vite → Vercel)
        ├─ Gemini 2.5 Flash — wisdom, chat, scout scoring, HITL proposals
        ├─ YouTube Data API — Auto Scout event discovery
        ├─ Playwright       — headless Chromium for Luma OTP login + RSVP automation
-       ├─ Web3.py          — Mantle Sepolia RPC
-       │    └─ MAEFDynamicNFTV4 (0x66fD...)
+      ├─ Web3.py          — per-chain RPC and contract cache
+      │    ├─ Mantle Sepolia MAEFDynamicNFTV4 (0x66fD...)
+      │    └─ Ethereum Sepolia MAEFDynamicNFTV4 (0x110e...)
        │         ├─ spawnAgent / spawnBredAgent
        │         ├─ mintAttendanceNFT / batchMint
        │         ├─ breedAgents

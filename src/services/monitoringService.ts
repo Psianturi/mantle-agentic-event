@@ -8,6 +8,8 @@ import { GCP_BACKEND_URL } from './cloudRunService'
 
 export interface GasStatusResponse {
   agent_wallet: string
+  chain_id: number
+  native_symbol: string
   gas_balance_wei: string
   gas_balance_mnt: string
   status: 'healthy' | 'warning' | 'critical' | 'depleted'
@@ -37,8 +39,8 @@ class MonitoringService {
   /**
    * Get gas status untuk agent wallet
    */
-  async getAgentGasStatus(agentWallet: string): Promise<GasStatusResponse> {
-    const response = await fetch(`${GCP_BACKEND_URL}/api/v1/monitoring/gas-status/${agentWallet}`)
+  async getAgentGasStatus(agentWallet: string, chainId = 5003): Promise<GasStatusResponse> {
+    const response = await fetch(`${GCP_BACKEND_URL}/api/v1/monitoring/gas-status/${agentWallet}?chain_id=${chainId}`)
     
     if (!response.ok) {
       throw new Error(`Failed to fetch gas status: ${response.statusText}`)

@@ -115,6 +115,7 @@ class AttendResponse(BaseModel):
 class EventHistoryItem(BaseModel):
     id: str
     agent_id: str
+    chain_id: int = 5003
     event_url: str
     event_title: str
     platform: str
@@ -146,7 +147,6 @@ async def list_events_by_wallet(
     wallet = Web3.to_checksum_address(wallet)
 
     db = get_db()
-    explorer_base = _resolve_explorer_base()
 
     agent_ids: list[str] = []
     try:
@@ -179,6 +179,7 @@ async def list_events_by_wallet(
                     {
                         "id": doc.id,
                         "agent_id": data.get("agent_id", agent_id),
+                        "chain_id": int(data.get("chain_id", 5003)),
                         "event_url": data.get("event_url", ""),
                         "event_title": data.get("event_title", "Event"),
                         "platform": data.get("platform", "YouTube"),
@@ -200,6 +201,7 @@ async def list_events_by_wallet(
     result: list[EventHistoryItem] = []
     for item in records:
         tx_hash = item.get("tx_hash")
+        explorer_base = _resolve_explorer_base(item["chain_id"])
         result.append(
             EventHistoryItem(
                 **item,
@@ -240,6 +242,19 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             ),
         )
 
+    # Ensure a persisted agent cannot be accidentally operated on another chain.
+    db = get_db()
+    try:
+        agent_doc = await db.collection(AGENTS_COLLECTION).document(req.agent_id).get()
+    except Exception as exc:
+        logger.error("Failed to load agent %s: %s", req.agent_id, exc)
+        raise HTTPException(status_code=503, detail="Failed to retrieve agent state") from exc
+    if not agent_doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{req.agent_id}' not found")
+    agent_data = agent_doc.to_dict() or {}
+    if int(agent_data.get("chain_id", 5003)) != req.chain_id:
+        raise HTTPException(status_code=409, detail="Agent is registered on a different network")
+
     # ── Luma auto-detection: pre-fetch event data once for title + summary ────
     luma_event_data: dict | None = None
     luma_status: str | None = None      # 'scheduled' | 'completed' | 'unknown'
@@ -267,12 +282,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     agent_private_key: str | None = None
     agent_is_funded = False
     if req.mode_b:
-        db = get_db()
         try:
-            agent_doc = await db.collection(AGENTS_COLLECTION).document(req.agent_id).get()
-            if not agent_doc.exists:
-                raise HTTPException(status_code=404, detail=f"Agent '{req.agent_id}' not found")
-            agent_data = agent_doc.to_dict() or {}
             agent_is_funded = bool(agent_data.get("funded", False))
             stored_key = agent_data.get("private_key_enc") or agent_data.get("private_key")
             if not stored_key:
@@ -315,6 +325,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "agent_id": req.agent_id,
                 "agent_wallet": req.agent_wallet,
                 "agent_name": req.agent_name,
+                "chain_id": req.chain_id,
                 "niche": req.niche,
                 "event_url": req.event_url,
                 "event_title": req.event_title,
@@ -411,7 +422,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     new_total_events: int | None = None
     new_level: int | None = None
     if success:
-        db = get_db()
         agent_ref = db.collection(AGENTS_COLLECTION).document(req.agent_id)
         try:
             agent_doc = await agent_ref.get()
@@ -458,6 +468,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "agent_id": req.agent_id,
                 "agent_wallet": req.agent_wallet,
                 "agent_name": req.agent_name,
+                "chain_id": req.chain_id,
                 "niche": req.niche,
                 "event_url": req.event_url,
                 "event_title": req.event_title,

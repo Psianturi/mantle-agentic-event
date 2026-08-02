@@ -7,11 +7,12 @@ import { cn } from '@/lib/utils'
 
 interface GasStatusBadgeProps {
   agentWallet: string
+  chainId?: number
   className?: string
   showLabel?: boolean
 }
 
-export function GasStatusBadge({ agentWallet, className, showLabel = true }: GasStatusBadgeProps) {
+export function GasStatusBadge({ agentWallet, chainId = 5003, className, showLabel = true }: GasStatusBadgeProps) {
   const [gasStatus, setGasStatus] = useState<GasStatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -21,7 +22,7 @@ export function GasStatusBadge({ agentWallet, className, showLabel = true }: Gas
       try {
         setLoading(true)
         setError(false)
-        const status = await monitoringService.getAgentGasStatus(agentWallet)
+        const status = await monitoringService.getAgentGasStatus(agentWallet, chainId)
         setGasStatus(status)
       } catch (err) {
         console.error('Failed to fetch gas status:', err)
@@ -37,7 +38,7 @@ export function GasStatusBadge({ agentWallet, className, showLabel = true }: Gas
     const interval = setInterval(fetchGasStatus, 30000)
     
     return () => clearInterval(interval)
-  }, [agentWallet])
+  }, [agentWallet, chainId])
 
   if (loading) {
     return (
@@ -131,7 +132,7 @@ export function GasStatusBadge({ agentWallet, className, showLabel = true }: Gas
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs text-muted-foreground">Gas Balance:</span>
               <span className="text-xs font-bold font-mono text-foreground">
-                {parseFloat(gasStatus.gas_balance_mnt).toFixed(4)} MNT
+                {parseFloat(gasStatus.gas_balance_mnt).toFixed(4)} {gasStatus.native_symbol}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">

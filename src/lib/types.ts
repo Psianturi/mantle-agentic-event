@@ -18,6 +18,7 @@ export interface Agent {
   personality: Personality
   niche: Niche
   walletAddress: string
+  chainId?: number
   contractAddress?: string
   deploymentTxHash?: string
   needsFunding?: boolean
@@ -135,6 +136,7 @@ export interface AgentProposal {
 export interface Event {
   id: string
   agentId: string
+  chainId?: number
   url: string
   title: string
   platform: 'YouTube' | 'Luma' | 'Eventbrite' | 'Zoom'
@@ -147,6 +149,7 @@ export interface Event {
 export interface NFT {
   id: string
   agentId: string
+  chainId?: number
   eventId: string
   eventTitle: string
   summary: string

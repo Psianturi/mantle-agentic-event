@@ -473,7 +473,7 @@ function App() {
 
   const handleWalletConnect = async (address: string) => {
     try {
-      const connectedAddress = await blockchain.connectWallet()
+      const connectedAddress = await blockchain.connectWallet(selectedChainId)
       setWalletConnected(true)
       setWalletAddress(connectedAddress)
       // Detect wallet's current chain
@@ -493,7 +493,7 @@ function App() {
       setNFTs([])
       setLogs([])
       toast.success('Wallet connected successfully!', {
-        description: `Connected to Mantle Network`
+        description: `Connected to ${getChain(selectedChainId)?.name ?? 'the selected network'}`
       })
       // Load cloud state persisted in Firestore for this wallet
       const cloudAgents = await cloudRunService.getAgentsByWallet(connectedAddress)
@@ -503,6 +503,7 @@ function App() {
       const restoredEvents: Event[] = cloudHistory.map((item) => ({
         id: item.id,
         agentId: item.agentId,
+        chainId: item.chainId,
         url: item.eventUrl,
         title: item.eventTitle,
         platform: normalizePlatform(item.platform),
@@ -521,6 +522,7 @@ function App() {
         .map((item) => ({
           id: `nft-${item.id}`,
           agentId: item.agentId,
+          chainId: item.chainId,
           eventId: item.id,
           eventTitle: item.eventTitle,
           summary: item.wisdomSummary,
@@ -569,7 +571,7 @@ function App() {
               id: `hist-mint-${item.id}`,
               agentId: item.agentId,
               subAgentType: 'mint-master' as SubAgentType,
-              message: `[${agentName} - Mint-Master] NFT minted on Mantle. TX: ${item.txHash.slice(0, 18)}...`,
+              message: `[${agentName} - Mint-Master] NFT minted on ${getChain(item.chainId)?.shortName ?? 'chain'}. TX: ${item.txHash.slice(0, 18)}...`,
               timestamp: ts + 2000,
               type: 'success',
             })
@@ -583,7 +585,7 @@ function App() {
         const enriched = await Promise.all(
           cloudAgents.map(async (a) => {
             try {
-              const balStr = await blockchain.getBalance(a.walletAddress)
+              const balStr = await blockchain.getBalance(a.walletAddress, a.chainId)
               const liveBalance = parseFloat(balStr)
               return { ...a, agentGasBalance: liveBalance, mantleBalance: liveBalance }
             } catch {
@@ -768,6 +770,8 @@ function App() {
 
     const eventTitle = deriveTitleFromUrl(eventUrl.trim())
     const platform = derivePlatformFromUrl(eventUrl.trim())
+    const agentChainId = agent.chainId ?? DEFAULT_CHAIN_ID
+    const agentChain = getChain(agentChainId)
 
     setIsProcessingEvent(true)
     setActiveAgentId(agent.id)
@@ -837,6 +841,7 @@ function App() {
         eventTitle,
         platform,
         niche: agent.niche,
+        chainId: agentChainId,
         modeB: true,  // Enable autonomous signing by default for demo impact
       })
 
@@ -854,7 +859,7 @@ function App() {
       } else {
         addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Wisdom generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
         addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Transaction signed by ${signingMode}. TX: ${result.txHash.slice(0, 18)}...`, 'info')
-        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on Mantle! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
+        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on ${agentChain?.shortName ?? 'chain'}! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
         addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units`, 'info')
       }
 
@@ -869,6 +874,7 @@ function App() {
       const newEvent: Event = {
         id: `event-${Date.now()}`,
         agentId: agent.id,
+        chainId: agentChainId,
         url: eventUrl.trim(),
         title: resolvedTitle,
         platform,
@@ -881,6 +887,7 @@ function App() {
       const newNFT: NFT = {
         id: `nft-${Date.now()}`,
         agentId: agent.id,
+        chainId: agentChainId,
         eventId: newEvent.id,
         eventTitle: resolvedTitle,
         summary: result.wisdomSummary,
@@ -900,7 +907,7 @@ function App() {
         : (result.newLevel ?? (result.levelUp ? agent.level + 1 : agent.level))
       let refreshedBalance: number | undefined
       try {
-        const nextBalance = await blockchain.getBalance(agent.walletAddress)
+        const nextBalance = await blockchain.getBalance(agent.walletAddress, agentChainId)
         refreshedBalance = parseFloat(nextBalance)
       } catch {
         refreshedBalance = undefined
@@ -927,10 +934,10 @@ function App() {
       setActiveAgentId(null)
       clearTasks()
 
-      toast.success(`NFT #${result.tokenId} minted on Mantle Sepolia!`, {
+      toast.success(`NFT #${result.tokenId} minted on ${agentChain?.name ?? 'the selected network'}!`, {
         description: `Token ID: ${result.tokenId} | Gas: ${Number(result.gasUsed || 0).toLocaleString()} units`,
         action: {
-          label: 'View Agent Wisdom on MantleScan',
+          label: `View Agent Wisdom on ${agentChain?.shortName ?? 'Explorer'}`,
           onClick: () => window.open(result.explorerUrl, '_blank'),
         },
         duration: 10000,
@@ -978,7 +985,8 @@ function App() {
       throw new Error('Agent not found for gas top-up')
     }
 
-    const tx = await mantleService.topUpAgentGas(agent.walletAddress, amount)
+    const agentChainId = agent.chainId ?? DEFAULT_CHAIN_ID
+    const tx = await mantleService.topUpAgentGas(agent.walletAddress, amount, agentChainId)
     if (!tx.success) {
       throw new Error(tx.error || 'Gas top-up transaction failed')
     }
@@ -989,7 +997,7 @@ function App() {
 
     let refreshedAgentBalance = agent.agentGasBalance
     try {
-      const bal = await blockchain.getBalance(agent.walletAddress)
+      const bal = await blockchain.getBalance(agent.walletAddress, agentChainId)
       refreshedAgentBalance = parseFloat(bal)
     } catch {
       refreshedAgentBalance = (agent.agentGasBalance ?? 0) + amount
@@ -2360,6 +2368,7 @@ function App() {
         onOpenChange={setSpawnDialogOpen}
         onAgentCreated={handleAgentCreated}
         userWallet={walletAddress}
+        chainId={selectedChainId}
         originalAgentCount={displayedAgents.filter(a => a.ownershipStatus === 'original-creator').length}
         bredAgentCount={displayedAgents.filter(a => a.ownershipStatus === 'bred').length}
       />

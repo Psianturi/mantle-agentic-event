@@ -292,7 +292,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               {/* Real-time gas status from backend monitoring */}
               <div className="mb-3 flex items-center justify-between px-2 py-1.5 rounded-md bg-background/30 border border-border/30">
                 <span className="text-xs text-muted-foreground">Live Status:</span>
-                <GasStatusBadge agentWallet={agent.walletAddress} showLabel={true} />
+                <GasStatusBadge agentWallet={agent.walletAddress} chainId={agent.chainId} showLabel={true} />
               </div>
               
               {(agent.agentGasBalance ?? 0) > 0 && (agent.agentGasBalance ?? 0) < 0.08 && (
