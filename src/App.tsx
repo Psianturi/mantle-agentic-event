@@ -43,7 +43,7 @@ import { BreedingCooldownBoost } from '@/components/BreedingCooldownBoost'
 import { ProactiveScoutingPanel } from '@/components/ProactiveScoutingPanel'
 import { ProposalModal } from '@/components/ProposalModal'
 import { ScoutingBriefCard } from '@/components/ScoutingBriefCard'
-import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, LockKey, Binoculars } from '@phosphor-icons/react'
+import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, LockKey, Binoculars, House } from '@phosphor-icons/react'
 import maefLogo from '@/assets/maef-logo.png'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -57,6 +57,7 @@ import { mantleService } from '@/lib/blockchain/mantleService'
 import { ChainSelector } from '@/components/ChainSelector'
 import { NetworkMismatchAlert } from '@/components/NetworkMismatchAlert'
 import { DEFAULT_CHAIN_ID, getChain } from '@/lib/blockchain/chains'
+import { useNavigate } from 'react-router-dom'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -140,6 +141,7 @@ function buildScoutedOpportunities(agent: Agent, eventPool: Event[]): ScoutedEve
 }
 
 function App() {
+  const navigate = useNavigate()
   type PendingAttendContext = {
     agentId: string
     eventUrl: string
@@ -1507,8 +1509,15 @@ function App() {
         <header className="border-b border-primary/20 backdrop-blur-xl bg-background/70 sticky top-0 z-40 shadow-lg shadow-primary/5">
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3">
             <div className="flex items-center gap-3">
-              {/* Logo — left */}
+              {/* Left: Home icon + Logo */}
               <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => navigate('/')}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
+                  title="Back to home"
+                >
+                  <House size={16} weight="duotone" />
+                </button>
                 <img
                   src={maefLogo}
                   alt="ASAJU AI"
