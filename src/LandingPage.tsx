@@ -7,7 +7,7 @@ import { FeaturedWisdomFeed, type WisdomFeedItem } from '@/components/FeaturedWi
 import { cloudRunService } from '@/services/cloudRunService'
 import {
   Robot, Lightning, Brain, Dna, ShieldCheck, Globe,
-  ArrowRight, Binoculars, Signature, Cpu, ArrowSquareOut,
+  ArrowRight, Binoculars, Signature,
 } from '@phosphor-icons/react'
 import maefLogo from '@/assets/maef-logo.png'
 
@@ -20,11 +20,11 @@ interface PlatformMetrics {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 const PIPELINE_STEPS = [
-  { emoji: '🔍', label: 'Auto Scout',  sub: 'YouTube · 6h cycle',      desc: 'Secretary sub-agent searches YouTube for events matching your agent\'s niche. Gemini scores relevance 0–100.' },
-  { emoji: '📋', label: 'Luma RSVP',   sub: 'Playwright stealth',       desc: 'Agent auto-registers for Luma events using an encrypted session — no manual login required after setup.' },
-  { emoji: '🧠', label: 'AI Analyze',  sub: 'Gemini 2.5 Flash',         desc: 'Scribe sub-agent extracts transcripts and generates a niche-specific Wisdom Summary via Gemini.' },
-  { emoji: '✍️', label: 'KMS Self-Sign', sub: 'Mode B · agent wallet',  desc: 'Agent signs the mint transaction with its own KMS-encrypted private key. Your wallet stays untouched.' },
-  { emoji: '🏆', label: 'NFT Minted',  sub: 'On-chain · multi-network', desc: 'Proof-of-Attendance NFT minted on-chain. XP awarded. Agent evolves toward Level 5 autonomy.' },
+  { emoji: '🎯', label: 'Pick a focus', sub: 'Start with what matters', desc: 'Choose the topics and communities you want your agent to follow.' },
+  { emoji: '🔍', label: 'It keeps watch', sub: 'A second set of eyes', desc: 'Your agent looks for events that fit the focus you gave it.' },
+  { emoji: '📝', label: 'It captures the useful parts', sub: 'Less noise, more signal', desc: 'Important ideas are turned into a clear, focused summary for you.' },
+  { emoji: '💡', label: 'It builds context', sub: 'Every event adds up', desc: 'Over time, your agent connects what it learns and finds patterns.' },
+  { emoji: '🏆', label: 'You keep the proof', sub: 'A record you can revisit', desc: 'Completed learning can be saved as a Proof-of-Attendance NFT on Mantle.' },
 ]
 
 const FEATURES = [
@@ -32,50 +32,65 @@ const FEATURES = [
     icon: Binoculars,
     color: 'text-primary',
     bg: 'bg-primary/10 border-primary/20',
-    title: 'Auto Scout',
-    desc: 'Cloud Scheduler fires every 6h. Agent discovers, scores, and attends events autonomously — no human trigger needed.',
-  },
-  {
-    icon: Signature,
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10 border-emerald-500/20',
-    title: 'Sovereign KMS Wallet',
-    desc: 'Each agent holds its own GCP KMS-encrypted wallet. It self-signs transactions without exposing your private key.',
+    title: 'Follow what matters',
+    desc: 'Give your agent a focus and it helps you keep up with the events and conversations around it.',
   },
   {
     icon: Brain,
     color: 'text-amber-400',
     bg: 'bg-amber-500/10 border-amber-500/20',
-    title: 'Wisdom Reports',
-    desc: 'After 5+ events, Gemini generates a cross-event intelligence report specific to the agent\'s niche.',
+    title: 'Turn events into insight',
+    desc: 'Instead of replaying hours of content, come back to the ideas that are useful for your goals.',
+  },
+  {
+    icon: Signature,
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/10 border-emerald-500/20',
+    title: 'Keep a lasting record',
+    desc: 'Your agent can save completed learning as an on-chain proof that stays connected to its journey.',
   },
   {
     icon: Dna,
     color: 'text-secondary',
     bg: 'bg-secondary/10 border-secondary/20',
-    title: 'Neural Fusion',
-    desc: 'Two Level 3+ agents can breed. Offspring inherits wisdom, genetic traits, and Heritage Score from both parents.',
+    title: 'Grow over time',
+    desc: 'As your agent learns, it unlocks deeper reports and new ways to build on its experience.',
   },
   {
     icon: ShieldCheck,
     color: 'text-violet-400',
     bg: 'bg-violet-500/10 border-violet-500/20',
-    title: 'HITL Governance',
-    desc: 'Level 3+ agents generate strategic proposals. You review and approve on-chain via MetaMask. +5 Heritage Score per approval.',
+    title: 'You stay in control',
+    desc: 'You decide the focus, make the initial setup, and review important decisions as your agent grows.',
   },
   {
     icon: Globe,
     color: 'text-cyan-400',
     bg: 'bg-cyan-500/10 border-cyan-500/20',
-    title: 'Multi-Chain',
-    desc: 'Deploy agents on Mantle Sepolia or Ethereum Sepolia today. Polygon Amoy coming next. Same contract, any EVM chain.',
+    title: 'Made for Web3',
+    desc: 'Your agent brings event learning and on-chain ownership together in one evolving profile.',
   },
 ]
 
-const TECH_STACK = [
-  'Gemini 2.5 Flash', 'Google Cloud KMS', 'Playwright Stealth',
-  'Cloud Run', 'Firestore', 'Cloud Scheduler',
-  'Mantle Network', 'Ethereum', 'IPFS',
+const TRUST_POINTS = [
+  {
+    icon: Lightning,
+    color: 'text-amber-400',
+    label: 'Keeps moving after setup',
+    value: 'Your agent can continue its routine while you get on with your day.',
+  },
+  {
+    icon: ShieldCheck,
+    color: 'text-emerald-400',
+    label: 'Starts with your permission',
+    value: 'You connect and fund your agent once before it begins working for you.',
+  },
+  {
+    icon: Robot,
+    color: 'text-primary',
+    label: 'Has a journey of its own',
+    value: 'Every completed event adds to the agent\'s experience and growing body of knowledge.',
+  },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -138,21 +153,20 @@ export function LandingPage() {
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-mono font-semibold mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              Live on Mantle Sepolia · Ethereum Sepolia
+              Your always-on Web3 event companion
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-tight">
               <span className="bg-gradient-to-r from-primary via-accent to-secondary bg-clip-text text-transparent">
-                Your AI Agent Works
+                Keep up with Web3,
               </span>
               <br />
-              <span className="text-foreground">While You Sleep.</span>
+              <span className="text-foreground">even when life gets busy.</span>
             </h1>
 
             <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-8">
-              Spawn autonomous agents with sovereign on-chain wallets. They discover Web3 events,
-              attend them, synthesize intelligence with Gemini AI, and self-sign
-              Proof-of-Attendance NFTs — fully autonomous after setup.
+              ASAJU AI gives you an agent that follows your interests, turns events into useful notes,
+              and keeps a record of what it learns. Set it up once, then let it keep working.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-12">
@@ -162,16 +176,11 @@ export function LandingPage() {
                 className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-bold px-8 shadow-xl shadow-secondary/30 text-base"
               >
                 <Robot className="mr-2" weight="duotone" size={20} />
-                Launch Your Agent
+                Create Your Agent
               </Button>
-              <a
-                href="https://explorer.sepolia.mantle.xyz/address/0x66fD8b5411856D42c08D9356e879a6e7dF0c9419"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors font-mono"
-              >
-                View Contract
-                <ArrowSquareOut size={13} />
+              <a href="#how-it-works" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors">
+                See how it works
+                <ArrowRight size={13} />
               </a>
             </div>
 
@@ -184,9 +193,9 @@ export function LandingPage() {
                 className="inline-flex items-center gap-6 sm:gap-10 px-6 py-3 rounded-2xl bg-card/60 border border-border/40 backdrop-blur-sm"
               >
                 {[
-                  { label: 'Active Agents', value: metrics.total_agents },
-                  { label: 'Wisdom NFTs', value: metrics.total_wisdom_nfts },
-                  { label: 'Avg Level', value: `Lv ${metrics.average_agent_level.toFixed(1)}` },
+                  { label: 'Agents exploring', value: metrics.total_agents },
+                  { label: 'Insights saved', value: metrics.total_wisdom_nfts },
+                  { label: 'Average growth', value: `Lv ${metrics.average_agent_level.toFixed(1)}` },
                 ].map(({ label, value }) => (
                   <div key={label} className="text-center">
                     <p className="text-xl sm:text-2xl font-black text-foreground">{value}</p>
@@ -199,10 +208,10 @@ export function LandingPage() {
         </section>
 
         {/* ── Section 2: How It Works ───────────────────────────────────────── */}
-        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16">
+        <section id="how-it-works" className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16 scroll-mt-20">
           <div className="text-center mb-10">
-            <h2 className="text-2xl sm:text-3xl font-black mb-2">How It Works</h2>
-            <p className="text-sm text-muted-foreground">From discovery to on-chain NFT — fully autonomous</p>
+            <h2 className="text-2xl sm:text-3xl font-black mb-2">Web3 moves quickly. You do not have to chase every update.</h2>
+            <p className="text-sm text-muted-foreground max-w-2xl mx-auto">Your agent is a second set of eyes: it follows a focus, turns what it finds into useful context, and keeps the results easy to revisit.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
@@ -236,8 +245,8 @@ export function LandingPage() {
         {/* ── Section 3: Features ───────────────────────────────────────────── */}
         <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16">
           <div className="text-center mb-10">
-            <h2 className="text-2xl sm:text-3xl font-black mb-2">Built for True Autonomy</h2>
-            <p className="text-sm text-muted-foreground">Every feature designed so your agent operates without you</p>
+            <h2 className="text-2xl sm:text-3xl font-black mb-2">What your agent gives back</h2>
+            <p className="text-sm text-muted-foreground">A calmer way to follow the conversations you care about.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -263,50 +272,33 @@ export function LandingPage() {
         {/* ── Section 4: Live Proof ─────────────────────────────────────────── */}
         <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16">
           <div className="text-center mb-6">
-            <h2 className="text-2xl sm:text-3xl font-black mb-2">Real Output, Right Now</h2>
+            <h2 className="text-2xl sm:text-3xl font-black mb-2">See what agents are learning</h2>
             <p className="text-sm text-muted-foreground max-w-lg mx-auto">
-              These wisdom summaries were generated and minted on-chain by autonomous agents —
-              no human wrote them, no human signed the transactions.
+              These are real summaries agents have created from the events they followed and saved on-chain.
             </p>
           </div>
           <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20 w-fit mx-auto">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <p className="text-[11px] text-emerald-400/80 font-mono">Live autonomous output from production agents</p>
+            <p className="text-[11px] text-emerald-400/80 font-mono">Live updates from the ASAJU community</p>
           </div>
           <FeaturedWisdomFeed items={wisdom} loading={wisdomLoading} />
         </section>
 
-        {/* ── Section 5: Tech Stack ─────────────────────────────────────────── */}
+        {/* ── Section 5: Trust ──────────────────────────────────────────────── */}
         <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16">
           <div className="text-center mb-8">
-            <h2 className="text-2xl sm:text-3xl font-black mb-2">Production-Grade Stack</h2>
-            <p className="text-sm text-muted-foreground">Enterprise infrastructure running every agent, every cycle</p>
+            <h2 className="text-2xl sm:text-3xl font-black mb-2">Made to work for you, not overwhelm you</h2>
+            <p className="text-sm text-muted-foreground">You set the direction. Your agent handles the routine and keeps the learning in one place.</p>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {TECH_STACK.map(tag => (
-              <span
-                key={tag}
-                className="text-xs font-mono text-muted-foreground px-3 py-1.5 rounded-full bg-card/60 border border-border/40 hover:border-primary/40 hover:text-primary transition-colors"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-
-          {/* Architecture summary */}
           <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
-            {[
-              { icon: Cpu, label: 'Backend', value: 'FastAPI on Cloud Run', color: 'text-primary' },
-              { icon: ShieldCheck, label: 'Key Management', value: 'GCP KMS · AES-256', color: 'text-emerald-400' },
-              { icon: Lightning, label: 'AI Engine', value: 'Gemini 2.5 Flash', color: 'text-amber-400' },
-            ].map(({ icon: Icon, label, value, color }) => (
+            {TRUST_POINTS.map(({ icon: Icon, label, value, color }) => (
               <div key={label} className="flex items-center gap-3 p-4 rounded-xl bg-card/40 border border-border/40">
                 <div className={`w-9 h-9 rounded-lg bg-card flex items-center justify-center flex-shrink-0 border border-border/40`}>
                   <Icon size={18} className={color} weight="duotone" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-mono">{label}</p>
-                  <p className="text-sm font-semibold">{value}</p>
+                  <p className="text-sm font-semibold">{label}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{value}</p>
                 </div>
               </div>
             ))}
@@ -328,11 +320,10 @@ export function LandingPage() {
                 <Robot size={32} className="text-primary animate-float" weight="duotone" />
               </div>
               <h2 className="text-2xl sm:text-3xl font-black mb-3">
-                Ready to Deploy Your First Agent?
+                Start with one focus.
               </h2>
               <p className="text-sm text-muted-foreground max-w-md mx-auto mb-8 leading-relaxed">
-                Connect your wallet, spawn an agent, and watch it attend its first event —
-                all within minutes. Your agent handles everything after that.
+                Connect your wallet once, choose what matters to you, and let your agent begin building context from the events it follows.
               </p>
               <Button
                 onClick={() => navigate('/dashboard')}
@@ -340,7 +331,7 @@ export function LandingPage() {
                 className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-bold px-10 shadow-2xl shadow-secondary/30 text-base"
               >
                 <Robot className="mr-2" weight="duotone" size={20} />
-                Launch Your Agent
+                Create Your Agent
                 <ArrowRight className="ml-2" size={16} weight="bold" />
               </Button>
             </div>
