@@ -1464,20 +1464,24 @@ function App() {
               {/* Hero section */}
               <div className="text-center py-8 px-4 mb-6">
                 <h1 className="text-2xl sm:text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                  Turn Information Overload into On-Chain Wisdom.
+                  Autonomous AI Agents That Learn, Attend Events, and Evolve On-Chain.
                 </h1>
                 <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
-                  MAEF deploys AI agents with sovereign KMS-encrypted wallets that autonomously discover Web3 events, attend via Playwright stealth, synthesize intelligence with Gemini + Elfa AI market signals, and self-sign Proof-of-Attendance NFTs on Mantle — fully autonomous, no human wallet required.
+               MAEF enables AI agents to autonomously discover Web3 events, attend them, generate intelligent summaries, mint Proof-of-Attendance NFTs on-chain, and continuously evolve through accumulated knowledge—all secured by sovereign wallets and powered by Google Gemini.
                 </p>
+
+               <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium">
+            🚀 AI Agents • On-Chain NFTs • Autonomous Learning • Mantle Network
+             </div>
 
                 {/* 5-step autonomous pipeline */}
                 <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap mb-5">
                   {([
-                    { emoji: '🔍', label: 'Auto Scout', sub: 'YouTube · 6h cycle' },
+                    { emoji: '🔍', label: 'Discover', sub: 'YouTube · 6h cycle' },
                     { emoji: '📋', label: 'Luma RSVP', sub: 'Playwright stealth' },
-                    { emoji: '🧠', label: 'AI Score', sub: 'Gemini + ELFA' },
+                    { emoji: '🧠', label: 'Analyze', sub: 'Gemini + ELFA' },
                     { emoji: '✍️', label: 'KMS Self-Sign', sub: 'Mode B · no human' },
-                    { emoji: '🏆', label: 'NFT Minted', sub: 'Mantle Sepolia' },
+                    { emoji: '🏆', label: 'Earn NFT', sub: 'Mantle Sepolia' },
                   ] as const).map((step, i, arr) => (
                     <div key={step.label} className="flex items-center gap-1 sm:gap-2">
                       <div className="flex flex-col items-center gap-0.5 px-2.5 sm:px-3 py-2 rounded-xl bg-card/60 border border-border/40 min-w-[70px] sm:min-w-[88px] hover:border-primary/40 transition-colors">
@@ -1494,7 +1498,7 @@ function App() {
 
                 {/* Tech stack badges */}
                 <div className="flex flex-wrap items-center justify-center gap-1.5">
-                  {(['Gemini 2.5 Flash', 'Elfa AI Signals', 'Google Cloud KMS', 'Playwright Stealth', 'Mantle Sepolia', 'Cloud Scheduler'] as const).map(tag => (
+                  {(['Google Gemini', 'ELFA AI', 'Mantle Network', 'Secure Wallets', 'Autonomous Agents', 'On-Chain NFTs'] as const).map(tag => (
                     <span key={tag} className="text-[9px] font-mono text-muted-foreground/50 px-2 py-0.5 rounded-full bg-card/40 border border-border/30">
                       {tag}
                     </span>
@@ -1541,6 +1545,9 @@ function App() {
                 return (
                   <Card className="glass-card-hover p-6 border-2 border-primary/20">
                     <h2 className="text-xl font-bold mb-4 flex items-center gap-3">
+                    <p className="text-sm text-muted-foreground mb-5 max-w-2xl">
+                    Choose one of your AI agents, paste a YouTube or Luma event URL, and let the agent autonomously attend, analyze the content, and mint an on-chain Proof-of-Attendance NFT.
+                    </p>
                       <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
                         <Globe className="text-primary" weight="duotone" size={22} />
                       </div>
@@ -1558,18 +1565,45 @@ function App() {
                       )}
                     </h2>
                     <div className="flex gap-3 mb-3">
+                   <div className="grid grid-cols-3 gap-3 mb-5">
+                   <div className="rounded-lg border border-primary/20 p-3 text-center">
+                   <div className="text-lg">🤖</div>
+                   <p className="font-semibold text-sm mt-2">Select Agent</p>
+                 </div>
+
+               <div className="rounded-lg border border-primary/20 p-3 text-center">
+                 <div className="text-lg">🔗</div>
+                 <p className="font-semibold text-sm mt-2">Paste Event URL</p>
+               </div>
+
+              <div className="rounded-lg border border-primary/20 p-3 text-center">
+             <div className="text-lg">🏆</div>
+              <p className="font-semibold text-sm mt-2">Earn NFT</p>
+            </div>
+           </div>
                       <Input
-                        placeholder="Enter YouTube or Luma event URL..."
+                        placeholder="Paste a YouTube or Luma event URL to start autonomous attendance..."
                         value={eventUrl}
                         onChange={(e) => setEventUrl(e.target.value)}
                         className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
                       />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Paste a YouTube or Luma event URL. Your AI agent will automatically attend, analyze the event, mint an NFT, and gain experience.
+                     </p>
+                     <p className="text-xs text-muted-foreground mt-2">
+                      Examples:
+                       YouTube Live • Luma Event • Conference • Webinar
+                      </p>             
                       <Button
                         onClick={!walletConnected ? () => handleWalletConnect('') : handleAttendEvent}
                         disabled={walletConnected && (!eventUrl.trim() || isProcessingEvent)}
                         className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
                       >
-                        {!walletConnected ? 'Connect & Attend' : isProcessingEvent ? 'Processing...' : 'Attend Event'}
+                    {!walletConnected
+                        ? 'Connect & Attend'
+                        : isProcessingEvent
+                        ? 'Processing...'
+                        : 'Launch Autonomous Attendance'}
                       </Button>
                     </div>
                     {walletConnected && activeAgent && (
@@ -1594,33 +1628,44 @@ function App() {
               })()}
 
               {lastSocialPost && (
-                <Card className="glass-card-hover p-4 border border-green-500/30 bg-green-500/5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-green-500/20 border border-green-500/40 flex items-center justify-center">
-                        <span className="text-sm">💬</span>
-                      </div>
-                      <span className="text-sm font-semibold text-green-400">Social-Lite: Post Draft Ready</span>
-                    </div>
-                    <button onClick={() => setLastSocialPost(null)} className="text-muted-foreground/50 hover:text-muted-foreground text-xs">✕</button>
-                  </div>
-                  <pre className="text-xs text-muted-foreground font-sans whitespace-pre-wrap leading-relaxed bg-background/50 rounded-md p-3 border border-border/30 mb-3">
-                    {lastSocialPost.text}
-                  </pre>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="text-xs border-green-500/40 text-green-400 hover:bg-green-500/10"
-                      onClick={() => { navigator.clipboard.writeText(lastSocialPost.text); toast.success('Copied for Twitter/X!') }}>
-                      🐦 Copy for X/Twitter
-                    </Button>
-                    <Button size="sm" variant="outline" className="text-xs border-primary/40 text-primary hover:bg-primary/10"
-                      onClick={() => { navigator.clipboard.writeText(lastSocialPost.text.replace(/\n\n/g, ' ')); toast.success('Copied for LinkedIn!') }}>
-                      💼 Copy for LinkedIn
-                    </Button>
-                  </div>
-                </Card>
-              )}
+  <>
+    <Card className="glass-card-hover p-4 border border-green-500/30 bg-green-500/5">
+      ...
+    </Card>
 
-              {displayedAgents.length > 0 && (
+    <Card className="mt-4 border border-primary/20 bg-primary/5">
+      <div className="p-4">
+        <h3 className="font-semibold mb-3">Expected Result</h3>
+
+        <div className="space-y-2 text-sm">
+          <div>✅ AI attends the event</div>
+          <div>✅ Generates an intelligent summary</div>
+          <div>✅ Mints an on-chain NFT</div>
+          <div>✅ Updates agent experience</div>
+        </div>
+      </div>
+    </Card>
+  </>
+)}
+
+{isProcessingEvent && (
+  <Card className="mt-4 border border-primary/20">
+    <div className="p-4">
+      <h3 className="font-semibold mb-3">
+        Autonomous Execution
+      </h3>
+
+      <div className="space-y-2 text-sm">
+        <div>🔍 Discovering Event</div>
+        <div>📋 Registering</div>
+        <div>🧠 Analyzing Content</div>
+        <div>✍️ Signing Transaction</div>
+        <div>🏆 NFT Minted</div>
+      </div>
+    </div>
+  </Card>
+  )}
+       {displayedAgents.length > 0 && (
                 <SubAgentDelegation
                   agents={displayedAgents}
                   isActive={isProcessingEvent}
