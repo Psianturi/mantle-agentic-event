@@ -1607,20 +1607,24 @@ function App() {
               {/* Hero section */}
               <div className="text-center py-8 px-4 mb-6">
                 <h1 className="text-2xl sm:text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                  Turn Information Overload into On-Chain Wisdom.
+                  Autonomous AI Agents That Turn Information Overload Into On-Chain Wisdom.
                 </h1>
-                <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
-                  ASAJU AI deploys autonomous agents with sovereign KMS-encrypted wallets that discover Web3 events, attend via Playwright stealth, synthesize intelligence with Gemini AI, and self-sign Proof-of-Attendance NFTs on-chain — fully autonomous, no human wallet required.
+                <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-4">
+                  ASAJU AI enables agents to autonomously discover Web3 events, attend them, generate intelligent summaries, mint Proof-of-Attendance NFTs on-chain, and continuously evolve through accumulated knowledge — all secured by sovereign wallets and powered by Google Gemini.
                 </p>
+
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium">
+                  🚀 AI Agents • On-Chain NFTs • Autonomous Learning • Mantle Network
+                </div>
 
                 {/* 5-step autonomous pipeline */}
                 <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap mb-5">
                   {([
-                    { emoji: '🔍', label: 'Auto Scout', sub: 'YouTube · 6h cycle' },
+                    { emoji: '🔍', label: 'Discover', sub: 'YouTube · 6h cycle' },
                     { emoji: '📋', label: 'Luma RSVP', sub: 'Playwright stealth' },
-                    { emoji: '🧠', label: 'AI Score', sub: 'Gemini + ELFA' },
+                    { emoji: '🧠', label: 'Analyze', sub: 'Gemini + ELFA' },
                     { emoji: '✍️', label: 'KMS Self-Sign', sub: 'Mode B · no human' },
-                    { emoji: '🏆', label: 'NFT Minted', sub: 'Mantle Sepolia' },
+                    { emoji: '🏆', label: 'Earn NFT', sub: 'Mantle Sepolia' },
                   ] as const).map((step, i, arr) => (
                     <div key={step.label} className="flex items-center gap-1 sm:gap-2">
                       <div className="flex flex-col items-center gap-0.5 px-2.5 sm:px-3 py-2 rounded-xl bg-card/60 border border-border/40 min-w-[70px] sm:min-w-[88px] hover:border-primary/40 transition-colors">
@@ -1637,7 +1641,7 @@ function App() {
 
                 {/* Tech stack badges */}
                 <div className="flex flex-wrap items-center justify-center gap-1.5">
-                  {(['Gemini 2.5 Flash', 'Elfa AI Signals', 'Google Cloud KMS', 'Playwright Stealth', 'Mantle Sepolia', 'Cloud Scheduler'] as const).map(tag => (
+                  {(['Google Gemini', 'ELFA AI', 'Mantle Network', 'Secure Wallets', 'Autonomous Agents', 'On-Chain NFTs'] as const).map(tag => (
                     <span key={tag} className="text-[9px] font-mono text-muted-foreground/50 px-2 py-0.5 rounded-full bg-card/40 border border-border/30">
                       {tag}
                     </span>
@@ -1700,9 +1704,26 @@ function App() {
                         </select>
                       )}
                     </h2>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Choose one of your AI agents, paste a YouTube or Luma event URL, and let the agent autonomously attend, analyze the content, and mint an on-chain Proof-of-Attendance NFT.
+                    </p>
+                    <div className="grid grid-cols-3 gap-3 mb-5">
+                      <div className="rounded-lg border border-primary/20 p-3 text-center">
+                        <div className="text-lg">🤖</div>
+                        <p className="font-semibold text-sm mt-2">Select Agent</p>
+                      </div>
+                      <div className="rounded-lg border border-primary/20 p-3 text-center">
+                        <div className="text-lg">🔗</div>
+                        <p className="font-semibold text-sm mt-2">Paste Event URL</p>
+                      </div>
+                      <div className="rounded-lg border border-primary/20 p-3 text-center">
+                        <div className="text-lg">🏆</div>
+                        <p className="font-semibold text-sm mt-2">Earn NFT</p>
+                      </div>
+                    </div>
                     <div className="flex gap-3 mb-3">
                       <Input
-                        placeholder="Enter YouTube or Luma event URL..."
+                        placeholder="Paste a YouTube or Luma event URL to start autonomous attendance..."
                         value={eventUrl}
                         onChange={(e) => setEventUrl(e.target.value)}
                         className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
@@ -1712,9 +1733,15 @@ function App() {
                         disabled={walletConnected && (!eventUrl.trim() || isProcessingEvent)}
                         className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
                       >
-                        {!walletConnected ? 'Connect & Attend' : isProcessingEvent ? 'Processing...' : 'Attend Event'}
+                        {!walletConnected ? 'Connect & Attend' : isProcessingEvent ? 'Processing...' : 'Launch Autonomous Attendance'}
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Your AI agent will automatically attend, analyze the event, mint an NFT, and gain experience.
+                    </p>
+                    <p className="text-xs text-muted-foreground/60">
+                      Examples: YouTube Live • Luma Event • Conference • Webinar
+                    </p>
                     {walletConnected && activeAgent && (
                       <div className="flex items-center gap-3 pt-2 border-t border-primary/10">
                         <span className="text-xs text-muted-foreground">Auto Scout</span>
