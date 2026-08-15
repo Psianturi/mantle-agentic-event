@@ -244,8 +244,10 @@ export class MantleBlockchainService {
     }
 
     try {
+      const chain = getChain(chainId)
+      const spawnFee = chain?.spawnFee ?? '1'
       const tx = await this.contract.spawnAgent(agentWallet, {
-        value: ethers.parseEther('1'),
+        value: ethers.parseEther(spawnFee),
       })
 
       const receipt: TransactionReceipt = await tx.wait()

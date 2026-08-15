@@ -11,7 +11,8 @@ export interface ChainConfig {
   rpcUrl: string
   explorerUrl: string
   contractAddress: string
-  spawnFee: string        // in native token units (for display)
+  spawnFee: string        // in native token units — sent as tx value AND must match the
+                          // deployed contract's spawnFee() (see setFees() in MAEFNFTV4.sol)
   color: string           // brand color for UI badges
   testnet: boolean
 }
