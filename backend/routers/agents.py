@@ -406,6 +406,7 @@ async def _spawn_bred_agent_on_chain(
     offspring_id: str,
     offspring_wallet: str,
     onchain_offspring_key: str | None = None,
+    chain_id: int = 5003,
 ) -> None:
     """
     Fire-and-forget: call spawnBredAgent() on V4 signed by MINTER_SERVICE.
@@ -426,6 +427,7 @@ async def _spawn_bred_agent_on_chain(
         result = await web3_service.send_spawn_bred_agent_tx(
             offspring_wallet=offspring_wallet,
             offspring_id=onchain_offspring_key,
+            chain_id=chain_id,
         )
         if result.get("status") == "success":
             await db.collection(AGENTS_COLLECTION).document(offspring_id).update(
@@ -547,6 +549,17 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
     if p2.get("user_wallet") != req.user_wallet:
         raise HTTPException(status_code=403, detail=f"Parent '{p2_id}' does not belong to your wallet")
 
+    # Same-chain parents required (guardrail #10) — breedAgents()/breedRecords/agentStats
+    # all live on one contract instance per chain, so cross-chain breeding has no
+    # coherent on-chain representation.
+    p1_chain_id = p1.get("chain_id", 5003)
+    p2_chain_id = p2.get("chain_id", 5003)
+    if p1_chain_id != p2_chain_id:
+        raise HTTPException(
+            status_code=422,
+            detail="Both parents must be on the same chain to breed",
+        )
+
     # Wisdom unlock: level >= 3 or total_events >= 5
     for p_id, p_data in [(p1_id, p1), (p2_id, p2)]:
         if p_data.get("level", 1) < 3 and p_data.get("total_events", 0) < 5:
@@ -583,9 +596,9 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
                 )
 
     # ── On-chain breed cost verification (guardrail #9) ──────────────────────
-    # When a breed_tx_hash is supplied, verify it on Mantle before creating offspring.
-    # This proves the user paid the breedCost fee via breedAgents() on the contract
-    # (2 MNT on V4 as of 10 Aug 2026 — read breedCost() live, it's owner-mutable).
+    # Verify breed_tx_hash on the parents' chain before creating the offspring —
+    # proves the user paid breedCost via breedAgents() on that chain's contract.
+    # breedCost is owner-mutable per chain; read live, don't hardcode a number here.
     # Optional for backwards compat — will become required once contract is upgraded.
     # on-chain generation/heritageScore — set by the verified event, fallback to None
     onchain_generation: int | None = None
@@ -597,6 +610,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
             breed_tx_data = await web3_service.verify_breed_tx(
                 tx_hash=req.breed_tx_hash,
                 expected_user_wallet=req.user_wallet,
+                chain_id=p1_chain_id,
             )
             onchain_generation = breed_tx_data.get("generation")
             onchain_heritage_score = breed_tx_data.get("heritage_score")
@@ -674,6 +688,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
         "niche": offspring_niche,
         "personality": personality,
         "user_wallet": req.user_wallet,
+        "chain_id": p1_chain_id,  # inherited from parents (enforced equal above)
         "level": inherited_level,
         "total_events": inherited_events,
         "private_key_enc": encrypt_private_key(offspring_private_key),
@@ -796,6 +811,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
             offspring_id=offspring_id,
             offspring_wallet=offspring_account.address,
             onchain_offspring_key=onchain_offspring_key,
+            chain_id=p1_chain_id,
         )
     )
 
@@ -910,6 +926,7 @@ async def retry_spawn_bred_agent(
             offspring_id=agent_id,
             offspring_wallet=offspring_wallet,
             onchain_offspring_key=offspring_key,
+            chain_id=data.get("chain_id", 5003),
         )
     )
 

@@ -28,6 +28,7 @@ def make_agent(
     niche: str = "Blockchain/DeFi",
     personality: str = "Analytical",
     generation: int = 1,
+    chain_id: int = 5003,
 ) -> dict:
     """Minimal valid agent Firestore doc — defaults satisfy every breed guardrail
     so a single override (e.g. level=1) isolates exactly one guardrail per test."""
@@ -45,6 +46,7 @@ def make_agent(
         "last_breeding_time": last_breeding_time,
         "breeding_cooldown_hours": breeding_cooldown_hours,
         "generation": generation,
+        "chain_id": chain_id,
         "created_at": 0.0,
         "funded": True,
     }

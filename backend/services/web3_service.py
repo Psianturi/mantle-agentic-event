@@ -44,6 +44,13 @@ MAEF_ABI: list[dict] = [
         "type": "function",
     },
     {
+        "inputs": [],
+        "name": "spawnFee",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
         "anonymous": False,
         "inputs": [
             {"indexed": True, "internalType": "uint256", "name": "tokenId", "type": "uint256"},
@@ -398,11 +405,13 @@ class Web3Service:
         self,
         offspring_wallet: str,
         offspring_id: str,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         """
         Register a bred offspring on V4 via spawnBredAgent() — signed by MINTER_SERVICE.
 
-        Pays 1 MNT from minter wallet, sets isAgentSpawned[offspringWallet]=true on V4.
+        Pays spawnFee (read live from the contract, not hardcoded — it's owner-mutable
+        and differs per chain) from minter wallet, sets isAgentSpawned[offspringWallet]=true.
         offspring_id must be the 64-char hex bytes32 parsed from the AgentsBred event
         (breed_tx_data["offspring_key"]) — this is what the contract stored in breedRecords.
         """
@@ -412,11 +421,14 @@ class Web3Service:
             self._sync_spawn_bred_agent,
             offspring_wallet,
             offspring_id,
+            chain_id,
         )
 
-    def _sync_spawn_bred_agent(self, offspring_wallet: str, offspring_id: str) -> dict[str, Any]:
-        w3 = self._init_w3()
-        contract = self._init_contract()
+    def _sync_spawn_bred_agent(
+        self, offspring_wallet: str, offspring_id: str, chain_id: int = 5003
+    ) -> dict[str, Any]:
+        w3 = self._init_w3(chain_id)
+        contract = self._init_contract(chain_id)
 
         private_key = get_minter_service_private_key()
         signer = Account.from_key(private_key)
@@ -427,7 +439,8 @@ class Web3Service:
         offspring_id_bytes = bytes.fromhex(offspring_id.replace("0x", ""))
 
         fn_call = contract.functions.spawnBredAgent(offspring_wallet_cs, offspring_id_bytes)
-        spawn_value = Web3.to_wei(1, "ether")
+        # Read live — spawnFee is owner-mutable and differs per chain (see setFees()).
+        spawn_value = contract.functions.spawnFee().call()
 
         nonce = w3.eth.get_transaction_count(signer.address, "pending")
         gas_price = w3.eth.gas_price
@@ -441,7 +454,7 @@ class Web3Service:
 
         raw_tx = fn_call.build_transaction(
             {
-                "chainId": 5003,
+                "chainId": chain_id,
                 "from": signer.address,
                 "nonce": nonce,
                 "gas": gas_limit,
@@ -636,6 +649,7 @@ class Web3Service:
         tx_hash: str,
         expected_user_wallet: str,
         max_age_seconds: int = 3600,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         """
         Verify an on-chain breedAgents() transaction.
@@ -649,6 +663,7 @@ class Web3Service:
             tx_hash,
             expected_user_wallet,
             max_age_seconds,
+            chain_id,
         )
 
     def _sync_verify_breed_tx(
@@ -656,9 +671,10 @@ class Web3Service:
         tx_hash: str,
         expected_user_wallet: str,
         max_age_seconds: int = 3600,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         import time as _time
-        w3 = self._init_w3()
+        w3 = self._init_w3(chain_id)
 
         # 1. Fetch receipt
         try:
@@ -672,8 +688,8 @@ class Web3Service:
         if receipt.get("status") != 1:
             raise ValueError("Transaction was reverted")
 
-        # 2. Verify destination is MAEF contract (breeding is Mantle V4 only)
-        contract = self._init_contract(5003)
+        # 2. Verify destination is the MAEF contract on the parents' chain
+        contract = self._init_contract(chain_id)
         contract_addr = contract.address
         tx_to = receipt.get("to") or ""
         if not tx_to or Web3.to_checksum_address(tx_to) != contract_addr:

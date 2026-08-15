@@ -18,6 +18,7 @@ memory/breeding_analysis.md for the canonical numbered list):
   7. Atomic batch write (parents + offspring persist together)
   8. Sort-order determinism (breed(A,B) == breed(B,A) for the same offspring_id)
   9. On-chain breed cost verification (invalid tx hash is rejected)
+  10. Same-chain parents (breeding requires parent1.chain_id == parent2.chain_id)
 """
 
 import time
@@ -113,6 +114,23 @@ async def test_idempotent_replay_from_another_wallet_is_rejected(client, fake_db
     replay = await client.post(BREED_URL, json=_breed_payload(attacker_wallet))
     assert replay.status_code == 403
     assert "does not belong to your wallet" in replay.json()["detail"]
+
+
+# ── Same-chain parents (guardrail #10) ──────────────────────────────────────
+
+
+async def test_cross_chain_parents_are_rejected(client, fake_db):
+    user_wallet = make_wallet()
+    p1_wallet, p2_wallet = make_wallet(), make_wallet()
+    p1 = make_agent("agent-alpha", p1_wallet, user_wallet=user_wallet, chain_id=5003)
+    p2 = make_agent("agent-beta", p2_wallet, user_wallet=user_wallet, chain_id=11155111)
+    fake_db.seed("agents", "agent-alpha", p1)
+    fake_db.seed("agents", "agent-beta", p2)
+
+    resp = await client.post(BREED_URL, json=_breed_payload(user_wallet))
+
+    assert resp.status_code == 422
+    assert "same chain" in resp.json()["detail"]
 
 
 # ── 4. Wisdom unlock gate ────────────────────────────────────────────────────
