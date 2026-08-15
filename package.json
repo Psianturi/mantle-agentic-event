@@ -9,7 +9,8 @@
         "build": "tsc -b --noCheck && vite build",
         "lint": "eslint .",
         "optimize": "vite optimize",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "test": "vitest run"
     },
     "dependencies": {
         "@github/spark": ">=0.43.1 <1",
@@ -89,7 +90,8 @@
         "tailwindcss": "^4.1.11",
         "typescript": "~5.7.2",
         "typescript-eslint": "^8.59.3",
-        "vite": "^7.3.2"
+        "vite": "^7.3.2",
+        "vitest": "^4.1.10"
     },
     "workspaces": {
         "packages": [
