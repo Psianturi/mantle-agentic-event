@@ -15,13 +15,14 @@ const EXPLORERS = {
   polygonAmoy:     "https://amoy.polygonscan.com",
 };
 
-// Fee registry per chain — the ONLY place spawn economics are calibrated.
-// Contract itself is chain-agnostic; these values are pushed via setFees()
-// right after deploy. Values are in the chain's native token units.
+// Fee registry per chain — the ONLY place spawn/breed economics are calibrated.
+// Contract itself is chain-agnostic; these values are pushed via setFees() +
+// setBreedCost() right after deploy. Values are in the chain's native token units.
 // provision must always be <= spawn (enforced on-chain too, see setFees()).
+// breed:spawn ratio kept at 2:1, matching Mantle's original economics.
 const FEES_PER_CHAIN = {
-  ethereumSepolia: { spawn: "0.02", provision: "0.01" },  // ETH — sized for typical Sepolia faucet drips
-  polygonAmoy:     { spawn: "1",    provision: "0.5"  },  // MATIC — placeholder, revisit before first use
+  ethereumSepolia: { spawn: "0.02", provision: "0.01", breed: "0.04" },  // ETH — sized for typical Sepolia faucet drips
+  polygonAmoy:     { spawn: "1",    provision: "0.5",  breed: "2"    },  // MATIC — placeholder, revisit before first use
 };
 
 // Backend minter service wallet — must get MINTER_ROLE on every new deployment
@@ -71,6 +72,14 @@ async function main() {
   await feesTx.wait();
   console.log("SUCCESS: fees set");
   console.log("Tx      :", `${explorer}/tx/${feesTx.hash}`);
+
+  // Calibrate breed economics too — same registry, so the next chain deploy
+  // can't repeat the "spawn fee calibrated, breed cost forgotten" mistake.
+  console.log(`\nCalling setBreedCost(${fees.breed})...`);
+  const breedTx = await maef.setBreedCost(ethers.parseEther(fees.breed));
+  await breedTx.wait();
+  console.log("SUCCESS: breed cost set");
+  console.log("Tx      :", `${explorer}/tx/${breedTx.hash}`);
 
   // Grant MINTER_ROLE to backend minter service
   console.log("\nGranting MINTER_ROLE to:", MINTER_SERVICE_WALLET);
