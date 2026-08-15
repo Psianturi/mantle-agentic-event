@@ -6,8 +6,8 @@ ASAJU AI gives people autonomous on-chain agents that turn digital events into A
 
 ## Status Snapshot 
 
-- **Active contracts:** Mantle Sepolia and Ethereum Sepolia contracts are deployed; the minter service wallet has the required role on both.
-- **Multi-chain frontend wiring:** chain selection is propagated through spawn, wallet funding, event attendance, gas monitoring/top-up, event history, balances, and explorer links. Manual Ethereum Sepolia end-to-end verification remains required before calling it production-verified.
+- **Active contracts:** Mantle Sepolia and Ethereum Sepolia contracts are deployed; the minter service wallet has the required role on both. Fees (`spawnFee`, `agentProvision`, `breedCost`) are owner-mutable per chain via `setFees()`/`setBreedCost()` — each chain is calibrated independently rather than sharing one hardcoded value.
+- **Multi-chain frontend wiring:** chain selection is propagated through spawn, wallet funding, event attendance, gas monitoring/top-up, event history, balances, and explorer links. **Ethereum Sepolia end-to-end verified** — spawn → on-chain `spawnAgent()` → Mode B self-signed mint, all confirmed on a live redeployed contract.
 - **Luma auth hardening:** OTP + password login and KMS-encrypted sessions are implemented. Auto-RSVP needs fresh production reproduction before it is called verified.
 - **Dual-State Luma hardening:** future events now rely on `start_at` extracted from `__NEXT_DATA__`, JSON-LD, or embedded page metadata before falling back to OpenGraph-only parsing.
 - **Upcoming Scouts sync:** frontend derives Luma scheduled/completed state from `lumaStartAt`, so future events stay visible in the NFT Vault's **Upcoming Scouts** tab.
@@ -34,7 +34,8 @@ ASAJU AI lets you spawn agents that build persistent knowledge from events. Each
 | Frontend | https://asaju.vercel.app |
 | Backend (Cloud Run) | https://mantle-agentic-event-21898396920.asia-southeast1.run.app |
 | **Mantle Sepolia V4** | [`0x66fD8b5411856D42c08D9356e879a6e7dF0c9419`](https://explorer.sepolia.mantle.xyz/address/0x66fD8b5411856D42c08D9356e879a6e7dF0c9419) |
-| **Ethereum Sepolia V4** | [`0x110edEa5DB874589ec4492d15660082634E173f0`](https://sepolia.etherscan.io/address/0x110edEa5DB874589ec4492d15660082634E173f0) |
+| **Ethereum Sepolia V4** | [`0x9FEF11E45cFD550b33F13A31E8d80BE61cda80f4`](https://sepolia.etherscan.io/address/0x9FEF11E45cFD550b33F13A31E8d80BE61cda80f4) — redeployed 16 Aug 2026, fee-configurable |
+| Ethereum Sepolia (orphaned) | `0x110edEa5DB874589ec4492d15660082634E173f0` — do not use, no agents were ever spawned on it |
 | Contract V3 (deprecated) | `0x460b794FD0afaA04bf3BFFfc6c29386c1Be8C334` — do not use |
 
 ---
@@ -48,7 +49,9 @@ ASAJU AI lets you spawn agents that build persistent knowledge from events. Each
 
 2. ATTEND    User submits event URL → Secretary sub-agent registers
              Scribe sub-agent extracts transcript/content
-             Gemini generates AI wisdom summary
+             Gemini generates AI wisdom summary + classifies the event's actual
+             content category → agent's skill_scores grow for that category
+             (independent of the agent's static niche — see Skill Scores below)
              Agent self-signs mintAttendanceNFT() → Proof-of-Attendance NFT minted
 
 3. AUTO      Cloud Scheduler fires every 6h → Secretary discovers YouTube events
@@ -63,10 +66,11 @@ ASAJU AI lets you spawn agents that build persistent knowledge from events. Each
    (HITL)    User reviews and approves on-chain via MetaMask
              +5 Heritage Score per approved proposal on V4
 
-6. BREED     User selects 2 level-3+ Mantle agents → pays 2.5 MNT → breedAgents() on V4
+6. BREED     User selects 2 level-3+ agents on the SAME chain → pays breedCost
+   (Mantle: 2 MNT · Ethereum Sepolia: 0.04 ETH) → breedAgents() on V4
              Offspring inherits genetic traits, niches, Wisdom Heritage Score
              Gemini generates unique Lineage Biography
-             spawnBredAgent() registers offspring → 0.5 MNT provisioned
+             spawnBredAgent() registers offspring → agent gas provision transferred
 ```
 
 ---
@@ -134,14 +138,17 @@ Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube rec
 2. **E2E verification on Cloud Run**
   - OTP and RSVP flows are implemented, but should be validated repeatedly as an end-to-end demo path under production latency.
 
-3. **Ethereum Sepolia manual E2E verification**
-  - Verify wallet connect, spawn, top-up, autonomous attendance, and history explorer URLs on Ethereum Sepolia before describing it as production-verified.
+3. **`App.tsx` frontend maintainability**
+  - Single ~2,500-line component holding most app state and handlers. No frontend tests. Refactor into hooks/views is planned before further UI-heavy features (skill profile display, public-analyst posting) land on top of it.
 
 4. **Metric definition reconciliation**
   - `total_wisdom_nfts` and `total_events_attended` use different backend sources and should not be compared until unified.
 
 5. **Demo-first resilience checks**
   - Validate spawn quota messaging and bred-agent behavior are clearly communicated in UI.
+
+6. **Skill score display**
+  - `skill_scores` (per-category, grown from actual attended-event content — see below) is live on the backend and in `SpawnResponse`, but has no frontend UI yet.
 
 
 
@@ -167,8 +174,8 @@ Each proposal is a unique `bytes32` hash committed on-chain, creating an immutab
 Two agents with Level 3+ can merge their intelligence to produce a second-generation offspring.
 
 **Flow:**
-1. User selects 2 parent agents → clicks **Neural Fusion**
-2. MetaMask prompt: `breedAgents(p1Wallet, p2Wallet, offspringId, generation, heritageScore)` — costs **2.5 MNT**
+1. User selects 2 parent agents on the same chain → clicks **Neural Fusion**
+2. MetaMask prompt: `breedAgents(p1Wallet, p2Wallet, offspringId, generation, heritageScore)` — costs `breedCost` for that chain (Mantle: 2 MNT, Ethereum Sepolia: 0.04 ETH)
 3. Backend verifies the `AgentsBred` event on-chain, extracts the exact `offspringKey` (bytes32)
 4. Offspring inherits:
    - Personality and niche (deterministically blended from parents)
@@ -176,7 +183,7 @@ Two agents with Level 3+ can merge their intelligence to produce a second-genera
    - Wisdom Heritage Score (0–100 rarity metric)
    - Inherited event docs from both parents
 5. Gemini generates a unique **Lineage Biography** narrative
-6. Backend calls `spawnBredAgent(offspringWallet, offspringKey)` → offspring gets 0.5 MNT + V4 registration
+6. Backend calls `spawnBredAgent(offspringWallet, offspringKey)` → offspring gets `agentProvision` in gas + V4 registration
 7. Offspring shows **Sovereign Mode Active** and can autonomously mint NFTs
 
 **Guardrails:** Same agent cannot breed with itself; each parent limited to 3 breeds; 24h cooldown; offspring ID is deterministic (idempotent re-submission).
@@ -196,6 +203,14 @@ Cloud Scheduler (every 6h) triggers automatic event discovery and attendance:
    - Scout log written to Firestore — visible in agent's **Decision Log**
 
 Users can enable/disable Auto Scout per agent and configure the check interval.
+
+---
+
+### Skill Scores
+
+Each agent has a `niche` chosen at spawn time (fixed) — but its **skill** is separate and grows dynamically. On every successful attend+mint, Gemini classifies the event's actual content category from its wisdom summary (not the agent's preset niche) into one of the spawn-dialog niche options, plus `"Other"` for anything that doesn't clearly fit. That category's score in `skill_scores` increments by 1.
+
+This means an agent's demonstrated expertise reflects what it actually attended — including events outside its home niche via manual "Attend Event" (which, unlike Auto Scout, isn't niche-restricted) — rather than a static label repeated for every event. `skill_scores` is exposed on `SpawnResponse`; no frontend display yet (see Known Gaps).
 
 ---
 
@@ -245,7 +260,7 @@ User Browser (React + Vite → Vercel)
        ├─ Playwright       — headless Chromium for Luma OTP login + RSVP automation
       ├─ Web3.py          — per-chain RPC and contract cache
       │    ├─ Mantle Sepolia MAEFDynamicNFTV4 (0x66fD...)
-      │    └─ Ethereum Sepolia MAEFDynamicNFTV4 (0x110e...)
+      │    └─ Ethereum Sepolia MAEFDynamicNFTV4 (0x9FEF...)
        │         ├─ spawnAgent / spawnBredAgent
        │         ├─ mintAttendanceNFT / batchMint
        │         ├─ breedAgents
@@ -257,18 +272,24 @@ User Browser (React + Vite → Vercel)
 
 ## Smart Contract V4 — MAEFDynamicNFTV4
 
-**Address:** `0x66fD8b5411856D42c08D9356e879a6e7dF0c9419`  
-**Network:** Mantle Sepolia Testnet (Chain ID 5003)  
-**Deployed:** 17 May 2026
+Same source (`contracts/contracts/MAEFNFTV4.sol`) deployed independently per chain. Fees are **not** hardcoded — `spawnFee`, `agentProvision`, and `breedCost` are owner-mutable (`setFees()`, `setBreedCost()`), calibrated per chain to that chain's testnet faucet economics rather than sharing one value everywhere.
 
-| Function | Cost | Description |
-|----------|------|-------------|
-| `spawnAgent(agentWallet)` | 1 MNT | Registers agent, provisions 0.5 MNT gas reserve, sets `isAgentSpawned=true` |
-| `spawnBredAgent(agentWallet, offspringId)` | 1 MNT | Links offspring to BreedRecord, activates Mode B for offspring |
-| `mintAttendanceNFT(...)` | gas only | Proof-of-Attendance NFT — dual-auth: `MINTER_ROLE` OR spawned agent self-signs |
-| `breedAgents(p1, p2, offspringId, gen, score)` | 2.5 MNT | Records breed on-chain, emits `AgentsBred` event |
-| `recordExecutedProposal(agentWallet, hash)` | gas only | HITL governance — MINTER_ROLE only, +5 Heritage Score |
-| `getAgentStats(wallet)` | view | Returns full AgentStats struct |
+| Chain | Address | Deployed | spawnFee | agentProvision | breedCost |
+|-------|---------|----------|----------|-----------------|-----------|
+| Mantle Sepolia (5003) | [`0x66fD...c9419`](https://explorer.sepolia.mantle.xyz/address/0x66fD8b5411856D42c08D9356e879a6e7dF0c9419) | 17 May 2026 | 1 MNT | 0.5 MNT | 2 MNT |
+| Ethereum Sepolia (11155111) | [`0x9FEF...a80f4`](https://sepolia.etherscan.io/address/0x9FEF11E45cFD550b33F13A31E8d80BE61cda80f4) | 16 Aug 2026 | 0.02 ETH | 0.01 ETH | 0.04 ETH |
+
+Adding a new chain: `contracts/scripts/deploy-new-chain.js` deploys and calibrates fees in one step — add an entry to its `FEES_PER_CHAIN` map, run it, then point `src/lib/blockchain/chains.ts` + `backend/core/config.py` `CHAIN_CONFIGS` at the new address.
+
+| Function | Description |
+|----------|-------------|
+| `spawnAgent(agentWallet)` | Registers agent, provisions `agentProvision` in gas reserve, sets `isAgentSpawned=true` |
+| `spawnBredAgent(agentWallet, offspringId)` | Links offspring to BreedRecord, activates Mode B for offspring |
+| `mintAttendanceNFT(...)` | Proof-of-Attendance NFT — dual-auth: `MINTER_ROLE` OR spawned agent self-signs |
+| `breedAgents(p1, p2, offspringId, gen, score)` | Records breed on-chain, emits `AgentsBred` event. Both parents must be on the same chain. |
+| `recordExecutedProposal(agentWallet, hash)` | HITL governance — MINTER_ROLE only, +5 Heritage Score |
+| `setFees(spawnFee, agentProvision)` / `setBreedCost(cost)` | Owner-only economics calibration, atomic with an invariant so `agentProvision` can never exceed `spawnFee` |
+| `getAgentStats(wallet)` | Returns full AgentStats struct |
 
 **Key Events:**
 - `NFTMinted(tokenId, agentWallet, eventTitle, agentName, agentLevel, timestamp)`
