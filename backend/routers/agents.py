@@ -584,7 +584,8 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
 
     # ── On-chain breed cost verification (guardrail #9) ──────────────────────
     # When a breed_tx_hash is supplied, verify it on Mantle before creating offspring.
-    # This proves the user paid the 2.5 MNT fee via breedAgents() on the contract.
+    # This proves the user paid the breedCost fee via breedAgents() on the contract
+    # (2 MNT on V4 as of 10 Aug 2026 — read breedCost() live, it's owner-mutable).
     # Optional for backwards compat — will become required once contract is upgraded.
     # on-chain generation/heritageScore — set by the verified event, fallback to None
     onchain_generation: int | None = None
