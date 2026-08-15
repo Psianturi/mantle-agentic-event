@@ -38,8 +38,8 @@ export const CHAIN_CONFIGS: Record<number, ChainConfig> = {
     nativeSymbol: 'ETH',
     rpcUrl: 'https://ethereum-sepolia-rpc.publicnode.com',
     explorerUrl: 'https://sepolia.etherscan.io',
-    contractAddress: '0x110edEa5DB874589ec4492d15660082634E173f0',
-    spawnFee: '1',   // 1 ETH testnet — free from faucet; revisit for mainnet
+    contractAddress: '0x9FEF11E45cFD550b33F13A31E8d80BE61cda80f4',  // redeployed 16 Aug 2026 — fee-configurable V4
+    spawnFee: '0.02',   // sized for typical Sepolia faucet drips; see setFees() in deploy-new-chain.js
     color: '#8B5CF6',
     testnet: true,
   },
