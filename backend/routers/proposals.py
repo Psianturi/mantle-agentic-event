@@ -100,11 +100,12 @@ async def _bg_autonomous_transfer(
     agent_id: str,
     agent_wallet: str,
     agent_private_key: str,
+    chain_id: int = 5003,
 ) -> None:
     """
     Semi-Autonomous Proposal Execution (Option A):
     After a DeFi proposal is approved on-chain, the agent's own wallet
-    transfers 0.1 MNT to the autonomous vault — no human keystroke required.
+    transfers 0.1 native token to the autonomous vault — no human keystroke required.
     """
     vault_address = settings.autonomous_vault_address
     if not vault_address or not Web3.is_address(vault_address):
@@ -121,6 +122,7 @@ async def _bg_autonomous_transfer(
             agent_private_key=agent_private_key,
             amount_mnt=0.1,
             vault_address=vault_address,
+            chain_id=chain_id,
         )
         logger.info(
             "Autonomous transfer complete for proposal %s: tx=%s status=%s",
@@ -309,11 +311,24 @@ async def approve_proposal(proposal_id: str, background_tasks: BackgroundTasks) 
     if not agent_wallet or not proposal_hash:
         raise HTTPException(status_code=400, detail="Proposal missing wallet or hash")
 
+    # Resolve the agent's chain up front — recordExecutedProposal and the
+    # possible Option A autonomous transfer below both need it, and the
+    # agent doc is the source of truth (proposal doc doesn't carry chain_id).
+    agent_id = data.get("agent_id", "")
+    agent_chain_id = 5003
+    try:
+        agent_doc_for_chain = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
+        if agent_doc_for_chain.exists:
+            agent_chain_id = (agent_doc_for_chain.to_dict() or {}).get("chain_id", 5003)
+    except Exception as exc:
+        logger.warning("Could not resolve chain_id for agent %s, defaulting to Mantle: %s", agent_id, exc)
+
     # Call recordExecutedProposal() on V4
     try:
         result = await web3_service.send_record_executed_proposal_tx(
             agent_wallet=agent_wallet,
             proposal_hash_hex=proposal_hash,
+            chain_id=agent_chain_id,
         )
     except Exception as exc:
         logger.error("recordExecutedProposal tx failed for proposal %s: %s", proposal_id, exc)
@@ -342,7 +357,6 @@ async def approve_proposal(proposal_id: str, background_tasks: BackgroundTasks) 
 
     # ── Option A: Semi-Autonomous Execution for DeFi proposals ───────────────
     if data.get("category") == "defi":
-        agent_id = data.get("agent_id", "")
         try:
             agent_doc = await db.collection(AGENTS_COLLECTION).document(agent_id).get()
             agent_data = (agent_doc.to_dict() or {}) if agent_doc.exists else {}
@@ -355,6 +369,7 @@ async def approve_proposal(proposal_id: str, background_tasks: BackgroundTasks) 
                     agent_id,
                     agent_wallet,
                     agent_private_key,
+                    agent_chain_id,
                 )
                 try:
                     await doc.reference.update({"autonomous_execution_triggered": True})

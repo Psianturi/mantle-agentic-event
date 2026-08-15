@@ -483,6 +483,7 @@ class Web3Service:
         self,
         agent_wallet: str,
         proposal_hash_hex: str,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         """
         Call recordExecutedProposal(agentWallet, proposalHash) on V4.
@@ -496,13 +497,14 @@ class Web3Service:
             self._sync_record_executed_proposal,
             agent_wallet,
             proposal_hash_hex,
+            chain_id,
         )
 
     def _sync_record_executed_proposal(
-        self, agent_wallet: str, proposal_hash_hex: str
+        self, agent_wallet: str, proposal_hash_hex: str, chain_id: int = 5003
     ) -> dict[str, Any]:
-        w3 = self._init_w3()
-        contract = self._init_contract()
+        w3 = self._init_w3(chain_id)
+        contract = self._init_contract(chain_id)
 
         private_key = get_minter_service_private_key()
         signer = Account.from_key(private_key)
@@ -527,7 +529,7 @@ class Web3Service:
 
         raw_tx = fn_call.build_transaction(
             {
-                "chainId": 5003,
+                "chainId": chain_id,
                 "from": signer.address,
                 "nonce": nonce,
                 "gas": gas_limit,
@@ -572,9 +574,10 @@ class Web3Service:
         agent_private_key: str,
         amount_mnt: float = 0.1,
         vault_address: str = "",
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         """
-        Agent signs a native MNT transfer from its own wallet to the autonomous vault.
+        Agent signs a native token transfer from its own wallet to the autonomous vault.
         Used by Option A: Semi-Autonomous Proposal Execution — no MINTER_ROLE needed.
         agent_private_key must already be KMS-decrypted by the caller.
         """
@@ -586,6 +589,7 @@ class Web3Service:
             agent_private_key,
             amount_mnt,
             vault_address,
+            chain_id,
         )
 
     def _sync_autonomous_transfer(
@@ -594,8 +598,9 @@ class Web3Service:
         agent_private_key: str,
         amount_mnt: float,
         vault_address: str,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
-        w3 = self._init_w3()
+        w3 = self._init_w3(chain_id)
 
         signer = Account.from_key(agent_private_key)
         from_address = signer.address
@@ -615,7 +620,7 @@ class Web3Service:
         gas_price = w3.eth.gas_price
 
         raw_tx = {
-            "chainId": 5003,
+            "chainId": chain_id,
             "from": from_address,
             "to": to_address,
             "nonce": nonce,
