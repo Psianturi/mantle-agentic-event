@@ -704,6 +704,62 @@ Respond ONLY with valid JSON in this exact format:
         return _PROPOSAL_FALLBACKS[fallback_idx]
 
 
+# Skill taxonomy — mirrors the niche options users pick from at spawn
+# (src/components/SpawnAgentDialog.tsx). "Other" is a deliberate escape hatch:
+# classification is forced-choice-free, so events that genuinely don't fit
+# land here instead of Gemini guessing a wrong category.
+SKILL_TAXONOMY: list[str] = [
+    "Blockchain/DeFi", "Trading/Investment", "Technology", "Health/Wellness", "Other",
+]
+
+
+async def classify_event_niche(summary_text: str) -> str:
+    """
+    Classify an attended event's ACTUAL content category from its wisdom summary —
+    this is what grows an agent's skill_scores, deliberately independent of the
+    agent's static preset niche. An agent whose owner pastes an off-niche event URL
+    (manual Attend isn't niche-restricted) should get skill credit for what it
+    really learned, not have it silently mislabeled as its home niche.
+
+    Always returns a value in SKILL_TAXONOMY — falls back to "Other" on any
+    failure or non-exact-match response rather than forcing a guess.
+    """
+    try:
+        api_key = get_llm_api_key()
+    except RuntimeError:
+        return "Other"
+
+    options = ", ".join(f'"{n}"' for n in SKILL_TAXONOMY)
+    prompt = (
+        "Classify the PRIMARY topic of the following event summary into exactly "
+        f"one category from this list: {options}.\n"
+        'If it does not clearly fit any specific category, answer "Other".\n\n'
+        f"Summary:\n{summary_text[:1500]}\n\n"
+        "Respond with ONLY the category name — no punctuation, no explanation."
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 20, "topP": 0.1},
+    }
+    try:
+        data = await _call_gemini_with_retry(
+            api_key, payload, timeout=15.0, context="event niche classification"
+        )
+        parts = data["candidates"][0]["content"]["parts"]
+        raw = next(
+            (p["text"].strip() for p in reversed(parts) if p.get("text", "").strip()), ""
+        )
+        cleaned = raw.strip(" .\"'\n")
+        for niche in SKILL_TAXONOMY:
+            if niche.lower() == cleaned.lower():
+                return niche
+        logger.info("Niche classification returned non-exact match %r, defaulting to Other", raw)
+        return "Other"
+    except Exception as exc:
+        logger.warning("Niche classification failed, defaulting to Other: %s", exc.__class__.__name__)
+        return "Other"
+
+
 async def summarize_event(
     event_title: str,
     event_url: str,

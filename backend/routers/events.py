@@ -28,7 +28,7 @@ from web3 import Web3
 from core.config import settings
 from core.database import get_db
 from core.kms_service import decrypt_private_key
-from services.llm_service import summarize_event
+from services.llm_service import classify_event_niche, summarize_event
 from services.luma_service import fetch_luma_event, get_luma_event_status, is_luma_url
 from services.web3_service import web3_service
 
@@ -51,6 +51,17 @@ _ALLOWED_HOSTS: frozenset[str] = frozenset(
         "zoom.us",
     }
 )
+
+def _skill_gain_field(category: str, amount: int = 1) -> dict:
+    """
+    V1: flat +amount per event, regardless of wisdom quality — deliberately simple
+    so skill growth stays explainable ("attended 1 X event = +1 X skill") and
+    doesn't inherit risk from the not-yet-validated wisdom-quality scoring.
+    Wrapped here so switching to quality-weighted gain later touches only this
+    function, not every call site.
+    """
+    return {f"skill_scores.{category}": Increment(amount)}
+
 
 def _resolve_explorer_base(chain_id: int = 5003) -> str:
     from core.config import CHAIN_CONFIGS
@@ -419,6 +430,12 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     # Scheduled Luma events (future) earn 0 XP — agent scouted, not yet attended.
     # Completed/unknown Luma events and all YouTube events earn full XP.
     is_scouting_brief = luma_status == "scheduled"
+
+    # Skill classification (V1) — only for real attendances, not 0-XP scouting
+    # briefs, so we don't spend a Gemini call on events that grant no progress.
+    detected_niche: str | None = None
+    if success and not is_scouting_brief:
+        detected_niche = await classify_event_niche(wisdom_summary)
     new_total_events: int | None = None
     new_level: int | None = None
     if success:
@@ -448,6 +465,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                         "total_events": Increment(1),
                         "level": new_level,
                         "autonomous_signatures": autonomous_sigs,
+                        **_skill_gain_field(detected_niche),
                     }
                     new_total_events = current_events
                     logger.info(
@@ -469,7 +487,8 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "agent_wallet": req.agent_wallet,
                 "agent_name": req.agent_name,
                 "chain_id": req.chain_id,
-                "niche": req.niche,
+                "niche": req.niche,  # agent's static preset niche at time of attendance
+                "detected_niche": detected_niche,  # V1: Gemini-classified actual content category
                 "event_url": req.event_url,
                 "event_title": req.event_title,
                 "platform": req.platform,

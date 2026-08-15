@@ -155,6 +155,7 @@ class SpawnResponse(BaseModel):
     luma_connected_at: float | None = None
     agent_gas_balance: float | None = None
     chain_id: int = 5003
+    skill_scores: dict[str, int] | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -198,6 +199,7 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         luma_connected_at=data.get("luma_connected_at"),
         agent_gas_balance=data.get("agent_gas_balance"),
         chain_id=data.get("chain_id", 5003),
+        skill_scores=data.get("skill_scores"),
     )
 
 
