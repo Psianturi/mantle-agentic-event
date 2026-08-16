@@ -121,21 +121,29 @@ function App() {
     const eth = window.okxwallet ?? window.ethereum
     if (!eth) return
     eth.request({ method: 'eth_accounts' })
-      .then((accounts) => {
+      .then(async (accounts) => {
         if ((accounts as string[]).length === 0) return
         const savedAt = parseInt(localStorage.getItem(WALLET_SESSION_KEY) || '0')
         const lastActivity = parseInt(localStorage.getItem(WALLET_LAST_ACTIVITY_KEY) || '0')
         const now = Date.now()
-        
+
         // Check both TTL and idle timeout
         const sessionExpired = now - savedAt >= WALLET_SESSION_TTL
         const idleExpired = now - lastActivity >= WALLET_IDLE_TIMEOUT
-        
+
         if (sessionExpired || idleExpired) {
           localStorage.removeItem(WALLET_SESSION_KEY)
           localStorage.removeItem(WALLET_LAST_ACTIVITY_KEY)
         } else {
-          handleWalletConnect('')
+          // Silent reconnect on page load: activate whatever chain the wallet
+          // is already on, instead of forcing it back to DEFAULT_CHAIN_ID.
+          let detectedChainId: number | undefined
+          try {
+            const chainHex = (await eth.request({ method: 'eth_chainId' })) as string
+            const parsed = parseInt(chainHex, 16)
+            if (getChain(parsed)) detectedChainId = parsed
+          } catch { /* fall back to default */ }
+          handleWalletConnect('', detectedChainId)
         }
       })
       .catch(() => {})
@@ -398,9 +406,13 @@ function App() {
     }
   }
 
-  const handleWalletConnect = async (address: string) => {
+  // chainIdOverride is used by the silent auto-reconnect effect to connect to
+  // whatever chain the wallet is already on. Manual connect clicks omit it,
+  // so they keep using selectedChainId (the user's ChainSelector choice).
+  const handleWalletConnect = async (address: string, chainIdOverride?: number) => {
     try {
-      const connectedAddress = await blockchain.connectWallet(selectedChainId)
+      const initialChainId = chainIdOverride ?? selectedChainId
+      const connectedAddress = await blockchain.connectWallet(initialChainId)
       setWalletConnected(true)
       setWalletAddress(connectedAddress)
       // Detect wallet's current chain
