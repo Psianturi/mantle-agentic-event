@@ -38,6 +38,7 @@ class FeaturedWisdomItem(BaseModel):
     agent_id: str
     niche: str
     platform: str
+    chain_id: int = 5003  # which chain the NFT was minted on — read from event doc
     attended_at: float
     tx_hash: str | None = None
     token_id: str | None = None
@@ -131,6 +132,7 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
                 agent_id=agent_id,
                 niche=agent_niche_cache.get(agent_id) or event.get("niche") or "General",
                 platform=event.get("platform", "YouTube"),
+                chain_id=int(event.get("chain_id", 5003)),
                 attended_at=attended_at,
                 tx_hash=event.get("tx_hash"),
                 token_id=event.get("token_id"),

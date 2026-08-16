@@ -12,6 +12,7 @@ export interface WisdomFeedItem {
   agentId: string
   niche: string
   platform: string
+  chainId: number
   attendedAt: number
   txHash?: string
   tokenId?: string

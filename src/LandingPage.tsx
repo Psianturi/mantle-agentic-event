@@ -23,11 +23,10 @@ interface PlatformMetrics {
 interface ActivityEntry {
   id: string
   agentName: string
-  action: 'spawned' | 'attended' | 'minted' | 'level_up' | 'scouting'
+  action: string
   detail: string
   chainId: number
   timestamp: number
-  real: boolean
 }
 
 // ── Lifecycle stages ──────────────────────────────────────────────────────────
@@ -80,15 +79,6 @@ const PILLARS = [
   },
 ]
 
-// ── Animated filler activity ──────────────────────────────────────────────────
-const FILLER_ACTIVITIES = [
-  { action: 'scouting' as const, detail: 'Scanning YouTube for DeFi events', agentName: 'Agent Nova' },
-  { action: 'scouting' as const, detail: 'Evaluating Luma event relevance', agentName: 'Agent Cipher' },
-  { action: 'scouting' as const, detail: 'Analyzing transcript from webinar', agentName: 'Agent Echo' },
-  { action: 'scouting' as const, detail: 'Cross-referencing event niche', agentName: 'Agent Vega' },
-  { action: 'scouting' as const, detail: 'Monitoring gas for optimal mint timing', agentName: 'Agent Atlas' },
-]
-
 // ── Component ─────────────────────────────────────────────────────────────────
 export function LandingPage() {
   const navigate = useNavigate()
@@ -106,30 +96,25 @@ export function LandingPage() {
       .catch(() => {})
   }, [])
 
-  // Fetch real activity (event history) + interleave filler
+  // Fetch real activity (recent mints from featured wisdom endpoint)
   useEffect(() => {
     let cancelled = false
 
     async function loadActivity() {
       try {
-        // Use public featured wisdom as a proxy for recent activity
         const wisdom = await cloudRunService.getPublicFeaturedWisdom()
-        if (cancelled || !wisdom.length) {
-          setActivityLoading(false)
-          return
-        }
+        if (cancelled) return
 
-        const realActivity: ActivityEntry[] = wisdom.slice(0, 4).map((w, i) => ({
-          id: `real-${i}`,
+        const activity: ActivityEntry[] = wisdom.slice(0, 6).map((w, i) => ({
+          id: `act-${w.agentId}-${i}`,
           agentName: w.agentName,
           action: 'minted',
           detail: `Minted Proof-of-Attendance for "${w.eventTitle}"`,
-          chainId: 5003,
+          chainId: w.chainId ?? 5003,
           timestamp: w.attendedAt * 1000,
-          real: true,
         }))
 
-        setActivity(realActivity)
+        setActivity(activity)
         setActivityLoading(false)
       } catch {
         setActivityLoading(false)
@@ -139,31 +124,6 @@ export function LandingPage() {
     loadActivity()
     return () => { cancelled = true }
   }, [])
-
-  // Animated filler: add periodic "scouting" entries for liveliness
-  useEffect(() => {
-    if (activityLoading) return
-
-    const interval = setInterval(() => {
-      const filler = FILLER_ACTIVITIES[Math.floor(Math.random() * FILLER_ACTIVITIES.length)]
-      const entry: ActivityEntry = {
-        id: `filler-${Date.now()}`,
-        agentName: filler.agentName,
-        action: filler.action,
-        detail: filler.detail,
-        chainId: 5003,
-        timestamp: Date.now(),
-        real: false,
-      }
-
-      setActivity(prev => {
-        const next = [entry, ...prev].slice(0, 8)
-        return next
-      })
-    }, 4000 + Math.random() * 3000)
-
-    return () => clearInterval(interval)
-  }, [activityLoading])
 
   const formatRelativeTime = useCallback((timestamp: number) => {
     const diff = Date.now() - timestamp
@@ -333,15 +293,11 @@ export function LandingPage() {
           </div>
         </section>
 
-        {/* ── Live Activity Terminal ───────────────────────────────────────── */}
+        {/* ── Recent Activity Terminal ─────────────────────────────────────── */}
         <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-20">
           <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400">Live</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black mb-2 text-white">Agents are working right now</h2>
-            <p className="text-sm text-slate-400">Real on-chain activity from the ASAJU network.</p>
+            <h2 className="text-2xl sm:text-3xl font-black mb-2 text-white">Recent on-chain activity</h2>
+            <p className="text-sm text-slate-400">Verified mints from the ASAJU network on testnet.</p>
           </div>
 
           {/* Terminal feed */}
@@ -372,11 +328,11 @@ export function LandingPage() {
               ) : activity.length === 0 ? (
                 <div className="text-center py-12 text-slate-600 text-xs">
                   <Pulse size={32} className="mx-auto mb-3 text-slate-700" weight="duotone" />
-                  Waiting for agent activity...
+                  No verified mints yet — be the first to spawn an agent.
                 </div>
               ) : (
                 <AnimatePresence initial={false}>
-                  {activity.map((entry, i) => (
+                  {activity.map((entry) => (
                     <motion.div
                       key={entry.id}
                       initial={{ opacity: 0, x: -16 }}
@@ -386,12 +342,7 @@ export function LandingPage() {
                       className="flex items-start gap-3 text-xs leading-relaxed"
                     >
                       {/* Action dot */}
-                      <span
-                        className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
-                        style={{
-                          background: entry.real ? '#34d399' : '#64748b',
-                        }}
-                      />
+                      <span className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 bg-emerald-400" />
                       {/* Timestamp */}
                       <span className="text-slate-600 text-[10px] mt-0.5 flex-shrink-0 w-16">
                         {formatRelativeTime(entry.timestamp)}
@@ -404,7 +355,7 @@ export function LandingPage() {
                         {' '}
                         <span className="text-slate-400">{entry.detail}</span>
                       </span>
-                      {/* Chain badge */}
+                      {/* Chain badge — real chain from backend */}
                       <ChainBadge chainId={entry.chainId} showName={false} className="mt-0.5" />
                     </motion.div>
                   ))}
@@ -414,10 +365,10 @@ export function LandingPage() {
 
             {/* Terminal footer */}
             <div className="px-4 py-2 border-t border-cyan-500/10 bg-[#0d0f25]/60 flex items-center justify-between text-[9px] font-mono text-slate-600">
-              <span>{activity.filter(a => a.real).length} confirmed · {activity.filter(a => !a.real).length} live</span>
+              <span>{activity.length} verified mint{activity.length !== 1 ? 's' : ''}</span>
               <span className="flex items-center gap-1">
-                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
-                streaming
+                <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                on-chain
               </span>
             </div>
           </div>

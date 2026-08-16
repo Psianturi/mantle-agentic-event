@@ -917,6 +917,7 @@ export const cloudRunService = {
         agent_id: string
         niche: string
         platform: string
+        chain_id: number
         attended_at: number
         tx_hash: string | null
         token_id: string | null
@@ -935,6 +936,7 @@ export const cloudRunService = {
         agentId: w.agent_id,
         niche: w.niche,
         platform: w.platform,
+        chainId: w.chain_id ?? 5003,
         attendedAt: w.attended_at,
         txHash: w.tx_hash ?? undefined,
         tokenId: w.token_id ?? undefined,
