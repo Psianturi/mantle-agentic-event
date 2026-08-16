@@ -57,6 +57,23 @@ MAEF_ABI: list[dict] = [
         "stateMutability": "view",
         "type": "function",
     },
+    # Uppercase legacy getters — Mantle's live contract (0x66fD...) predates the
+    # mutable-fee upgrade and only has these, not the lowercase pair above.
+    # See Web3Service._read_spawn_fee_wei / _read_agent_provision_wei.
+    {
+        "inputs": [],
+        "name": "SPAWN_FEE",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "AGENT_PROVISION",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
     {
         "anonymous": False,
         "inputs": [
@@ -265,8 +282,65 @@ class Web3Service:
 
     def _sync_agent_provision(self, chain_id: int = 5003) -> float:
         contract = self._init_contract(chain_id)
-        provision_wei = contract.functions.agentProvision().call()
+        provision_wei = self._read_agent_provision_wei(contract)
         return float(Web3.from_wei(provision_wei, "ether"))
+
+    def _read_spawn_fee_wei(self, contract) -> int:
+        """
+        Read spawnFee tolerating both contract generations. Mantle's original
+        deployment (0x66fD...) predates the mutable-fee upgrade added 10 Aug
+        2026 — it still has the immutable `SPAWN_FEE` constant (uppercase),
+        not the new owner-mutable `spawnFee()` getter — and was never
+        redeployed, since that would orphan every existing Mantle agent.
+        This fallback is therefore permanent, not a transitional shim.
+        """
+        try:
+            return contract.functions.spawnFee().call()
+        except Exception:
+            return contract.functions.SPAWN_FEE().call()
+
+    def _read_agent_provision_wei(self, contract) -> int:
+        """Same generational fallback as _read_spawn_fee_wei, for agentProvision."""
+        try:
+            return contract.functions.agentProvision().call()
+        except Exception:
+            return contract.functions.AGENT_PROVISION().call()
+
+    def check_minter_balance_health(self, chain_id: int = 5003) -> None:
+        """
+        Log-only early warning — call right before MINTER_SERVICE is about to spend
+        its own balance (spawnBredAgent, recordExecutedProposal). Does NOT block the
+        transaction; this is deliberately just a loud, greppable Cloud Run log line
+        for the operator, not a user-facing alert (MINTER_SERVICE isn't the user's
+        concern) and not an automatic treasury sweep (would require the deployer's
+        cold-admin key to become hot — see reference_contracts_wallets memory).
+
+        Threshold is relative — 4x spawnFee for the chain — so it means the same
+        thing ("~4 more operations left") on every chain, not one absolute MNT
+        number that's meaningless once a chain's economy is calibrated differently.
+        """
+        try:
+            w3 = self._init_w3(chain_id)
+            contract = self._init_contract(chain_id)
+            private_key = get_minter_service_private_key()
+            minter_address = Account.from_key(private_key).address
+
+            balance_wei = w3.eth.get_balance(minter_address)
+            balance = float(Web3.from_wei(balance_wei, "ether"))
+            spawn_fee_wei = self._read_spawn_fee_wei(contract)
+            spawn_fee = float(Web3.from_wei(spawn_fee_wei, "ether"))
+            threshold = spawn_fee * 4
+
+            if balance < threshold:
+                logger.warning(
+                    "MINTER_SERVICE_LOW_BALANCE chain=%d address=%s balance=%.4f "
+                    "threshold=%.4f spawn_fee=%.4f — top up before bred-agent "
+                    "activations / proposal recordings start failing silently",
+                    chain_id, minter_address, balance, threshold, spawn_fee,
+                )
+        except Exception as exc:
+            # Never let a monitoring check break the actual transaction it's guarding.
+            logger.warning("MINTER_SERVICE balance health check failed (non-fatal): %s", exc)
 
     # ── Synchronous implementations (run in thread pool) ─────────────────────
 
@@ -295,6 +369,7 @@ class Web3Service:
             )
         else:
             private_key = get_minter_service_private_key()
+            self.check_minter_balance_health(chain_id)
             logger.info("Minter service wallet signing transaction (Mode A)")
 
         signer = Account.from_key(private_key)
@@ -341,6 +416,7 @@ class Web3Service:
                         "missing role" if lacks_minter else "insufficient gas",
                     )
                     private_key = get_minter_service_private_key()
+                    self.check_minter_balance_health(chain_id)
                     signer = Account.from_key(private_key)
                     signer_address = signer.address
                     nonce = w3.eth.get_transaction_count(signer_address, "pending")
@@ -449,6 +525,7 @@ class Web3Service:
     def _sync_spawn_bred_agent(
         self, offspring_wallet: str, offspring_id: str, chain_id: int = 5003
     ) -> dict[str, Any]:
+        self.check_minter_balance_health(chain_id)
         w3 = self._init_w3(chain_id)
         contract = self._init_contract(chain_id)
 
@@ -462,7 +539,7 @@ class Web3Service:
 
         fn_call = contract.functions.spawnBredAgent(offspring_wallet_cs, offspring_id_bytes)
         # Read live — spawnFee is owner-mutable and differs per chain (see setFees()).
-        spawn_value = contract.functions.spawnFee().call()
+        spawn_value = self._read_spawn_fee_wei(contract)
 
         nonce = w3.eth.get_transaction_count(signer.address, "pending")
         gas_price = w3.eth.gas_price
@@ -525,6 +602,7 @@ class Web3Service:
     def _sync_record_executed_proposal(
         self, agent_wallet: str, proposal_hash_hex: str, chain_id: int = 5003
     ) -> dict[str, Any]:
+        self.check_minter_balance_health(chain_id)
         w3 = self._init_w3(chain_id)
         contract = self._init_contract(chain_id)
 
