@@ -51,6 +51,13 @@ MAEF_ABI: list[dict] = [
         "type": "function",
     },
     {
+        "inputs": [],
+        "name": "agentProvision",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
         "anonymous": False,
         "inputs": [
             {"indexed": True, "internalType": "uint256", "name": "tokenId", "type": "uint256"},
@@ -245,6 +252,21 @@ class Web3Service:
         """Return the wallet's native balance in wei (for gas monitoring endpoints)."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, self._sync_balance_wei, address, chain_id)
+
+    async def get_agent_provision(self, chain_id: int = 5003) -> float:
+        """
+        Live-read agentProvision for a chain (in ether units) — the amount a
+        freshly-spawned agent receives as its starting gas reserve. Used to size
+        gas-health thresholds *relative* to what's normal for that chain, instead
+        of hardcoding one absolute number that only makes sense for Mantle.
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._sync_agent_provision, chain_id)
+
+    def _sync_agent_provision(self, chain_id: int = 5003) -> float:
+        contract = self._init_contract(chain_id)
+        provision_wei = contract.functions.agentProvision().call()
+        return float(Web3.from_wei(provision_wei, "ether"))
 
     # ── Synchronous implementations (run in thread pool) ─────────────────────
 

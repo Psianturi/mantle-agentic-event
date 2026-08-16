@@ -54,10 +54,19 @@ async def get_agent_gas_status(agent_wallet: str, chain_id: int = Query(default=
         logger.error("Unexpected error fetching balance for %s: %s", agent_wallet, exc, exc_info=True)
         raise HTTPException(status_code=503, detail=f"Blockchain query failed: {str(exc)}")
 
-    # Thresholds match Auto Scout dynamic logic
-    HEALTHY_THRESHOLD = 0.15
-    WARNING_THRESHOLD = 0.08
-    CRITICAL_THRESHOLD = 0.03
+    # Thresholds are relative to this chain's agentProvision (read live from the
+    # contract — not a hardcoded absolute number). A freshly-spawned agent on ANY
+    # chain starts at 100% of its provision; "healthy" means still close to that,
+    # regardless of whether the chain's whole economy runs on 0.01 ETH or 0.5 MNT.
+    try:
+        agent_provision = await web3_service.get_agent_provision(chain_id)
+    except Exception as exc:
+        logger.warning("Could not read agentProvision for chain %d, using 0.5 fallback: %s", chain_id, exc)
+        agent_provision = 0.5
+
+    HEALTHY_THRESHOLD = agent_provision * 0.5
+    WARNING_THRESHOLD = agent_provision * 0.2
+    CRITICAL_THRESHOLD = agent_provision * 0.05
 
     if balance_mnt >= HEALTHY_THRESHOLD:
         status = "healthy"
@@ -68,9 +77,9 @@ async def get_agent_gas_status(agent_wallet: str, chain_id: int = Query(default=
     else:
         status = "depleted"
 
-    # Rough estimate: ~0.02 MNT per mint (gas + overhead)
-    GAS_PER_MINT = 0.02
-    estimated_mints = int(float(balance_mnt) / GAS_PER_MINT) if balance_mnt > 0 else 0
+    # Rough estimate: a mint costs ~4% of a fresh provision, all chains considered
+    gas_per_mint = max(agent_provision * 0.04, 1e-9)
+    estimated_mints = int(float(balance_mnt) / gas_per_mint) if balance_mnt > 0 else 0
 
     return {
         "agent_wallet": agent_wallet,
@@ -82,9 +91,9 @@ async def get_agent_gas_status(agent_wallet: str, chain_id: int = Query(default=
         "can_mint": balance_mnt >= CRITICAL_THRESHOLD,
         "estimated_mints_remaining": estimated_mints,
         "thresholds": {
-            "healthy": f"{HEALTHY_THRESHOLD}",
-            "warning": f"{WARNING_THRESHOLD}",
-            "critical": f"{CRITICAL_THRESHOLD}",
+            "healthy": f"{HEALTHY_THRESHOLD:.4f}",
+            "warning": f"{WARNING_THRESHOLD:.4f}",
+            "critical": f"{CRITICAL_THRESHOLD:.4f}",
         },
     }
 
