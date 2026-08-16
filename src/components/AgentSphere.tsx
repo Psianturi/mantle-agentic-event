@@ -81,7 +81,11 @@ export function AgentSphere({ className }: AgentSphereProps) {
       subAgents.push(node)
 
       // Connection line from core to sub-agent
+      // Pre-allocate position attribute (2 points: core → sub-agent)
+      // Updated each frame in the animation loop.
+      const linePositions = new Float32Array(6) // 2 vertices × 3 coords
       const lineGeo = new THREE.BufferGeometry()
+      lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3))
       const lineMat = new THREE.LineBasicMaterial({
         color: subAgentColors[i],
         transparent: true,
