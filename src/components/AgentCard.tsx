@@ -10,7 +10,7 @@ import { motion } from 'framer-motion'
 import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
 import { GasStatusBadge } from './GasStatusBadge'
 import { ChainBadge } from './ChainBadge'
-import { DEFAULT_CHAIN_ID } from '@/lib/blockchain/chains'
+import { DEFAULT_CHAIN_ID, getChain } from '@/lib/blockchain/chains'
 
 interface AgentCardProps {
   agent: Agent
@@ -250,9 +250,9 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <CurrencyCircleDollar size={18} className="text-primary" weight="duotone" />
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Mantle Balance</span>
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Native Balance</span>
                 </div>
-                <span className="text-sm font-bold font-mono text-primary">{agent.mantleBalance?.toFixed(3) || '0.000'} MNT</span>
+                <span className="text-sm font-bold font-mono text-primary">{agent.mantleBalance?.toFixed(3) || '0.000'} {getChain(agent.chainId ?? DEFAULT_CHAIN_ID)?.nativeSymbol ?? 'MNT'}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Gas Used:</span>
