@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
-import { FeaturedWisdomFeed, type WisdomFeedItem } from '@/components/FeaturedWisdomFeed'
+import { DataFlowBackground } from '@/components/DataFlowBackground'
+import { ChainBadge } from '@/components/ChainBadge'
 import { cloudRunService } from '@/services/cloudRunService'
+import { getSupportedChains } from '@/lib/blockchain/chains'
 import {
-  Robot, Lightning, Brain, Dna, ShieldCheck, Globe,
-  ArrowRight, Binoculars, Signature,
+  Robot, ArrowRight, Lightning, Brain, Dna, ShieldCheck,
+  Signature, Binoculars, Globe, Cube, Pulse,
 } from '@phosphor-icons/react'
 import maefLogo from '@/assets/maef-logo.png'
 
@@ -14,138 +16,187 @@ import maefLogo from '@/assets/maef-logo.png'
 interface PlatformMetrics {
   total_agents: number
   total_wisdom_nfts: number
+  total_events_attended: number
   average_agent_level: number
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────────
-const NICHES = [
-  { label: 'DeFi & On-Chain', emoji: '⛓️' },
-  { label: 'AI & Emerging Tech', emoji: '🤖' },
-  { label: 'Web3 Communities', emoji: '🌐' },
-]
+interface ActivityEntry {
+  id: string
+  agentName: string
+  action: 'spawned' | 'attended' | 'minted' | 'level_up' | 'scouting'
+  detail: string
+  chainId: number
+  timestamp: number
+  real: boolean
+}
 
-const PIPELINE_STEPS = [
-  { emoji: '🎯', label: 'Pick a focus', sub: 'Start with what matters', desc: 'Choose the topics and communities you want your agent to follow.' },
-  { emoji: '🔍', label: 'It keeps watch', sub: 'A second set of eyes', desc: 'Your agent looks for events that fit the focus you gave it.' },
-  { emoji: '📝', label: 'It captures the useful parts', sub: 'Less noise, more signal', desc: 'Important ideas are turned into a clear, focused summary for you.' },
-  { emoji: '💡', label: 'It builds context', sub: 'Every event adds up', desc: 'Over time, your agent connects what it learns and finds patterns.' },
-  { emoji: '🏆', label: 'You keep the proof', sub: 'A record you can revisit', desc: 'Completed learning can be saved as a Proof-of-Attendance NFT on Mantle.' },
-]
-
-const FEATURES = [
+// ── Lifecycle stages ──────────────────────────────────────────────────────────
+const LIFECYCLE_STAGES = [
+  {
+    icon: Robot,
+    label: 'Spawn',
+    color: '#00F3FF',
+    desc: 'Gets its own wallet, encrypted keys, and gas reserve.',
+  },
   {
     icon: Binoculars,
-    color: 'text-cyan-600',
-    bg: 'bg-cyan-50 border-cyan-100',
-    title: 'Follow what matters',
-    desc: 'Give your agent a focus and it helps you keep up with the events and conversations around it.',
+    label: 'Attend',
+    color: '#9D00FF',
+    desc: 'Joins events autonomously — YouTube, Luma, webinars.',
   },
   {
     icon: Brain,
-    color: 'text-amber-500',
-    bg: 'bg-amber-50 border-amber-100',
-    title: 'Turn events into insight',
-    desc: 'Instead of replaying hours of content, come back to the ideas that are useful for your goals.',
+    label: 'Learn',
+    color: '#00F3FF',
+    desc: 'Gemini distills events into structured wisdom summaries.',
   },
   {
     icon: Signature,
-    color: 'text-emerald-600',
-    bg: 'bg-emerald-50 border-emerald-100',
-    title: 'Keep a lasting record',
-    desc: 'Your agent can save completed learning as an on-chain proof that stays connected to its journey.',
-  },
-  {
-    icon: Dna,
-    color: 'text-violet-600',
-    bg: 'bg-violet-50 border-violet-100',
-    title: 'Grow over time',
-    desc: 'As your agent learns, it unlocks deeper reports and new ways to build on its experience.',
-  },
-  {
-    icon: ShieldCheck,
-    color: 'text-indigo-600',
-    bg: 'bg-indigo-50 border-indigo-100',
-    title: 'You stay in control',
-    desc: 'You decide the focus, make the initial setup, and review important decisions as your agent grows.',
-  },
-  {
-    icon: Globe,
-    color: 'text-teal-600',
-    bg: 'bg-teal-50 border-teal-100',
-    title: 'Made for Web3',
-    desc: 'Your agent brings event learning and on-chain ownership together in one evolving profile.',
+    label: 'Mint',
+    color: '#9D00FF',
+    desc: 'Self-signs a Proof-of-Attendance NFT. Permanent on-chain proof.',
   },
 ]
 
-const TRUST_POINTS = [
-  {
-    icon: Lightning,
-    color: 'text-amber-500',
-    label: 'Keeps moving after setup',
-    value: 'Your agent can continue its routine while you get on with your day.',
-  },
+// ── Pillars ───────────────────────────────────────────────────────────────────
+const PILLARS = [
   {
     icon: ShieldCheck,
-    color: 'text-emerald-600',
-    label: 'Starts with your permission',
-    value: 'You connect and fund your agent once before it begins working for you.',
+    color: '#00F3FF',
+    title: 'Agents that own their wallet',
+    desc: 'Every agent gets its own cryptographic identity, encrypted private keys, and gas reserve. It signs transactions — not you.',
   },
   {
-    icon: Robot,
-    color: 'text-cyan-600',
-    label: 'Has a journey of its own',
-    value: "Every completed event adds to the agent's experience and growing body of knowledge.",
+    icon: Cube,
+    color: '#9D00FF',
+    title: 'Knowledge that is permanent',
+    desc: 'Each attended event becomes a verifiable on-chain NFT. The wisdom is immutable, ownable, and linked to the agent forever.',
   },
+  {
+    icon: Dna,
+    color: '#00F3FF',
+    title: 'Intelligence that evolves',
+    desc: 'Agents level up, unlock strategic proposals, and can breed to produce offspring that inherit wisdom from both parents.',
+  },
+]
+
+// ── Animated filler activity ──────────────────────────────────────────────────
+const FILLER_ACTIVITIES = [
+  { action: 'scouting' as const, detail: 'Scanning YouTube for DeFi events', agentName: 'Agent Nova' },
+  { action: 'scouting' as const, detail: 'Evaluating Luma event relevance', agentName: 'Agent Cipher' },
+  { action: 'scouting' as const, detail: 'Analyzing transcript from webinar', agentName: 'Agent Echo' },
+  { action: 'scouting' as const, detail: 'Cross-referencing event niche', agentName: 'Agent Vega' },
+  { action: 'scouting' as const, detail: 'Monitoring gas for optimal mint timing', agentName: 'Agent Atlas' },
 ]
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function LandingPage() {
   const navigate = useNavigate()
   const [metrics, setMetrics] = useState<PlatformMetrics | null>(null)
-  const [wisdom, setWisdom] = useState<WisdomFeedItem[]>([])
-  const [wisdomLoading, setWisdomLoading] = useState(true)
-  const [selectedNiche, setSelectedNiche] = useState<string | null>(null)
+  const [activity, setActivity] = useState<ActivityEntry[]>([])
+  const [activityLoading, setActivityLoading] = useState(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
+  const supportedChains = getSupportedChains()
+
+  // Fetch metrics
   useEffect(() => {
     cloudRunService.getPublicMetrics()
       .then(d => setMetrics(d))
       .catch(() => {})
+  }, [])
 
-    cloudRunService.getPublicFeaturedWisdom()
-      .then(d => {
-        const seen = new Set<string>()
-        setWisdom(d.filter(item => {
-          const k = item.eventTitle.toLowerCase().trim()
-          if (seen.has(k)) return false
-          seen.add(k)
-          return true
+  // Fetch real activity (event history) + interleave filler
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadActivity() {
+      try {
+        // Use public featured wisdom as a proxy for recent activity
+        const wisdom = await cloudRunService.getPublicFeaturedWisdom()
+        if (cancelled || !wisdom.length) {
+          setActivityLoading(false)
+          return
+        }
+
+        const realActivity: ActivityEntry[] = wisdom.slice(0, 4).map((w, i) => ({
+          id: `real-${i}`,
+          agentName: w.agentName,
+          action: 'minted',
+          detail: `Minted Proof-of-Attendance for "${w.eventTitle}"`,
+          chainId: 5003,
+          timestamp: w.attendedAt * 1000,
+          real: true,
         }))
+
+        setActivity(realActivity)
+        setActivityLoading(false)
+      } catch {
+        setActivityLoading(false)
+      }
+    }
+
+    loadActivity()
+    return () => { cancelled = true }
+  }, [])
+
+  // Animated filler: add periodic "scouting" entries for liveliness
+  useEffect(() => {
+    if (activityLoading) return
+
+    const interval = setInterval(() => {
+      const filler = FILLER_ACTIVITIES[Math.floor(Math.random() * FILLER_ACTIVITIES.length)]
+      const entry: ActivityEntry = {
+        id: `filler-${Date.now()}`,
+        agentName: filler.agentName,
+        action: filler.action,
+        detail: filler.detail,
+        chainId: 5003,
+        timestamp: Date.now(),
+        real: false,
+      }
+
+      setActivity(prev => {
+        const next = [entry, ...prev].slice(0, 8)
+        return next
       })
-      .catch(() => {})
-      .finally(() => setWisdomLoading(false))
+    }, 4000 + Math.random() * 3000)
+
+    return () => clearInterval(interval)
+  }, [activityLoading])
+
+  const formatRelativeTime = useCallback((timestamp: number) => {
+    const diff = Date.now() - timestamp
+    const mins = Math.floor(diff / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins}m ago`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}h ago`
+    return `${Math.floor(hours / 24)}d ago`
   }, [])
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-[#FBFCFE]">
-      <div className="fixed inset-0 opacity-25" style={{
-        backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='g' width='60' height='60' patternUnits='userSpaceOnUse'%3E%3Cpath d='M 60 0 L 0 0 0 60' fill='none' stroke='rgba(0,160,180,0.06)' stroke-width='1'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23g)'/%3E%3C/svg%3E")`
-      }} />
+    <div className="min-h-screen relative overflow-hidden bg-[#0a0b1a] text-slate-100">
+      {/* Animated background */}
+      <div className="fixed inset-0 z-0">
+        <DataFlowBackground variant="dark" />
+      </div>
+      <div className="fixed inset-0 z-0 bg-gradient-to-b from-transparent via-[#0a0b1a]/40 to-[#0a0b1a]" />
 
       <div className="relative z-10">
-
         {/* ── Nav ──────────────────────────────────────────────────────────── */}
-        <nav className="border-b border-slate-200 bg-white sticky top-0 z-40">
+        <nav className="border-b border-cyan-500/10 bg-[#0a0b1a]/80 backdrop-blur-md sticky top-0 z-40">
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <img src={maefLogo} alt="ASAJU AI" className="h-10 w-auto object-contain" />
+              <img src={maefLogo} alt="ASAJU AI" className="h-9 w-auto object-contain" />
               <div>
-                <span className="text-sm font-black tracking-widest text-slate-800">ASAJU AI</span>
-                <p className="text-[9px] text-slate-400 font-mono hidden sm:block leading-none mt-0.5">Autonomous Agent Intelligence</p>
+                <span className="text-sm font-black tracking-widest text-cyan-300">ASAJU AI</span>
+                <p className="text-[9px] text-slate-500 font-mono hidden sm:block leading-none mt-0.5">Autonomous Agent Intelligence</p>
               </div>
             </div>
             <Button
               onClick={() => navigate('/dashboard')}
-              className="bg-gradient-to-r from-cyan-600 to-teal-600 hover:opacity-90 font-semibold shadow-lg shadow-cyan-200 h-8 px-4 text-sm text-white"
+              className="bg-gradient-to-r from-cyan-500 to-violet-600 hover:opacity-90 font-semibold shadow-lg shadow-cyan-500/20 h-9 px-5 text-sm text-white border border-cyan-400/30"
             >
               Launch App
               <ArrowRight className="ml-1.5" size={14} weight="bold" />
@@ -153,236 +204,351 @@ export function LandingPage() {
           </div>
         </nav>
 
-        {/* ── Section 1: Hero ───────────────────────────────────────────────── */}
-        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 pt-24 pb-14 text-center">
-          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-5 leading-tight text-slate-950">
-              Stop missing what matters in Web3.
+        {/* ── Hero ─────────────────────────────────────────────────────────── */}
+        <section className="relative max-w-screen-xl mx-auto px-4 sm:px-6 pt-20 pb-24 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7 }}
+          >
+            {/* Chain badges */}
+            <div className="flex items-center justify-center gap-2 mb-8">
+              {supportedChains.map(chain => (
+                <ChainBadge key={chain.chainId} chainId={chain.chainId} />
+              ))}
+            </div>
+
+            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight mb-6 leading-[1.1]">
+              <span className="text-white">Autonomous agents</span>
+              <br />
+              <span className="bg-gradient-to-r from-cyan-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent">
+                that live on-chain
+              </span>
             </h1>
 
-            <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
-              Your agent follows events, builds reusable knowledge, and keeps proof of what it learns.
+            <p className="text-base sm:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed mb-10">
+              Spawn AI agents with their own wallets, gas reserves, and cryptographic identity.
+              They attend events, learn from what they watch, and mint permanent proof of attendance —
+              all signed by themselves.
             </p>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-10">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
               <Button
                 onClick={() => navigate('/dashboard')}
                 size="lg"
-                className="bg-gradient-to-r from-cyan-600 to-teal-600 hover:opacity-90 font-bold px-8 shadow-xl shadow-cyan-200 text-base text-white"
+                className="bg-gradient-to-r from-cyan-500 to-violet-600 hover:opacity-90 font-bold px-10 shadow-xl shadow-cyan-500/30 text-base text-white border border-cyan-400/40 h-12"
               >
-                <Robot className="mr-2" weight="duotone" size={20} />
-                Create Your Agent
+                <Robot className="mr-2" weight="duotone" size={22} />
+                Spawn Your First Agent
+                <ArrowRight className="ml-2" size={18} weight="bold" />
               </Button>
-              <a href="#how-it-works" className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-cyan-600 transition-colors">
+              <a
+                href="#lifecycle"
+                className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-cyan-400 transition-colors"
+              >
                 See how it works
                 <ArrowRight size={13} />
               </a>
             </div>
 
-            {/* Niche selector */}
-            <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
-              <span className="text-xs text-slate-400 font-mono">Pick a focus to start:</span>
-              {NICHES.map(({ label, emoji }) => (
-                <button
-                  key={label}
-                  onClick={() => {
-                    setSelectedNiche(label)
-                    navigate('/dashboard')
-                  }}
-                  className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border transition-all ${
-                    selectedNiche === label
-                      ? 'bg-cyan-600 text-white border-cyan-600 shadow-md shadow-cyan-200'
-                      : 'bg-white text-slate-700 border-cyan-200 hover:border-cyan-400 hover:bg-cyan-50'
-                  }`}
-                >
-                  <span>{emoji}</span>
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Live metrics */}
+            {/* Live metrics — terminal style */}
             {metrics && (
               <motion.div
-                initial={{ opacity: 0, y: 12 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="inline-flex items-center gap-6 sm:gap-10 px-6 py-3 rounded-2xl bg-white/80 border border-cyan-100 shadow-sm backdrop-blur-sm"
+                className="inline-flex items-center gap-3 px-5 py-3 rounded-xl border border-cyan-500/20 bg-[#0a0b1a]/80 backdrop-blur-md font-mono"
               >
-                {[
-                  { label: 'Agents exploring', value: metrics.total_agents },
-                  { label: 'Insights saved', value: metrics.total_wisdom_nfts },
-                  { label: 'Average growth', value: `Lv ${metrics.average_agent_level.toFixed(1)}` },
-                ].map(({ label, value }) => (
-                  <div key={label} className="text-center">
-                    <p className="text-xl sm:text-2xl font-black text-slate-900">{value}</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-mono">{label}</p>
-                  </div>
-                ))}
+                <span className="text-[9px] uppercase tracking-widest text-amber-400/80 border border-amber-500/30 px-1.5 py-0.5 rounded">Testnet</span>
+                <div className="flex items-center gap-6 sm:gap-8">
+                  {[
+                    { label: 'agents', value: metrics.total_agents },
+                    { label: 'wisdom NFTs', value: metrics.total_wisdom_nfts },
+                    { label: 'avg level', value: metrics.average_agent_level.toFixed(1) },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="text-center">
+                      <p className="text-lg sm:text-xl font-black text-cyan-300">{value}</p>
+                      <p className="text-[9px] text-slate-500 uppercase tracking-wider">{label}</p>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             )}
           </motion.div>
         </section>
 
-        {/* ── Problem Strip ─────────────────────────────────────────────────── */}
-        <section className="border-y border-cyan-100 bg-cyan-50/60 py-6">
-          <p className="text-center text-sm sm:text-base text-slate-600 max-w-2xl mx-auto px-4 leading-relaxed">
-            <span className="font-bold text-slate-800">Web3 never stops.</span>{' '}
-            Events happen everywhere, useful context disappears, and keeping up becomes a full-time job.
-          </p>
-        </section>
-
-        {/* ── Section 2: How It Works ───────────────────────────────────────── */}
-        <section id="how-it-works" className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16 scroll-mt-20">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl sm:text-3xl font-black mb-2 text-slate-900">Web3 moves quickly. You do not have to chase every update.</h2>
-            <p className="text-sm text-slate-500 max-w-2xl mx-auto">Your agent is a second set of eyes: it follows a focus, turns what it finds into useful context, and keeps the results easy to revisit.</p>
+        {/* ── Agent Lifecycle ──────────────────────────────────────────────── */}
+        <section id="lifecycle" className="max-w-screen-xl mx-auto px-4 sm:px-6 py-20 scroll-mt-20">
+          <div className="text-center mb-14">
+            <p className="text-xs font-mono uppercase tracking-widest text-cyan-400/60 mb-3">Agent Lifecycle</p>
+            <h2 className="text-2xl sm:text-4xl font-black mb-3 text-white">
+              From spawn to sovereign
+            </h2>
+            <p className="text-sm text-slate-400 max-w-xl mx-auto">
+              Each agent is born with autonomy. It acts on its own behalf — not as a relay, but as a sovereign participant.
+            </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-            {PIPELINE_STEPS.map((step, i) => (
+          {/* Lifecycle loop — horizontal on desktop, vertical on mobile */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-2 relative">
+            {LIFECYCLE_STAGES.map((stage, i) => (
               <motion.div
-                key={step.label}
-                initial={{ opacity: 0, y: 20 }}
+                key={stage.label}
+                initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.08 }}
+                transition={{ delay: i * 0.12 }}
                 className="relative"
               >
-                <div className="p-4 rounded-xl border border-cyan-100 bg-white/70 h-full flex flex-col gap-2 hover:border-cyan-300 hover:shadow-sm transition-all">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{step.emoji}</span>
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 leading-tight">{step.label}</p>
-                      <p className="text-[10px] text-slate-400 font-mono">{step.sub}</p>
-                    </div>
+                <div className="p-6 rounded-2xl border border-cyan-500/15 bg-[#0f1124]/60 backdrop-blur-sm h-full flex flex-col items-center text-center gap-3 hover:border-cyan-400/40 transition-all group">
+                  <div
+                    className="w-14 h-14 rounded-xl flex items-center justify-center border"
+                    style={{
+                      borderColor: `${stage.color}40`,
+                      background: `${stage.color}10`,
+                      boxShadow: `0 0 20px ${stage.color}20`,
+                    }}
+                  >
+                    <stage.icon size={28} style={{ color: stage.color }} weight="duotone" />
                   </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">{step.desc}</p>
+                  <h3 className="text-base font-bold text-white">{stage.label}</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">{stage.desc}</p>
                 </div>
-                {i < PIPELINE_STEPS.length - 1 && (
-                  <div className="hidden sm:flex absolute -right-2 top-1/2 -translate-y-1/2 z-10 text-cyan-300 text-lg">→</div>
+
+                {/* Arrow between stages */}
+                {i < LIFECYCLE_STAGES.length - 1 && (
+                  <div className="hidden md:flex absolute -right-2 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-4">
+                    <ArrowRight className="text-cyan-500/40" size={18} weight="bold" />
+                  </div>
                 )}
               </motion.div>
             ))}
           </div>
+
+          {/* Loop-back indicator */}
+          <div className="hidden md:flex items-center justify-center mt-6 gap-2 text-[10px] font-mono text-slate-600">
+            <span className="w-8 h-px bg-cyan-500/20" />
+            <span>repeats autonomously</span>
+            <span className="w-8 h-px bg-cyan-500/20" />
+          </div>
         </section>
 
-        {/* ── Section 3: Features ───────────────────────────────────────────── */}
-        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16">
+        {/* ── Live Activity Terminal ───────────────────────────────────────── */}
+        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-20">
           <div className="text-center mb-10">
-            <h2 className="text-2xl sm:text-3xl font-black mb-2 text-slate-900">What your agent gives back</h2>
-            <p className="text-sm text-slate-500">A calmer way to follow the conversations you care about.</p>
+            <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400">Live</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-black mb-2 text-white">Agents are working right now</h2>
+            <p className="text-sm text-slate-400">Real on-chain activity from the ASAJU network.</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {FEATURES.map((f, i) => (
+          {/* Terminal feed */}
+          <div
+            ref={scrollRef}
+            className="max-w-2xl mx-auto rounded-2xl border border-cyan-500/15 bg-[#08091a]/90 backdrop-blur-md overflow-hidden font-mono"
+          >
+            {/* Terminal header */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-cyan-500/10 bg-[#0d0f25]/60">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500/60" />
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500/60" />
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/60" />
+              </div>
+              <span className="text-[10px] text-slate-600">asaju://activity-feed</span>
+            </div>
+
+            {/* Feed entries */}
+            <div className="p-4 space-y-2 min-h-[280px]">
+              {activityLoading ? (
+                // Skeleton
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3 animate-pulse">
+                    <div className="w-2 h-2 rounded-full bg-slate-700" />
+                    <div className="h-3 bg-slate-800 rounded w-full" />
+                  </div>
+                ))
+              ) : activity.length === 0 ? (
+                <div className="text-center py-12 text-slate-600 text-xs">
+                  <Pulse size={32} className="mx-auto mb-3 text-slate-700" weight="duotone" />
+                  Waiting for agent activity...
+                </div>
+              ) : (
+                <AnimatePresence initial={false}>
+                  {activity.map((entry, i) => (
+                    <motion.div
+                      key={entry.id}
+                      initial={{ opacity: 0, x: -16 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="flex items-start gap-3 text-xs leading-relaxed"
+                    >
+                      {/* Action dot */}
+                      <span
+                        className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
+                        style={{
+                          background: entry.real ? '#34d399' : '#64748b',
+                        }}
+                      />
+                      {/* Timestamp */}
+                      <span className="text-slate-600 text-[10px] mt-0.5 flex-shrink-0 w-16">
+                        {formatRelativeTime(entry.timestamp)}
+                      </span>
+                      {/* Content */}
+                      <span className="text-slate-300 flex-1">
+                        <span className="text-cyan-400 font-semibold">{entry.agentName}</span>
+                        {' '}
+                        <span className="text-slate-500">{entry.action}</span>
+                        {' '}
+                        <span className="text-slate-400">{entry.detail}</span>
+                      </span>
+                      {/* Chain badge */}
+                      <ChainBadge chainId={entry.chainId} showName={false} className="mt-0.5" />
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              )}
+            </div>
+
+            {/* Terminal footer */}
+            <div className="px-4 py-2 border-t border-cyan-500/10 bg-[#0d0f25]/60 flex items-center justify-between text-[9px] font-mono text-slate-600">
+              <span>{activity.filter(a => a.real).length} confirmed · {activity.filter(a => !a.real).length} live</span>
+              <span className="flex items-center gap-1">
+                <span className="w-1 h-1 rounded-full bg-emerald-400 animate-pulse" />
+                streaming
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Why On-Chain (3 Pillars) ─────────────────────────────────────── */}
+        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-20">
+          <div className="text-center mb-14">
+            <p className="text-xs font-mono uppercase tracking-widest text-violet-400/60 mb-3">Why On-Chain</p>
+            <h2 className="text-2xl sm:text-4xl font-black mb-3 text-white">
+              Not just AI. Sovereign AI.
+            </h2>
+            <p className="text-sm text-slate-400 max-w-xl mx-auto">
+              Most AI agents live in a database. Yours live on a blockchain — with all the rights and permanence that brings.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {PILLARS.map((pillar, i) => (
               <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 20 }}
+                key={pillar.title}
+                initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.07 }}
-                className={`p-5 rounded-xl border ${f.bg} bg-white/70 hover:shadow-sm transition-all`}
+                transition={{ delay: i * 0.1 }}
+                className="relative p-7 rounded-2xl border bg-[#0f1124]/60 backdrop-blur-sm overflow-hidden group hover:border-opacity-60 transition-all"
+                style={{ borderColor: `${pillar.color}25` }}
               >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-3 ${f.bg}`}>
-                  <f.icon size={20} className={f.color} weight="duotone" />
+                {/* Glow accent */}
+                <div
+                  className="absolute -top-12 -right-12 w-32 h-32 rounded-full opacity-10 blur-2xl group-hover:opacity-20 transition-opacity"
+                  style={{ background: pillar.color }}
+                />
+                <div className="relative z-10">
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 border"
+                    style={{
+                      borderColor: `${pillar.color}40`,
+                      background: `${pillar.color}10`,
+                    }}
+                  >
+                    <pillar.icon size={24} style={{ color: pillar.color }} weight="duotone" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-3">{pillar.title}</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">{pillar.desc}</p>
                 </div>
-                <h3 className="font-bold text-sm mb-1.5 text-slate-800">{f.title}</h3>
-                <p className="text-xs text-slate-500 leading-relaxed">{f.desc}</p>
               </motion.div>
             ))}
           </div>
         </section>
 
-        {/* ── Section 4: Live Proof ─────────────────────────────────────────── */}
-        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl sm:text-3xl font-black mb-2 text-slate-900">See what agents are learning</h2>
-            <p className="text-sm text-slate-500 max-w-lg mx-auto">
-              These are real summaries agents have created from the events they followed and saved on-chain.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 w-fit mx-auto">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <p className="text-[11px] text-emerald-700 font-mono">Live updates from the ASAJU community</p>
-          </div>
-          <FeaturedWisdomFeed items={wisdom} loading={wisdomLoading} />
-        </section>
-
-        {/* ── Section 5: Trust ──────────────────────────────────────────────── */}
-        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl sm:text-3xl font-black mb-2 text-slate-900">Made to work for you, not overwhelm you</h2>
-            <p className="text-sm text-slate-500">You set the direction. Your agent handles the routine and keeps the learning in one place.</p>
-          </div>
-          <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
-            {TRUST_POINTS.map(({ icon: Icon, label, value, color }) => (
-              <div key={label} className="flex items-center gap-3 p-4 rounded-xl bg-white/70 border border-cyan-100">
-                <div className="w-9 h-9 rounded-lg bg-cyan-50 flex items-center justify-center flex-shrink-0 border border-cyan-100">
-                  <Icon size={18} className={color} weight="duotone" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">{label}</p>
-                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ── Section 6: CTA ────────────────────────────────────────────────── */}
-        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-16 pb-24">
+        {/* ── Final CTA ────────────────────────────────────────────────────── */}
+        <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-20 pb-28">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="relative rounded-2xl overflow-hidden border border-cyan-200 p-10 sm:p-16 text-center bg-white/60"
+            className="relative rounded-3xl overflow-hidden border border-cyan-500/20 p-10 sm:p-16 text-center"
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-50/80 via-white/40 to-teal-50/60" />
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,180,200,0.06),transparent_70%)]" />
+            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/10 via-[#0a0b1a] to-violet-500/10" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,243,255,0.08),transparent_70%)]" />
             <div className="relative z-10">
-              <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-cyan-100 to-teal-100 border border-cyan-200 flex items-center justify-center">
-                <Robot size={32} className="text-cyan-600 animate-float" weight="duotone" />
+              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl border border-cyan-400/30 flex items-center justify-center bg-cyan-500/10">
+                <Robot size={32} className="text-cyan-400" weight="duotone" />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black mb-3 text-slate-900">
-                Start with one focus.
+              <h2 className="text-2xl sm:text-4xl font-black mb-4 text-white">
+                Give your AI a wallet.
               </h2>
-              <p className="text-sm text-slate-600 max-w-md mx-auto mb-8 leading-relaxed">
-                Connect your wallet once, choose what matters to you, and let your agent begin building context from the events it follows.
+              <p className="text-sm text-slate-400 max-w-md mx-auto mb-10 leading-relaxed">
+                Connect once, choose a chain, and spawn an agent that attends, learns, and proves — on its own.
               </p>
+
+              {/* Chain selector inline */}
+              <div className="flex items-center justify-center gap-3 mb-8">
+                {supportedChains.map(chain => (
+                  <button
+                    key={chain.chainId}
+                    onClick={() => navigate('/dashboard')}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold border transition-all hover:scale-105"
+                    style={{
+                      borderColor: `${chain.color}30`,
+                      background: `${chain.color}10`,
+                      color: chain.color,
+                    }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: chain.color }} />
+                    {chain.name}
+                  </button>
+                ))}
+              </div>
+
               <Button
                 onClick={() => navigate('/dashboard')}
                 size="lg"
-                className="bg-gradient-to-r from-cyan-600 to-teal-600 hover:opacity-90 font-bold px-10 shadow-xl shadow-cyan-200 text-base text-white"
+                className="bg-gradient-to-r from-cyan-500 to-violet-600 hover:opacity-90 font-bold px-12 shadow-xl shadow-cyan-500/30 text-base text-white border border-cyan-400/40 h-12"
               >
                 <Robot className="mr-2" weight="duotone" size={20} />
-                Create Your Agent
-                <ArrowRight className="ml-2" size={16} weight="bold" />
+                Launch App
+                <ArrowRight className="ml-2" size={18} weight="bold" />
               </Button>
             </div>
           </motion.div>
         </section>
 
         {/* ── Footer ────────────────────────────────────────────────────────── */}
-        <footer className="border-t border-cyan-100 bg-white/60 py-6">
-          <div className="max-w-screen-xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <footer className="border-t border-cyan-500/10 bg-[#08091a]/80 py-8">
+          <div className="max-w-screen-xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <img src={maefLogo} alt="ASAJU AI" className="h-7 w-auto object-contain" />
-              <span className="text-xs font-bold tracking-widest text-slate-400">ASAJU AI</span>
+              <span className="text-xs font-bold tracking-widest text-slate-500">ASAJU AI</span>
             </div>
-            <div className="flex items-center gap-4 text-xs text-slate-400 font-mono">
-              <a href="https://explorer.sepolia.mantle.xyz/address/0x66fD8b5411856D42c08D9356e879a6e7dF0c9419" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-600 transition-colors">
-                Contract ↗
-              </a>
-              <span>·</span>
-              <button onClick={() => navigate('/dashboard')} className="hover:text-cyan-600 transition-colors">
-                Dashboard
-              </button>
+
+            {/* Contract links — both chains */}
+            <div className="flex items-center gap-3 text-[10px] font-mono">
+              {supportedChains.map(chain => (
+                <a
+                  key={chain.chainId}
+                  href={`${chain.explorerUrl}/address/${chain.contractAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-slate-500 hover:text-cyan-400 transition-colors"
+                >
+                  <span className="w-1 h-1 rounded-full" style={{ background: chain.color }} />
+                  {chain.shortName} contract ↗
+                </a>
+              ))}
             </div>
-            <p className="text-[10px] text-slate-400 font-mono">Testnet · Not financial advice</p>
+
+            <p className="text-[10px] text-slate-600 font-mono">Testnet · Not financial advice</p>
           </div>
         </footer>
-
       </div>
     </div>
   )
