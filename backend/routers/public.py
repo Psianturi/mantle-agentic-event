@@ -92,6 +92,19 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
             m = re.search(r"Agent '([^']+)' attended", summary)
             return m.group(1) if m else None
 
+        # Patterns that mark internal QA / E2E test artifacts, not showcase material.
+        _TEST_PATTERNS = re.compile(
+            r"(?i)\b(e2e[\s-]*test|trysepolia|qa[\s-]*test|smoke[\s-]*test|"
+            r"test[\s-]*(event|agent|spawn|mint)|demo[\s-]*(event|agent))\b"
+        )
+
+        def _is_internal_test(agent_name: str, event_title: str) -> bool:
+            """True if this event looks like an internal QA/test artifact."""
+            blob = f"{agent_name} {event_title}".strip()
+            if not blob:
+                return False
+            return bool(_TEST_PATTERNS.search(blob))
+
         # Calculate wisdom quality score (based on summary length + keyword presence)
         def score_wisdom_quality(summary: str) -> float:
             """Simple heuristic: longer + key phrases = higher quality."""
@@ -118,17 +131,25 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
         for event in all_events:
             attended_at = event.get("attended_at", 0)
             agent_id = event.get("agent_id", "")
+
+            # Filter out internal QA/test events before public showcase.
+            # Keeps the public feed honest — "real wisdom from real events".
+            event_title = event.get("event_title", "")
+            agent_name = (
+                agent_cache.get(agent_id)
+                or event.get("agent_name")
+                or _extract_name_from_summary(event.get("wisdom_summary", ""))
+                or ""
+            )
+            if _is_internal_test(agent_name, event_title):
+                continue
+
             wisdom_score = score_wisdom_quality(event.get("wisdom_summary", ""))
             
             item = FeaturedWisdomItem(
-                event_title=event.get("event_title", "Event"),
+                event_title=event_title,
                 wisdom_summary=event.get("wisdom_summary", ""),
-                agent_name=(
-                    agent_cache.get(agent_id)
-                    or event.get("agent_name")
-                    or _extract_name_from_summary(event.get("wisdom_summary", ""))
-                    or "Anonymous Agent"
-                ),
+                agent_name=agent_name or "Anonymous Agent",
                 agent_id=agent_id,
                 niche=agent_niche_cache.get(agent_id) or event.get("niche") or "General",
                 platform=event.get("platform", "YouTube"),

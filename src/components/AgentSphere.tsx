@@ -8,12 +8,14 @@ interface AgentSphereProps {
 /**
  * 3D visualization of agent architecture.
  *
- * Central glowing sphere = the agent (sovereign identity).
- * Orbiting smaller spheres = the 4 sub-agents (secretary, scribe, social-lite, mint-master).
- * Particle ring = the events/wisdom the agent accumulates.
+ * Core icosahedron = agent identity (sovereign, encrypted keys, wallet)
+ * 4 orbiting spheres = sub-agents (secretary, scribe, social-lite, mint-master)
+ * Inner particle ring = events/wisdom the agent has accumulated
+ * Outer ring of nodes = the blockchain network (Mantle, ETH Sepolia, ...)
+ * Connection lines = data/tx flow from agent to chain
  *
- * Mouse parallax: user moves mouse, the whole structure tilts slightly.
- * Auto-rotation: continuous slow rotation for liveliness.
+ * Mouse parallax + auto-rotation for liveliness.
+ * Respects prefers-reduced-motion (static fallback).
  */
 export function AgentSphere({ className }: AgentSphereProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -24,7 +26,6 @@ export function AgentSphere({ className }: AgentSphereProps) {
 
     // Respect reduced motion
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      // Render a static fallback glow
       container.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,rgba(0,243,255,0.15),transparent 60%);border-radius:50%"></div>'
       return
     }
@@ -35,16 +36,16 @@ export function AgentSphere({ className }: AgentSphereProps) {
     // ── Scene setup ────────────────────────────────────────────────────────
     const scene = new THREE.Scene()
 
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100)
-    camera.position.set(0, 0, 8)
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100)
+    camera.position.set(0, 0, 11)
 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
     renderer.setSize(width, height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     container.appendChild(renderer.domElement)
 
-    // ── Core sphere (the agent) ────────────────────────────────────────────
-    const coreGeo = new THREE.IcosahedronGeometry(1.2, 1)
+    // ── Core sphere (the agent) — larger now ───────────────────────────────
+    const coreGeo = new THREE.IcosahedronGeometry(1.6, 1)
     const coreMat = new THREE.MeshBasicMaterial({
       color: 0x00f3ff,
       transparent: true,
@@ -55,7 +56,7 @@ export function AgentSphere({ className }: AgentSphereProps) {
     scene.add(core)
 
     // Inner solid glow
-    const innerGeo = new THREE.SphereGeometry(0.8, 32, 32)
+    const innerGeo = new THREE.SphereGeometry(1.1, 32, 32)
     const innerMat = new THREE.MeshBasicMaterial({
       color: 0x00f3ff,
       transparent: true,
@@ -67,10 +68,11 @@ export function AgentSphere({ className }: AgentSphereProps) {
     // ── Sub-agent orbit nodes (4) ──────────────────────────────────────────
     const subAgentColors = [0x00f3ff, 0x9d00ff, 0x00f3ff, 0x9d00ff]
     const subAgents: THREE.Mesh[] = []
-    const orbitRadius = 2.6
+    const lines: THREE.Line[] = []  // track for cleanup
+    const orbitRadius = 3.2
 
     for (let i = 0; i < 4; i++) {
-      const geo = new THREE.SphereGeometry(0.18, 16, 16)
+      const geo = new THREE.SphereGeometry(0.22, 16, 16)
       const mat = new THREE.MeshBasicMaterial({
         color: subAgentColors[i],
         transparent: true,
@@ -80,32 +82,31 @@ export function AgentSphere({ className }: AgentSphereProps) {
       scene.add(node)
       subAgents.push(node)
 
-      // Connection line from core to sub-agent
-      // Pre-allocate position attribute (2 points: core → sub-agent)
-      // Updated each frame in the animation loop.
-      const linePositions = new Float32Array(6) // 2 vertices × 3 coords
+      // Connection line core → sub-agent (pre-allocated position attribute)
+      const linePositions = new Float32Array(6)
       const lineGeo = new THREE.BufferGeometry()
       lineGeo.setAttribute('position', new THREE.BufferAttribute(linePositions, 3))
       const lineMat = new THREE.LineBasicMaterial({
         color: subAgentColors[i],
         transparent: true,
-        opacity: 0.3,
+        opacity: 0.35,
       })
       const line = new THREE.Line(lineGeo, lineMat)
       scene.add(line)
+      lines.push(line)
       ;(node as any).userData.line = line
     }
 
-    // ── Particle ring (events/wisdom) ──────────────────────────────────────
-    const particleCount = 120
+    // ── Particle ring (events/wisdom) — wider ──────────────────────────────
+    const particleCount = 160
     const particleGeo = new THREE.BufferGeometry()
     const positions = new Float32Array(particleCount * 3)
     const particleColors = new Float32Array(particleCount * 3)
 
     for (let i = 0; i < particleCount; i++) {
       const angle = (i / particleCount) * Math.PI * 2
-      const r = 3.8 + Math.random() * 0.6
-      const y = (Math.random() - 0.5) * 0.8
+      const r = 4.6 + Math.random() * 0.8
+      const y = (Math.random() - 0.5) * 1.0
       positions[i * 3] = Math.cos(angle) * r
       positions[i * 3 + 1] = y
       positions[i * 3 + 2] = Math.sin(angle) * r
@@ -120,14 +121,36 @@ export function AgentSphere({ className }: AgentSphereProps) {
     particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3))
 
     const particleMat = new THREE.PointsMaterial({
-      size: 0.06,
+      size: 0.07,
       vertexColors: true,
       transparent: true,
-      opacity: 0.6,
+      opacity: 0.65,
       blending: THREE.AdditiveBlending,
     })
     const particles = new THREE.Points(particleGeo, particleMat)
     scene.add(particles)
+
+    // ── Blockchain network ring (outer layer) ──────────────────────────────
+    // Represents the chains the agent lives on — Mantle, ETH Sepolia, ...
+    const chainNodeCount = 8
+    const chainNodes: THREE.Mesh[] = []
+    const chainLines: THREE.Line[] = []  // track for cleanup
+    const chainOrbitRadius = 5.4
+
+    for (let i = 0; i < chainNodeCount; i++) {
+      const geo = new THREE.OctahedronGeometry(0.14, 0)
+      const isMantle = i % 2 === 0
+      const color = isMantle ? 0x00f3ff : 0x9d00ff
+      const mat = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.5,
+        wireframe: true,
+      })
+      const node = new THREE.Mesh(geo, mat)
+      scene.add(node)
+      chainNodes.push(node)
+    }
 
     // ── Mouse parallax ─────────────────────────────────────────────────────
     let mouseX = 0
@@ -138,8 +161,8 @@ export function AgentSphere({ className }: AgentSphereProps) {
     const onMouseMove = (e: MouseEvent) => {
       mouseX = (e.clientX / window.innerWidth - 0.5) * 2
       mouseY = (e.clientY / window.innerHeight - 0.5) * 2
-      targetRotX = mouseY * 0.3
-      targetRotY = mouseX * 0.5
+      targetRotX = mouseY * 0.25
+      targetRotY = mouseX * 0.4
     }
     window.addEventListener('mousemove', onMouseMove)
 
@@ -164,25 +187,22 @@ export function AgentSphere({ className }: AgentSphereProps) {
       // Smooth parallax
       scene.rotation.x += (targetRotX - scene.rotation.x) * 0.04
       scene.rotation.y += (targetRotY - scene.rotation.y) * 0.04
-
-      // Auto rotation
-      scene.rotation.y += 0.0025
+      scene.rotation.y += 0.002
 
       // Core pulse
-      const pulse = 1 + Math.sin(elapsed * 2) * 0.05
+      const pulse = 1 + Math.sin(elapsed * 1.5) * 0.06
       core.scale.setScalar(pulse)
       inner.scale.setScalar(pulse)
-      core.rotation.x = elapsed * 0.3
-      core.rotation.y = elapsed * 0.2
+      core.rotation.x = elapsed * 0.25
+      core.rotation.y = elapsed * 0.18
 
-      // Sub-agents orbit
+      // Sub-agents orbit (tilted plane)
       subAgents.forEach((node, i) => {
-        const angle = elapsed * 0.4 + (i / 4) * Math.PI * 2
+        const angle = elapsed * 0.35 + (i / 4) * Math.PI * 2
         node.position.x = Math.cos(angle) * orbitRadius
         node.position.z = Math.sin(angle) * orbitRadius
-        node.position.y = Math.sin(elapsed * 1.5 + i) * 0.3
+        node.position.y = Math.sin(elapsed * 1.2 + i) * 0.4
 
-        // Update connection line
         const line = (node as any).userData.line as THREE.Line
         if (line) {
           const positions = line.geometry.attributes.position.array as Float32Array
@@ -194,15 +214,25 @@ export function AgentSphere({ className }: AgentSphereProps) {
         }
       })
 
-      // Particle ring rotation
-      particles.rotation.y = elapsed * 0.15
+      // Particle ring rotation (slow, opposite direction)
+      particles.rotation.y = -elapsed * 0.1
+      particles.rotation.x = Math.sin(elapsed * 0.3) * 0.1
+
+      // Chain nodes orbit (outer ring, opposite tilt)
+      chainNodes.forEach((node, i) => {
+        const angle = -elapsed * 0.08 + (i / chainNodeCount) * Math.PI * 2
+        node.position.x = Math.cos(angle) * chainOrbitRadius
+        node.position.z = Math.sin(angle) * chainOrbitRadius
+        node.position.y = Math.cos(angle * 2) * 0.6
+        node.rotation.y = elapsed * 0.5
+      })
 
       renderer.render(scene, camera)
       frameId = requestAnimationFrame(animate)
     }
     animate()
 
-    // ── Cleanup ────────────────────────────────────────────────────────────
+    // ── Cleanup ──────────────────────────────────────────────────────────────
     return () => {
       cancelAnimationFrame(frameId)
       window.removeEventListener('mousemove', onMouseMove)
@@ -215,6 +245,10 @@ export function AgentSphere({ className }: AgentSphereProps) {
       particleGeo.dispose()
       particleMat.dispose()
       subAgents.forEach(n => { n.geometry.dispose(); (n.material as THREE.Material).dispose() })
+      // Dispose connection lines (fix: previously leaked)
+      lines.forEach(l => { l.geometry.dispose(); (l.material as THREE.Material).dispose() })
+      chainNodes.forEach(n => { n.geometry.dispose(); (n.material as THREE.Material).dispose() })
+      chainLines.forEach(l => { l.geometry.dispose(); (l.material as THREE.Material).dispose() })
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement)
       }
