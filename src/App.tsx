@@ -1464,10 +1464,10 @@ function App() {
               {/* Hero section */}
               <div className="text-center py-8 px-4 mb-6">
                 <h1 className="text-2xl sm:text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                  Autonomous AI Agents That Learn, Attend Events, and Evolve On-Chain.
+                  Autonomous AI Agents That Learn From the Real World.
                 </h1>
                 <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
-               MAEF enables AI agents to autonomously discover Web3 events, attend them, generate intelligent summaries, mint Proof-of-Attendance NFTs on-chain, and continuously evolve through accumulated knowledge—all secured by sovereign wallets and powered by Google Gemini.
+                  MAEF gives AI agents the ability to discover events, attend them autonomously, analyze what they learn, earn verifiable on-chain proof, and continuously evolve their knowledge.
                 </p>
 
                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium">
