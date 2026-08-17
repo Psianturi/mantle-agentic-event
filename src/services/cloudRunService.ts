@@ -866,6 +866,38 @@ export const cloudRunService = {
     }
   },
 
+  async getPublicAgents() {
+    try {
+      const response = await fetchWithTimeout(
+        `${GCP_BACKEND_URL}/api/v1/public/agents`,
+        { method: 'GET' }
+      )
+
+      const raw = await handleAPIResponse<Array<{
+        agent_name: string
+        niche: string
+        level: number
+        total_events: number
+        chain_id: number
+        generation: number
+        ownership_status: string
+      }>>(response)
+
+      return raw.map(a => ({
+        agentName: a.agent_name,
+        niche: a.niche,
+        level: a.level,
+        totalEvents: a.total_events,
+        chainId: a.chain_id,
+        generation: a.generation,
+        ownershipStatus: a.ownership_status,
+      }))
+    } catch (error) {
+      console.warn('[cloudRunService] getPublicAgents failed:', error)
+      return []
+    }
+  },
+
   async getAgentScoutLogs(agentId: string) {
     try {
       const response = await fetchWithTimeout(

@@ -29,6 +29,22 @@ router = APIRouter(prefix="/api/v1/public", tags=["public"])
 AGENTS_COLLECTION = "agents"
 EVENTS_COLLECTION = "agent_events"
 
+# Patterns that mark internal QA / E2E test artifacts, not showcase material.
+# Shared by every public endpoint that surfaces agent identity — fix once at
+# the source instead of patching each endpoint separately.
+_TEST_PATTERNS = re.compile(
+    r"(?i)\b(e2e[\s-]*test|trysepolia|qa[\s-]*test|smoke[\s-]*test|"
+    r"test[\s-]*(event|agent|spawn|mint)|demo[\s-]*(event|agent))\b"
+)
+
+
+def _is_internal_test(agent_name: str, event_title: str = "") -> bool:
+    """True if this agent/event looks like an internal QA/test artifact."""
+    blob = f"{agent_name} {event_title}".strip()
+    if not blob:
+        return False
+    return bool(_TEST_PATTERNS.search(blob))
+
 
 class FeaturedWisdomItem(BaseModel):
     """A single featured wisdom card for public showcase."""
@@ -91,19 +107,6 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
             """Parse agent name from legacy wisdom summaries: "Agent 'Name' attended ..." """
             m = re.search(r"Agent '([^']+)' attended", summary)
             return m.group(1) if m else None
-
-        # Patterns that mark internal QA / E2E test artifacts, not showcase material.
-        _TEST_PATTERNS = re.compile(
-            r"(?i)\b(e2e[\s-]*test|trysepolia|qa[\s-]*test|smoke[\s-]*test|"
-            r"test[\s-]*(event|agent|spawn|mint)|demo[\s-]*(event|agent))\b"
-        )
-
-        def _is_internal_test(agent_name: str, event_title: str) -> bool:
-            """True if this event looks like an internal QA/test artifact."""
-            blob = f"{agent_name} {event_title}".strip()
-            if not blob:
-                return False
-            return bool(_TEST_PATTERNS.search(blob))
 
         # Calculate wisdom quality score (based on summary length + keyword presence)
         def score_wisdom_quality(summary: str) -> float:
@@ -270,4 +273,51 @@ async def get_public_metrics() -> PublicMetricsResponse:
         
     except Exception as exc:
         logger.error("Failed to fetch public metrics: %s", exc)
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+
+class PublicAgentItem(BaseModel):
+    """A single real agent profile for the landing page showcase."""
+    agent_name: str
+    niche: str
+    level: int
+    total_events: int
+    chain_id: int
+    generation: int
+    ownership_status: str
+
+
+@router.get("/agents", response_model=list[PublicAgentItem])
+async def get_public_agents() -> list[PublicAgentItem]:
+    """
+    Top 6 most-active real agents, for the landing page "Agent Showcase".
+
+    No authentication required. Excludes internal QA/test agents via the
+    same _is_internal_test() filter used by /featured-wisdom.
+    """
+    db = get_db()
+
+    try:
+        agents: list[PublicAgentItem] = []
+        async for doc in db.collection(AGENTS_COLLECTION).stream():
+            data = doc.to_dict() or {}
+            agent_name = data.get("agent_name", "")
+            if _is_internal_test(agent_name):
+                continue
+
+            agents.append(PublicAgentItem(
+                agent_name=agent_name or "Anonymous Agent",
+                niche=data.get("niche", "General"),
+                level=int(data.get("level", 1)),
+                total_events=int(data.get("total_events", 0)),
+                chain_id=int(data.get("chain_id", 5003)),
+                generation=int(data.get("generation", 1)),
+                ownership_status=data.get("ownership_status", "original-creator"),
+            ))
+
+        agents.sort(key=lambda a: a.total_events, reverse=True)
+        return agents[:6]
+
+    except Exception as exc:
+        logger.error("Failed to fetch public agents: %s", exc)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")

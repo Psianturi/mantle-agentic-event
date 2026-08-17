@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
-import { AgentSphere } from '@/components/AgentSphere'
 import { ChainBadge } from '@/components/ChainBadge'
+import { AgentShowcase } from '@/components/AgentShowcase'
+import { FAQSection } from '@/components/FAQSection'
 import { cloudRunService } from '@/services/cloudRunService'
 import { getSupportedChains } from '@/lib/blockchain/chains'
 import type { WisdomFeedItem } from '@/components/FeaturedWisdomFeed'
@@ -12,6 +13,10 @@ import {
   Signature, Binoculars, Cube, Pulse, Lightning,
 } from '@phosphor-icons/react'
 import maefLogo from '@/assets/maef-logo.png'
+
+// Landing page is often visited before any wallet connection — defer the
+// three.js hero visual so first paint isn't blocked by its bundle weight.
+const AgentSphere = lazy(() => import('@/components/AgentSphere').then(m => ({ default: m.AgentSphere })))
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface PlatformMetrics {
@@ -45,18 +50,21 @@ const PILLARS = [
     color: '#00F3FF',
     title: 'Owns its wallet',
     desc: 'Cryptographic identity, encrypted keys, gas reserve. It signs — not you.',
+    badges: ['KMS-encrypted', 'Self-custody', 'Mode B self-sign'],
   },
   {
     icon: Cube,
     color: '#9D00FF',
     title: 'Permanent proof',
     desc: 'Every event becomes a verifiable on-chain NFT. Immutable, ownable, linked forever.',
+    badges: ['On-chain NFT', 'Mantle', 'Ethereum Sepolia'],
   },
   {
     icon: Dna,
     color: '#00F3FF',
     title: 'Evolves & breeds',
     desc: 'Levels up, proposes strategies, and produces offspring that inherit wisdom.',
+    badges: ['Gemini', 'ELFA AI', 'Breeding'],
   },
 ]
 
@@ -248,7 +256,9 @@ export function LandingPage() {
                 transition={{ duration: 0.8, delay: 0.2 }}
                 className="relative h-[400px] sm:h-[480px] lg:h-[520px]"
               >
-                <AgentSphere className="w-full h-full" />
+                <Suspense fallback={<div className="w-full h-full rounded-full" style={{ background: 'radial-gradient(circle, rgba(0,243,255,0.1), transparent 60%)' }} />}>
+                  <AgentSphere className="w-full h-full" />
+                </Suspense>
                 {/* Labels overlay */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none text-center">
                   <p className="text-[9px] font-mono uppercase tracking-widest text-cyan-400/40">core</p>
@@ -357,12 +367,19 @@ export function LandingPage() {
           </div>
         </section>
 
+        <AgentShowcase />
+
         {/* ── Recent Activity + Dashboard Preview ───────────────────────────── */}
         <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-20">
-          <div className="text-center mb-12">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
             <h2 className="text-2xl sm:text-3xl font-black mb-2 text-white">Agents are building knowledge</h2>
             <p className="text-sm text-slate-400">Real wisdom from real events — verified on-chain.</p>
-          </div>
+          </motion.div>
 
           <div className="grid lg:grid-cols-3 gap-5">
             {/* Activity terminal */}
@@ -491,12 +508,25 @@ export function LandingPage() {
                     <pillar.icon size={24} style={{ color: pillar.color }} weight="duotone" />
                   </div>
                   <h3 className="text-lg font-bold text-white mb-2">{pillar.title}</h3>
-                  <p className="text-sm text-slate-400 leading-relaxed">{pillar.desc}</p>
+                  <p className="text-sm text-slate-400 leading-relaxed mb-4">{pillar.desc}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pillar.badges.map(badge => (
+                      <span
+                        key={badge}
+                        className="text-[9px] font-mono px-2 py-0.5 rounded-full border"
+                        style={{ borderColor: `${pillar.color}30`, color: `${pillar.color}cc`, background: `${pillar.color}0a` }}
+                      >
+                        {badge}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </motion.div>
             ))}
           </div>
         </section>
+
+        <FAQSection />
 
         {/* ── Final CTA ────────────────────────────────────────────────────── */}
         <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-20 pb-28">
