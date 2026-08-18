@@ -6,6 +6,7 @@ import { Agent } from '@/lib/types'
 import { ArrowRight, Wallet, Lightning } from '@phosphor-icons/react'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
+import { getChain } from '@/lib/blockchain/chains'
 
 interface TopUpGasDialogProps {
   open: boolean
@@ -16,6 +17,8 @@ interface TopUpGasDialogProps {
 }
 
 export function TopUpGasDialog({ open, onOpenChange, agent, userBalance, onTopUp }: TopUpGasDialogProps) {
+  const chain = getChain(agent.chainId ?? 5003)
+  const currency = chain?.nativeSymbol ?? 'token'
   const [amount, setAmount] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
 
@@ -31,7 +34,7 @@ export function TopUpGasDialog({ open, onOpenChange, agent, userBalance, onTopUp
 
     if (numAmount > userBalance) {
       toast.error('Insufficient balance', {
-        description: `You only have ${userBalance.toFixed(4)} MNT available`
+        description: `You only have ${userBalance.toFixed(4)} ${currency} available`
       })
       return
     }
@@ -45,7 +48,7 @@ export function TopUpGasDialog({ open, onOpenChange, agent, userBalance, onTopUp
       await onTopUp(agent.id, numAmount)
 
       toast.success('Gas top-up successful!', {
-        description: `Transferred ${numAmount.toFixed(4)} MNT to ${agent.name}'s wallet`
+        description: `Transferred ${numAmount.toFixed(4)} ${currency} to ${agent.name}'s wallet`
       })
 
       setAmount('')
@@ -72,7 +75,7 @@ export function TopUpGasDialog({ open, onOpenChange, agent, userBalance, onTopUp
             <span>Top-Up Agent Gas</span>
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Transfer MNT from your wallet to {agent.name}'s autonomous smart account
+            Transfer {currency} from your wallet to {agent.name}'s autonomous smart account
           </DialogDescription>
         </DialogHeader>
 
@@ -81,18 +84,18 @@ export function TopUpGasDialog({ open, onOpenChange, agent, userBalance, onTopUp
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">From: User Wallet</p>
-                <p className="text-sm font-mono text-foreground/90">{userBalance.toFixed(4)} MNT</p>
+                <p className="text-sm font-mono text-foreground/90">{userBalance.toFixed(4)} {currency}</p>
               </div>
               <ArrowRight className="text-primary" weight="bold" size={24} />
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">To: Agent Wallet</p>
-                <p className="text-sm font-mono text-foreground/90">{(agent.agentGasBalance ?? 0).toFixed(4)} MNT</p>
+                <p className="text-sm font-mono text-foreground/90">{(agent.agentGasBalance ?? 0).toFixed(4)} {currency}</p>
               </div>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-foreground">Transfer Amount (MNT)</label>
+            <label className="text-sm font-semibold text-foreground">Transfer Amount ({currency})</label>
             <div className="flex gap-2">
               <Input
                 type="number"
@@ -115,7 +118,7 @@ export function TopUpGasDialog({ open, onOpenChange, agent, userBalance, onTopUp
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Available balance: {userBalance.toFixed(4)} MNT
+              Available balance: {userBalance.toFixed(4)} {currency}
             </p>
           </div>
 
@@ -127,15 +130,15 @@ export function TopUpGasDialog({ open, onOpenChange, agent, userBalance, onTopUp
             <div className="space-y-1 text-xs text-foreground/80">
               <div className="flex justify-between">
                 <span>Network:</span>
-                <span className="font-mono">Mantle Network</span>
+                <span className="font-mono">{chain?.name ?? 'Selected network'}</span>
               </div>
               <div className="flex justify-between">
                 <span>Estimated Gas:</span>
-                <span className="font-mono">~0.0001 MNT</span>
+                <span className="font-mono">~0.0001 {currency}</span>
               </div>
               <div className="flex justify-between font-semibold text-foreground">
                 <span>Total Cost:</span>
-                <span className="font-mono">{amount ? (parseFloat(amount) + 0.0001).toFixed(4) : '0.0001'} MNT</span>
+                <span className="font-mono">{amount ? (parseFloat(amount) + 0.0001).toFixed(4) : '0.0001'} {currency}</span>
               </div>
             </div>
           </div>

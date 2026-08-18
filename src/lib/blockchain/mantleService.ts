@@ -1,12 +1,14 @@
-import { ethers, BrowserProvider, Contract, TransactionReceipt } from 'ethers'
-import { MANTLE_NETWORKS, DEFAULT_NETWORK, CONTRACT_ADDRESSES, GAS_LIMITS } from './config'
+import { ethers, BrowserProvider, Contract, JsonRpcProvider, TransactionReceipt } from 'ethers'
+import { GAS_LIMITS } from './config'
 import { MAEF_NFT_ABI } from './abi'
 import { ipfsService } from '@/lib/ipfs/ipfsService'
+import { DEFAULT_CHAIN_ID, getChain } from './chains'
 
 type EthProvider = {
   isMetaMask?: boolean
   isOKExWallet?: boolean
   isRabby?: boolean
+  isBitKeep?: boolean
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>
   on: (event: string, callback: (...args: unknown[]) => void) => void
   removeListener: (event: string, callback: (...args: unknown[]) => void) => void
@@ -16,11 +18,14 @@ declare global {
   interface Window {
     ethereum?: EthProvider
     okxwallet?: EthProvider      // OKX Wallet primary injection point
+    bitkeep?: {                  // Bitget Wallet injection point
+      ethereum?: EthProvider
+    }
   }
 }
 
 export interface DetectedWallet {
-  id: 'okx' | 'metamask' | 'rabby' | 'injected'
+  id: 'okx' | 'metamask' | 'rabby' | 'bitget' | 'injected'
   name: string
   provider: EthProvider
 }
@@ -30,9 +35,17 @@ export function detectWallets(): DetectedWallet[] {
   const wallets: DetectedWallet[] = []
   if (typeof window === 'undefined') return wallets
 
+  // OKX Wallet (priority injection point)
   if (window.okxwallet) {
     wallets.push({ id: 'okx', name: 'OKX Wallet', provider: window.okxwallet })
   }
+
+  // Bitget Wallet (bitkeep.ethereum injection point)
+  if (window.bitkeep?.ethereum) {
+    wallets.push({ id: 'bitget', name: 'Bitget Wallet', provider: window.bitkeep.ethereum })
+  }
+
+  // Standard window.ethereum (MetaMask, Rabby, Coinbase, etc.)
   if (window.ethereum) {
     if (window.ethereum.isRabby) {
       wallets.push({ id: 'rabby', name: 'Rabby', provider: window.ethereum })
@@ -46,9 +59,9 @@ export function detectWallets(): DetectedWallet[] {
 }
 
 // Falls back to best-available provider when no preferred one is set.
-// Priority: OKX Wallet → window.ethereum (MetaMask, Rabby, Coinbase, etc.)
+// Priority: OKX Wallet → Bitget Wallet → window.ethereum (MetaMask, Rabby, Coinbase, etc.)
 function resolveProvider(): EthProvider | undefined {
-  return window.okxwallet ?? window.ethereum
+  return window.okxwallet ?? window.bitkeep?.ethereum ?? window.ethereum
 }
 
 export interface MintNFTParams {
@@ -90,7 +103,7 @@ export class MantleBlockchainService {
   private provider: BrowserProvider | null = null
   private signer: ethers.Signer | null = null
   private contract: Contract | null = null
-  private currentNetwork = DEFAULT_NETWORK
+  private currentChainId = DEFAULT_CHAIN_ID
   private preferredProvider: EthProvider | null = null
 
   // Called by WalletConnect picker before connectWallet() to set a specific provider.
@@ -102,17 +115,21 @@ export class MantleBlockchainService {
     return this.preferredProvider ?? resolveProvider()
   }
 
-  async connectWallet(): Promise<{ address: string; network: string }> {
+  private getChainConfig(chainId: number) {
+    const chain = getChain(chainId)
+    if (!chain) {
+      throw new Error(`Unsupported network: ${chainId}`)
+    }
+    return chain
+  }
+
+  async connectWallet(chainId = DEFAULT_CHAIN_ID): Promise<{ address: string; network: string }> {
     const ethProvider = this.getEthProvider()
     if (!ethProvider) {
       throw new Error('No Web3 wallet found. Please install MetaMask, OKX Wallet, or another EVM-compatible wallet.')
     }
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const provider = new BrowserProvider(ethProvider as any)
-      this.provider = provider
-
       const accounts = await ethProvider.request({
         method: 'eth_requestAccounts'
       }) as string[]
@@ -121,18 +138,13 @@ export class MantleBlockchainService {
         throw new Error('No accounts found. Please unlock your wallet.')
       }
 
-      const address = accounts[0]
-
-      await this.switchToMantleNetwork()
-
-      this.signer = await provider.getSigner()
-      this.initializeContract()
-
-      const network = await provider.getNetwork()
+      await this.activateChain(chainId)
+      const address = await this.signer!.getAddress()
+      const chain = this.getChainConfig(chainId)
 
       return {
         address,
-        network: network.name || 'unknown'
+        network: chain.name
       }
     } catch (error) {
       console.error('Wallet connection error:', error)
@@ -140,42 +152,64 @@ export class MantleBlockchainService {
     }
   }
 
-  async switchToMantleNetwork(): Promise<void> {
+  private async activateChain(chainId: number): Promise<void> {
+    await this.switchToNetwork(chainId)
     const ethProvider = this.getEthProvider()
     if (!ethProvider) {
       throw new Error('No wallet found')
     }
 
+    // A BrowserProvider is bound to the wallet's currently selected chain.
+    this.provider = new BrowserProvider(ethProvider as any)
+    this.signer = await this.provider.getSigner()
+    this.currentChainId = chainId
+    this.initializeContract()
+  }
+
+  async switchToNetwork(chainId = DEFAULT_CHAIN_ID): Promise<void> {
+    const ethProvider = this.getEthProvider()
+    if (!ethProvider) {
+      throw new Error('No wallet found')
+    }
+
+    const chain = this.getChainConfig(chainId)
+
     try {
       await ethProvider.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: `0x${this.currentNetwork.chainId.toString(16)}` }]
+        params: [{ chainId: `0x${chain.chainId.toString(16)}` }]
       })
     } catch (switchError: unknown) {
       const error = switchError as { code?: number }
       if (error.code === 4902) {
-        await this.addMantleNetwork()
+        await this.addNetwork(chainId)
       } else {
         throw switchError
       }
     }
   }
 
-  private async addMantleNetwork(): Promise<void> {
+  private async addNetwork(chainId: number): Promise<void> {
     const ethProvider = this.getEthProvider()
     if (!ethProvider) {
       throw new Error('No wallet found')
     }
 
+    const chain = this.getChainConfig(chainId)
+
     await ethProvider.request({
       method: 'wallet_addEthereumChain',
       params: [
         {
-          chainId: `0x${this.currentNetwork.chainId.toString(16)}`,
-          chainName: this.currentNetwork.name,
-          nativeCurrency: this.currentNetwork.nativeCurrency,
-          rpcUrls: [this.currentNetwork.rpcUrl],
-          blockExplorerUrls: [this.currentNetwork.blockExplorer]
+          chainId: `0x${chain.chainId.toString(16)}`,
+          chainName: chain.name,
+          nativeCurrency: {
+            name: chain.nativeSymbol,
+            symbol: chain.nativeSymbol,
+            decimals: 18,
+          },
+          rpcUrls: [chain.rpcUrl],
+          blockExplorerUrls: [chain.explorerUrl]
         }
       ]
     })
@@ -186,16 +220,7 @@ export class MantleBlockchainService {
       throw new Error('Signer not initialized')
     }
 
-    // Dynamically pick contract address based on active network's chainId
-    const chainId = this.currentNetwork.chainId
-    let contractAddress: string
-    if (chainId === MANTLE_NETWORKS.mainnet.chainId) {
-      contractAddress = CONTRACT_ADDRESSES.mainnet.MAEF_NFT
-    } else if (chainId === MANTLE_NETWORKS.sepolia.chainId) {
-      contractAddress = CONTRACT_ADDRESSES.sepolia.MAEF_NFT
-    } else {
-      contractAddress = CONTRACT_ADDRESSES.sepolia.MAEF_NFT
-    }
+    const contractAddress = this.getChainConfig(this.currentChainId).contractAddress
 
     if (contractAddress === '0x0000000000000000000000000000000000000000') {
       console.warn('Contract not deployed. Using mock mode.')
@@ -205,16 +230,12 @@ export class MantleBlockchainService {
     this.contract = new Contract(contractAddress, MAEF_NFT_ABI, this.signer)
   }
 
-  getContractAddress(): string {
-    const chainId = this.currentNetwork.chainId
-    if (chainId === MANTLE_NETWORKS.mainnet.chainId) {
-      return CONTRACT_ADDRESSES.mainnet.MAEF_NFT
-    }
-
-    return CONTRACT_ADDRESSES.sepolia.MAEF_NFT
+  getContractAddress(chainId = this.currentChainId): string {
+    return this.getChainConfig(chainId).contractAddress
   }
 
-  async spawnAgent(agentWallet: string): Promise<SpawnAgentOnChainResult> {
+  async spawnAgent(agentWallet: string, chainId = this.currentChainId): Promise<SpawnAgentOnChainResult> {
+    await this.activateChain(chainId)
     if (!this.contract) {
       return {
         success: false,
@@ -223,8 +244,10 @@ export class MantleBlockchainService {
     }
 
     try {
+      const chain = getChain(chainId)
+      const spawnFee = chain?.spawnFee ?? '1'
       const tx = await this.contract.spawnAgent(agentWallet, {
-        value: ethers.parseEther('1'),
+        value: ethers.parseEther(spawnFee),
       })
 
       const receipt: TransactionReceipt = await tx.wait()
@@ -235,7 +258,7 @@ export class MantleBlockchainService {
       return {
         success: true,
         transactionHash: receipt.hash,
-        contractAddress: this.getContractAddress(),
+        contractAddress: this.getContractAddress(chainId),
         provisionAmount: '0.5',
         gasUsed: gasCost.toFixed(6)
       }
@@ -248,7 +271,8 @@ export class MantleBlockchainService {
     }
   }
 
-  async topUpAgentGas(agentWallet: string, amountMnt: number): Promise<TopUpGasResult> {
+  async topUpAgentGas(agentWallet: string, amount: number, chainId = this.currentChainId): Promise<TopUpGasResult> {
+    await this.activateChain(chainId)
     if (!this.signer || !this.provider) {
       return {
         success: false,
@@ -256,7 +280,7 @@ export class MantleBlockchainService {
       }
     }
 
-    if (!Number.isFinite(amountMnt) || amountMnt <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       return {
         success: false,
         error: 'Top-up amount must be greater than zero.'
@@ -266,10 +290,13 @@ export class MantleBlockchainService {
     try {
       const tx = await this.signer.sendTransaction({
         to: agentWallet,
-        value: ethers.parseEther(amountMnt.toString()),
+        value: ethers.parseEther(amount.toString()),
       })
 
-      const receipt: TransactionReceipt = await tx.wait()
+      const receipt = await tx.wait()
+      if (!receipt) {
+        throw new Error('Transaction receipt not available')
+      }
       const gasUsed = receipt.gasUsed.toString()
       const gasPrice = receipt.gasPrice || BigInt(0)
       const gasCost = (Number(gasUsed) * Number(gasPrice)) / 1e18
@@ -277,7 +304,7 @@ export class MantleBlockchainService {
       return {
         success: true,
         transactionHash: receipt.hash,
-        amount: amountMnt.toFixed(4),
+        amount: amount.toFixed(4),
         gasUsed: gasCost.toFixed(6),
       }
     } catch (error) {
@@ -394,13 +421,11 @@ export class MantleBlockchainService {
     return `ipfs://${result.cid}`
   }
 
-  async getBalance(address: string): Promise<string> {
-    if (!this.provider) {
-      return '0.0'
-    }
-
+  async getBalance(address: string, chainId = this.currentChainId): Promise<string> {
     try {
-      const balance = await this.provider.getBalance(address)
+      const chain = this.getChainConfig(chainId)
+      const provider = new JsonRpcProvider(chain.rpcUrl)
+      const balance = await provider.getBalance(address)
       return ethers.formatEther(balance)
     } catch (error) {
       console.error('Error fetching balance:', error)
@@ -464,12 +489,12 @@ export class MantleBlockchainService {
     }
   }
 
-  getExplorerUrl(txHash: string): string {
-    return `${this.currentNetwork.blockExplorer}/tx/${txHash}`
+  getExplorerUrl(txHash: string, chainId = this.currentChainId): string {
+    return `${this.getChainConfig(chainId).explorerUrl}/tx/${txHash}`
   }
 
-  getAddressExplorerUrl(address: string): string {
-    return `${this.currentNetwork.blockExplorer}/address/${address}`
+  getAddressExplorerUrl(address: string, chainId = this.currentChainId): string {
+    return `${this.getChainConfig(chainId).explorerUrl}/address/${address}`
   }
 
   disconnect(): void {

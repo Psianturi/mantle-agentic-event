@@ -1,7 +1,7 @@
 import { Agent, BackendProposal, Event, Niche, Personality, SubAgentType } from '@/lib/types'
 import { config as appConfig } from '@/lib/config'
 
-const GCP_BACKEND_URL =
+export const GCP_BACKEND_URL =
   import.meta.env.VITE_GCP_BACKEND_URL ||
   'https://mantle-agentic-event-21898396920.asia-southeast1.run.app'
 
@@ -46,6 +46,7 @@ export interface SpawnAgentRequest {
   name: string
   niche: Niche
   personality: Personality
+  chainId: number
   customInstructions?: string
   userWallet?: string  // Connected MetaMask address (optional, used as owner ref)
 }
@@ -56,6 +57,7 @@ export interface SpawnAgentResponse {
   mantleAddress: string
   initialBalance: number
   needsFunding: boolean
+  chainId: number
   message: string
   error?: string
 }
@@ -131,6 +133,7 @@ export interface AttendEventRequest {
   eventTitle: string
   platform: string
   niche: string
+  chainId: number
   modeB?: boolean  // If true, agent signs autonomously with its own private key (Mode B); else backend signs (Mode A)
 }
 
@@ -152,6 +155,7 @@ export interface AttendEventResponse {
 export interface EventHistoryItem {
   id: string
   agentId: string
+  chainId: number
   eventUrl: string
   eventTitle: string
   platform: string
@@ -293,6 +297,8 @@ export const cloudRunService = {
         agent_name: request.name,
         niche: request.niche,
         user_wallet: request.userWallet,
+        personality: request.personality,
+        chain_id: request.chainId,
       }
 
       const response = await fetchWithTimeout(
@@ -312,6 +318,7 @@ export const cloudRunService = {
         level: number
         total_events: number
         needs_funding: boolean
+        chain_id?: number
       }>(response)
 
       // Map backend snake_case → frontend camelCase
@@ -321,7 +328,8 @@ export const cloudRunService = {
         mantleAddress: raw.agent_wallet,
         initialBalance: 0,
         needsFunding: raw.needs_funding,
-        message: `Agent ${raw.agent_name} spawned on Mantle Network`,
+        chainId: raw.chain_id ?? request.chainId,
+        message: `Agent ${raw.agent_name} spawned successfully`,
       }
     } catch (error) {
       if (error instanceof CloudRunAPIError) {
@@ -450,6 +458,7 @@ export const cloudRunService = {
         luma_connected_at?: number
         luma_last_rsvp_at?: number
         agent_gas_balance?: number | null
+        chain_id?: number
       }>>(response)
 
       const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -460,6 +469,7 @@ export const cloudRunService = {
         personality: 'Analytical' as const,
         niche: (validNiches.includes(r.niche as Niche) ? r.niche : 'Blockchain/DeFi') as Niche,
         walletAddress: r.agent_wallet,
+        chainId: r.chain_id ?? 5003,
         eventsAttended: r.total_events,
         level: r.level,
         status: 'idle' as const,
@@ -505,6 +515,7 @@ export const cloudRunService = {
       const raw = await handleAPIResponse<Array<{
         id: string
         agent_id: string
+        chain_id?: number
         event_url: string
         event_title: string
         platform: string
@@ -522,6 +533,7 @@ export const cloudRunService = {
       return raw.map((r) => ({
         id: r.id,
         agentId: r.agent_id,
+        chainId: r.chain_id ?? 5003,
         eventUrl: r.event_url,
         eventTitle: r.event_title,
         platform: r.platform,
@@ -626,6 +638,7 @@ export const cloudRunService = {
         event_title: request.eventTitle,
         platform: request.platform,
         niche: request.niche,
+        chain_id: request.chainId,
         mode_b: request.modeB ?? false,  // Mode B: agent signs autonomously; Mode A: backend signs (default)
       }
 
@@ -753,49 +766,54 @@ export const cloudRunService = {
   async getAgentDetails(agentId: string): Promise<AgentDetailsResponse> {
     try {
       const response = await fetchWithTimeout(
-        `${GCP_BACKEND_URL}/api/agents/${agentId}`,
-        {
-          method: 'GET',
-        }
+        `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}`
       )
-
-      return handleAPIResponse<AgentDetailsResponse>(response)
-    } catch (error) {
-      if (error instanceof CloudRunAPIError) {
-        throw error
+      const raw = await handleAPIResponse<{
+        agent_id: string
+        agent_wallet: string
+        agent_name: string
+        niche: string
+        user_wallet: string
+        level: number
+        total_events: number
+        needs_funding: boolean
+      }>(response)
+      const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
+      return {
+        success: true,
+        agent: {
+          id: raw.agent_id,
+          name: raw.agent_name,
+          personality: 'Analytical' as const,
+          niche: (validNiches.includes(raw.niche as Niche) ? raw.niche : 'Blockchain/DeFi') as Niche,
+          walletAddress: raw.agent_wallet,
+          eventsAttended: raw.total_events,
+          level: raw.level,
+          status: 'idle' as const,
+          createdAt: Date.now(),
+          subAgents: [],
+          wisdomUnlocked: raw.level >= 3,
+          needsFunding: raw.needs_funding,
+          agentGasBalance: 0,
+          mantleBalance: 0,
+        },
+        events: [],
+        totalGasSpent: 0,
+        totalNFTsMinted: raw.total_events,
       }
-
-      console.error('Error fetching agent details:', error)
-      throw new CloudRunAPIError(
-        'Failed to fetch agent details',
-        undefined,
-        error
-      )
+    } catch (error) {
+      if (error instanceof CloudRunAPIError) throw error
+      throw new CloudRunAPIError('Failed to fetch agent details', undefined, error)
     }
   },
 
   async updateAgentInstructions(agentId: string, instructions: string): Promise<{ success: boolean }> {
     try {
-      const response = await fetchWithTimeout(
-        `${GCP_BACKEND_URL}/api/agents/${agentId}/instructions`,
-        {
-          method: 'PATCH',
-          body: JSON.stringify({ customInstructions: instructions }),
-        }
-      )
-
-      return handleAPIResponse<{ success: boolean }>(response)
+      await cloudRunService.updateAgentState(agentId, { customInstructions: instructions })
+      return { success: true }
     } catch (error) {
-      if (error instanceof CloudRunAPIError) {
-        throw error
-      }
-
-      console.error('Error updating agent instructions:', error)
-      throw new CloudRunAPIError(
-        'Failed to update agent instructions',
-        undefined,
-        error
-      )
+      if (error instanceof CloudRunAPIError) throw error
+      throw new CloudRunAPIError('Failed to update agent instructions', undefined, error)
     }
   },
 
@@ -845,6 +863,38 @@ export const cloudRunService = {
         average_agent_level: 0,
         global_wisdom_index: 0,
       }
+    }
+  },
+
+  async getPublicAgents() {
+    try {
+      const response = await fetchWithTimeout(
+        `${GCP_BACKEND_URL}/api/v1/public/agents`,
+        { method: 'GET' }
+      )
+
+      const raw = await handleAPIResponse<Array<{
+        agent_name: string
+        niche: string
+        level: number
+        total_events: number
+        chain_id: number
+        generation: number
+        ownership_status: string
+      }>>(response)
+
+      return raw.map(a => ({
+        agentName: a.agent_name,
+        niche: a.niche,
+        level: a.level,
+        totalEvents: a.total_events,
+        chainId: a.chain_id,
+        generation: a.generation,
+        ownershipStatus: a.ownership_status,
+      }))
+    } catch (error) {
+      console.warn('[cloudRunService] getPublicAgents failed:', error)
+      return []
     }
   },
 
@@ -899,6 +949,7 @@ export const cloudRunService = {
         agent_id: string
         niche: string
         platform: string
+        chain_id: number
         attended_at: number
         tx_hash: string | null
         token_id: string | null
@@ -917,6 +968,7 @@ export const cloudRunService = {
         agentId: w.agent_id,
         niche: w.niche,
         platform: w.platform,
+        chainId: w.chain_id ?? 5003,
         attendedAt: w.attended_at,
         txHash: w.tx_hash ?? undefined,
         tokenId: w.token_id ?? undefined,

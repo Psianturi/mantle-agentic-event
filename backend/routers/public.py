@@ -29,6 +29,22 @@ router = APIRouter(prefix="/api/v1/public", tags=["public"])
 AGENTS_COLLECTION = "agents"
 EVENTS_COLLECTION = "agent_events"
 
+# Patterns that mark internal QA / E2E test artifacts, not showcase material.
+# Shared by every public endpoint that surfaces agent identity — fix once at
+# the source instead of patching each endpoint separately.
+_TEST_PATTERNS = re.compile(
+    r"(?i)\b(e2e[\s-]*test|trysepolia|qa[\s-]*test|smoke[\s-]*test|"
+    r"test[\s-]*(event|agent|spawn|mint)|demo[\s-]*(event|agent))\b"
+)
+
+
+def _is_internal_test(agent_name: str, event_title: str = "") -> bool:
+    """True if this agent/event looks like an internal QA/test artifact."""
+    blob = f"{agent_name} {event_title}".strip()
+    if not blob:
+        return False
+    return bool(_TEST_PATTERNS.search(blob))
+
 
 class FeaturedWisdomItem(BaseModel):
     """A single featured wisdom card for public showcase."""
@@ -38,6 +54,7 @@ class FeaturedWisdomItem(BaseModel):
     agent_id: str
     niche: str
     platform: str
+    chain_id: int = 5003  # which chain the NFT was minted on — read from event doc
     attended_at: float
     tx_hash: str | None = None
     token_id: str | None = None
@@ -117,20 +134,29 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
         for event in all_events:
             attended_at = event.get("attended_at", 0)
             agent_id = event.get("agent_id", "")
+
+            # Filter out internal QA/test events before public showcase.
+            # Keeps the public feed honest — "real wisdom from real events".
+            event_title = event.get("event_title", "")
+            agent_name = (
+                agent_cache.get(agent_id)
+                or event.get("agent_name")
+                or _extract_name_from_summary(event.get("wisdom_summary", ""))
+                or ""
+            )
+            if _is_internal_test(agent_name, event_title):
+                continue
+
             wisdom_score = score_wisdom_quality(event.get("wisdom_summary", ""))
             
             item = FeaturedWisdomItem(
-                event_title=event.get("event_title", "Event"),
+                event_title=event_title,
                 wisdom_summary=event.get("wisdom_summary", ""),
-                agent_name=(
-                    agent_cache.get(agent_id)
-                    or event.get("agent_name")
-                    or _extract_name_from_summary(event.get("wisdom_summary", ""))
-                    or "Anonymous Agent"
-                ),
+                agent_name=agent_name or "Anonymous Agent",
                 agent_id=agent_id,
                 niche=agent_niche_cache.get(agent_id) or event.get("niche") or "General",
                 platform=event.get("platform", "YouTube"),
+                chain_id=int(event.get("chain_id", 5003)),
                 attended_at=attended_at,
                 tx_hash=event.get("tx_hash"),
                 token_id=event.get("token_id"),
@@ -247,4 +273,51 @@ async def get_public_metrics() -> PublicMetricsResponse:
         
     except Exception as exc:
         logger.error("Failed to fetch public metrics: %s", exc)
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable")
+
+
+class PublicAgentItem(BaseModel):
+    """A single real agent profile for the landing page showcase."""
+    agent_name: str
+    niche: str
+    level: int
+    total_events: int
+    chain_id: int
+    generation: int
+    ownership_status: str
+
+
+@router.get("/agents", response_model=list[PublicAgentItem])
+async def get_public_agents() -> list[PublicAgentItem]:
+    """
+    Top 6 most-active real agents, for the landing page "Agent Showcase".
+
+    No authentication required. Excludes internal QA/test agents via the
+    same _is_internal_test() filter used by /featured-wisdom.
+    """
+    db = get_db()
+
+    try:
+        agents: list[PublicAgentItem] = []
+        async for doc in db.collection(AGENTS_COLLECTION).stream():
+            data = doc.to_dict() or {}
+            agent_name = data.get("agent_name", "")
+            if _is_internal_test(agent_name):
+                continue
+
+            agents.append(PublicAgentItem(
+                agent_name=agent_name or "Anonymous Agent",
+                niche=data.get("niche", "General"),
+                level=int(data.get("level", 1)),
+                total_events=int(data.get("total_events", 0)),
+                chain_id=int(data.get("chain_id", 5003)),
+                generation=int(data.get("generation", 1)),
+                ownership_status=data.get("ownership_status", "original-creator"),
+            ))
+
+        agents.sort(key=lambda a: a.total_events, reverse=True)
+        return agents[:6]
+
+    except Exception as exc:
+        logger.error("Failed to fetch public agents: %s", exc)
         raise HTTPException(status_code=503, detail="Database temporarily unavailable")

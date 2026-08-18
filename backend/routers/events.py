@@ -28,8 +28,7 @@ from web3 import Web3
 from core.config import settings
 from core.database import get_db
 from core.kms_service import decrypt_private_key
-from services.elfa_service import determine_elfa_query, get_elfa_market_signals
-from services.llm_service import summarize_event
+from services.llm_service import classify_event_niche, summarize_event
 from services.luma_service import fetch_luma_event, get_luma_event_status, is_luma_url
 from services.web3_service import web3_service
 
@@ -53,17 +52,26 @@ _ALLOWED_HOSTS: frozenset[str] = frozenset(
     }
 )
 
-_MANTLE_EXPLORER_BY_CHAIN: dict[int, str] = {
-    5003: "https://explorer.sepolia.mantle.xyz",
-    5000: "https://explorer.mantle.xyz",
-}
+def _skill_gain_field(category: str, amount: int = 1) -> dict:
+    """
+    V1: flat +amount per event, regardless of wisdom quality — deliberately simple
+    so skill growth stays explainable ("attended 1 X event = +1 X skill") and
+    doesn't inherit risk from the not-yet-validated wisdom-quality scoring.
+    Wrapped here so switching to quality-weighted gain later touches only this
+    function, not every call site.
+    """
+    return {f"skill_scores.{category}": Increment(amount)}
 
 
-def _resolve_explorer_base() -> str:
-    configured = settings.mantle_explorer_url.strip()
-    if configured:
-        return configured.rstrip("/")
-    return _MANTLE_EXPLORER_BY_CHAIN.get(settings.chain_id, _MANTLE_EXPLORER_BY_CHAIN[5003])
+def _resolve_explorer_base(chain_id: int = 5003) -> str:
+    from core.config import CHAIN_CONFIGS
+    # Allow Cloud Run env var override for Mantle only
+    if chain_id == 5003 and settings.mantle_explorer_url.strip():
+        return settings.mantle_explorer_url.strip().rstrip("/")
+    cfg = CHAIN_CONFIGS.get(chain_id)
+    if cfg:
+        return cfg["explorer_url"].rstrip("/")
+    return "https://explorer.sepolia.mantle.xyz"
 
 
 # ── Request / Response models ─────────────────────────────────────────────────
@@ -78,6 +86,7 @@ class AttendRequest(BaseModel):
     platform: str = "YouTube"
     niche: str = "General"
     mode_b: bool = False    # If True, agent signs with its own private key (autonomous); else backend signs (Mode A)
+    chain_id: int = 5003
 
     @field_validator("agent_wallet")
     @classmethod
@@ -117,6 +126,7 @@ class AttendResponse(BaseModel):
 class EventHistoryItem(BaseModel):
     id: str
     agent_id: str
+    chain_id: int = 5003
     event_url: str
     event_title: str
     platform: str
@@ -148,7 +158,6 @@ async def list_events_by_wallet(
     wallet = Web3.to_checksum_address(wallet)
 
     db = get_db()
-    explorer_base = _resolve_explorer_base()
 
     agent_ids: list[str] = []
     try:
@@ -181,6 +190,7 @@ async def list_events_by_wallet(
                     {
                         "id": doc.id,
                         "agent_id": data.get("agent_id", agent_id),
+                        "chain_id": int(data.get("chain_id", 5003)),
                         "event_url": data.get("event_url", ""),
                         "event_title": data.get("event_title", "Event"),
                         "platform": data.get("platform", "YouTube"),
@@ -202,6 +212,7 @@ async def list_events_by_wallet(
     result: list[EventHistoryItem] = []
     for item in records:
         tx_hash = item.get("tx_hash")
+        explorer_base = _resolve_explorer_base(item["chain_id"])
         result.append(
             EventHistoryItem(
                 **item,
@@ -227,20 +238,38 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     Step C — Return: tx hash, token ID, explorer link, and wisdom text.
     """
     # Guard: contract must be deployed before minting
-    if not settings.contract_address or not Web3.is_address(settings.contract_address):
+    from core.config import CHAIN_CONFIGS
+    if req.chain_id == 5003:
+        contract_addr_check = settings.contract_address
+    else:
+        contract_addr_check = CHAIN_CONFIGS.get(req.chain_id, {}).get("contract_address", "")
+
+    if not contract_addr_check or not Web3.is_address(contract_addr_check):
         raise HTTPException(
             status_code=503,
             detail=(
-                "Smart contract is not configured. "
-                "Deploy the contract and set CONTRACT_ADDRESS env var."
+                f"Smart contract not configured for chain {req.chain_id}. "
+                "Deploy the contract and update CHAIN_CONFIGS or CONTRACT_ADDRESS env var."
             ),
         )
+
+    # Ensure a persisted agent cannot be accidentally operated on another chain.
+    db = get_db()
+    try:
+        agent_doc = await db.collection(AGENTS_COLLECTION).document(req.agent_id).get()
+    except Exception as exc:
+        logger.error("Failed to load agent %s: %s", req.agent_id, exc)
+        raise HTTPException(status_code=503, detail="Failed to retrieve agent state") from exc
+    if not agent_doc.exists:
+        raise HTTPException(status_code=404, detail=f"Agent '{req.agent_id}' not found")
+    agent_data = agent_doc.to_dict() or {}
+    if int(agent_data.get("chain_id", 5003)) != req.chain_id:
+        raise HTTPException(status_code=409, detail="Agent is registered on a different network")
 
     # ── Luma auto-detection: pre-fetch event data once for title + summary ────
     luma_event_data: dict | None = None
     luma_status: str | None = None      # 'scheduled' | 'completed' | 'unknown'
     luma_start_at: str | None = None
-    elfa_task: asyncio.Task | None = None
     if is_luma_url(req.event_url):
         req.platform = "Luma"
         try:
@@ -255,26 +284,16 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "Luma event '%s' resolved — status=%s start_at=%s",
                 req.event_title, luma_status, luma_start_at,
             )
-            # Fire ELFA market intelligence fetch in background — runs while agent key loads
-            elfa_query = determine_elfa_query(req.event_title, req.niche)
-            elfa_task = asyncio.create_task(get_elfa_market_signals(elfa_query))
-            logger.info("ELFA task started for query '%s'", elfa_query)
         except Exception as exc:
             logger.info("Luma pre-fetch failed: %s", exc)
     if not req.event_title:
         req.event_title = "Luma Event"
 
     # ── Mode B: load agent private key for true autonomous signing ────────
-    # (moved before Step A so ELFA task runs in parallel with Firestore key lookup)
     agent_private_key: str | None = None
     agent_is_funded = False
     if req.mode_b:
-        db = get_db()
         try:
-            agent_doc = await db.collection(AGENTS_COLLECTION).document(req.agent_id).get()
-            if not agent_doc.exists:
-                raise HTTPException(status_code=404, detail=f"Agent '{req.agent_id}' not found")
-            agent_data = agent_doc.to_dict() or {}
             agent_is_funded = bool(agent_data.get("funded", False))
             stored_key = agent_data.get("private_key_enc") or agent_data.get("private_key")
             if not stored_key:
@@ -297,21 +316,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             logger.error("Failed to load agent key for Mode B: %s", exc)
             raise HTTPException(status_code=503, detail="Failed to retrieve agent credentials")
 
-    # ── Collect ELFA result (task has been running during key load above) ──
-    elfa_signals: dict | None = None
-    if elfa_task:
-        try:
-            elfa_signals = await elfa_task
-            if elfa_signals:
-                logger.info(
-                    "ELFA signals collected: query=%s velocity=%s sentiment=%d%%",
-                    elfa_signals.get("query_used"),
-                    elfa_signals.get("mentions_velocity_24h"),
-                    elfa_signals.get("sentiment_bullish_pct", 0),
-                )
-        except Exception as exc:
-            logger.warning("ELFA task failed: %s — continuing without signals", exc)
-
     # ── Step A: Wisdom Summary ─────────────────────────────────────────────
     wisdom_summary = await summarize_event(
         event_title=req.event_title,
@@ -320,7 +324,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
         agent_name=req.agent_name,
         luma_event_data=luma_event_data,
         luma_status=luma_status,
-        elfa_signals=elfa_signals,
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 
@@ -333,6 +336,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "agent_id": req.agent_id,
                 "agent_wallet": req.agent_wallet,
                 "agent_name": req.agent_name,
+                "chain_id": req.chain_id,
                 "niche": req.niche,
                 "event_url": req.event_url,
                 "event_title": req.event_title,
@@ -346,7 +350,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "mode": "B" if req.mode_b else "A",
                 "luma_status": "scheduled",
                 "luma_start_at": luma_start_at,
-                "elfa_signals": elfa_signals,
             })
             logger.info(
                 "Scouting brief saved for agent %s — future event '%s' (no NFT minted)",
@@ -383,6 +386,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             niche=req.niche,
             agent_private_key=agent_private_key,
             allow_mode_b_fallback=False,  # strict: agent must pay own gas, no silent minter fallback
+            chain_id=req.chain_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -420,16 +424,21 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     level_up = mint_result.get("level_up", False)
     # signing_mode from web3_service reflects what actually signed (agent vs minter service)
     signing_mode = mint_result.get("signing_mode", "B" if req.mode_b else "A")
-    explorer_base = _resolve_explorer_base()
+    explorer_base = _resolve_explorer_base(req.chain_id)
 
     # ── Update agent stats in Firestore ───────────────────────────────────
     # Scheduled Luma events (future) earn 0 XP — agent scouted, not yet attended.
     # Completed/unknown Luma events and all YouTube events earn full XP.
     is_scouting_brief = luma_status == "scheduled"
+
+    # Skill classification (V1) — only for real attendances, not 0-XP scouting
+    # briefs, so we don't spend a Gemini call on events that grant no progress.
+    detected_niche: str | None = None
+    if success and not is_scouting_brief:
+        detected_niche = await classify_event_niche(wisdom_summary)
     new_total_events: int | None = None
     new_level: int | None = None
     if success:
-        db = get_db()
         agent_ref = db.collection(AGENTS_COLLECTION).document(req.agent_id)
         try:
             agent_doc = await agent_ref.get()
@@ -456,6 +465,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                         "total_events": Increment(1),
                         "level": new_level,
                         "autonomous_signatures": autonomous_sigs,
+                        **_skill_gain_field(detected_niche),
                     }
                     new_total_events = current_events
                     logger.info(
@@ -476,7 +486,9 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "agent_id": req.agent_id,
                 "agent_wallet": req.agent_wallet,
                 "agent_name": req.agent_name,
-                "niche": req.niche,
+                "chain_id": req.chain_id,
+                "niche": req.niche,  # agent's static preset niche at time of attendance
+                "detected_niche": detected_niche,  # V1: Gemini-classified actual content category
                 "event_url": req.event_url,
                 "event_title": req.event_title,
                 "platform": req.platform,
@@ -490,8 +502,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 # Luma-specific fields (None for non-Luma events)
                 "luma_status": luma_status,
                 "luma_start_at": luma_start_at,
-                # ELFA market intelligence snapshot (None if API key missing or call failed)
-                "elfa_signals": elfa_signals,
             }
             await db.collection(EVENTS_COLLECTION).add(event_doc)
         except Exception as exc:

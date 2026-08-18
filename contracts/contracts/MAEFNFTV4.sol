@@ -30,12 +30,13 @@ contract MAEFDynamicNFTV4 is ERC721A, Ownable, AccessControl {
     error UnauthorizedMinter(address caller);
     error AgentCanOnlyMintForSelf(address caller, address recipient);
 
-    // ── Constants ─────────────────────────────────────────────────────────────
-    uint256 public constant SPAWN_FEE      = 1 ether;    // 1 MNT per spawn
-    uint256 public constant AGENT_PROVISION = 0.5 ether; // 0.5 MNT → agent wallet
-    uint256 public constant PLATFORM_FEE   = 0.5 ether;  // 0.5 MNT → platform
+    // ── Fees — adjustable by owner per-chain via setFees() ─────────────────────
+    // Defaults match original Mantle launch values (1 MNT spawn / 0.5 MNT provision).
+    // Deploy script calls setFees() right after deploy to calibrate for the target
+    // chain's native token (e.g. lower ETH amounts on Ethereum Sepolia).
+    uint256 public spawnFee = 1 ether;        // total user pays to spawnAgent()/spawnBredAgent()
+    uint256 public agentProvision = 0.5 ether; // portion forwarded to the new agent wallet as gas
 
-    // Adjustable by owner
     uint256 public breedCost = 2 ether; // 2 MNT per breed
 
     // ── Structs ───────────────────────────────────────────────────────────────
@@ -169,10 +170,11 @@ contract MAEFDynamicNFTV4 is ERC721A, Ownable, AccessControl {
 
     /**
      * @dev Spawn a Genesis agent (generation = 1).
-     *      User pays 1 MNT: 0.5 MNT → agent wallet (gas provision), 0.5 MNT → platform.
+     *      User pays spawnFee; agentProvision of that is forwarded to the new
+     *      agent wallet as gas, the remainder stays in the contract as platform fee.
      */
     function spawnAgent(address agentWallet) external payable {
-        require(msg.value >= SPAWN_FEE,           "Insufficient spawn fee: 1 MNT required");
+        require(msg.value >= spawnFee,             "Insufficient spawn fee");
         require(agentWallet != address(0),         "Invalid agent wallet address");
         require(!isAgentSpawned[agentWallet],      "Agent already spawned");
 
@@ -180,10 +182,10 @@ contract MAEFDynamicNFTV4 is ERC721A, Ownable, AccessControl {
         agentStats[agentWallet].generation    = 1;
         // parent wallets remain address(0) — Genesis has no parents
 
-        (bool ok, ) = agentWallet.call{value: AGENT_PROVISION}("");
+        (bool ok, ) = agentWallet.call{value: agentProvision}("");
         require(ok, "Gas provision transfer failed");
 
-        emit AgentSpawned(agentWallet, msg.sender, 1, AGENT_PROVISION, block.timestamp);
+        emit AgentSpawned(agentWallet, msg.sender, 1, agentProvision, block.timestamp);
     }
 
     /**
@@ -196,7 +198,7 @@ contract MAEFDynamicNFTV4 is ERC721A, Ownable, AccessControl {
      * @param offspringId  Must match the offspringId used in breedAgents().
      */
     function spawnBredAgent(address agentWallet, bytes32 offspringId) external payable {
-        require(msg.value >= SPAWN_FEE,       "Insufficient spawn fee: 1 MNT required");
+        require(msg.value >= spawnFee,        "Insufficient spawn fee");
         require(agentWallet != address(0),     "Invalid agent wallet address");
         require(!isAgentSpawned[agentWallet], "Agent already spawned");
 
@@ -211,10 +213,10 @@ contract MAEFDynamicNFTV4 is ERC721A, Ownable, AccessControl {
         stats.parent1Wallet = record.parent1Wallet;
         stats.parent2Wallet = record.parent2Wallet;
 
-        (bool ok, ) = agentWallet.call{value: AGENT_PROVISION}("");
+        (bool ok, ) = agentWallet.call{value: agentProvision}("");
         require(ok, "Gas provision transfer failed");
 
-        emit AgentSpawned(agentWallet, msg.sender, record.generation, AGENT_PROVISION, block.timestamp);
+        emit AgentSpawned(agentWallet, msg.sender, record.generation, agentProvision, block.timestamp);
     }
 
     // ── Breeding ──────────────────────────────────────────────────────────────
@@ -519,8 +521,20 @@ contract MAEFDynamicNFTV4 is ERC721A, Ownable, AccessControl {
     }
 
     /**
+     * @dev Calibrate spawn economics for this chain's native token.
+     *      Called once by the deployer right after deploy (see deploy-new-chain.js).
+     *      Atomic — avoids a transient state where agentProvision > spawnFee,
+     *      which would make spawnAgent()/spawnBredAgent() revert for every caller.
+     */
+    function setFees(uint256 newSpawnFee, uint256 newProvision) external onlyOwner {
+        require(newProvision <= newSpawnFee, "Provision cannot exceed spawn fee");
+        spawnFee = newSpawnFee;
+        agentProvision = newProvision;
+    }
+
+    /**
      * @dev Withdraw accumulated platform fees (spawn fees + breed fees).
-     *      Breed fees + 0.5 MNT per spawn accumulate in this contract.
+     *      Breed fees + (spawnFee - agentProvision) per spawn accumulate in this contract.
      */
     function withdrawPlatformFees() external onlyOwner {
         uint256 balance = address(this).balance;

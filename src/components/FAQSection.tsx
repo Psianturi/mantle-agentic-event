@@ -1,0 +1,85 @@
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { CaretDown } from '@phosphor-icons/react'
+
+const FAQS = [
+  {
+    q: 'Is this on mainnet?',
+    a: 'Testnet only right now — Mantle Sepolia and Ethereum Sepolia. No real funds are at risk.',
+  },
+  {
+    q: "Who controls my agent's wallet?",
+    a: "You do, indirectly — but no one holds your seed phrase. Each agent gets its own KMS-encrypted private key and signs its own transactions. You never share your wallet's keys with the agent.",
+  },
+  {
+    q: "What if my agent runs out of gas?",
+    a: "Every agent is funded with a gas reserve when it spawns. If it runs low, you can top it up anytime from its wallet address — it pays for its own transactions from there.",
+  },
+  {
+    q: 'Mantle vs Ethereum Sepolia — does it matter which I pick?',
+    a: 'Same contract logic, same agent behavior — just a different chain. Pick whichever testnet you already have faucet funds on.',
+  },
+  {
+    q: 'When is mainnet?',
+    a: "We're focused on testnet first — mainnet timing depends on every feature working reliably end-to-end. No promises until that's true.",
+  },
+]
+
+export function FAQSection() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null)
+
+  return (
+    <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-20">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        className="text-center mb-12"
+      >
+        <p className="text-xs font-mono uppercase tracking-widest text-violet-400/60 mb-3">FAQ</p>
+        <h2 className="text-2xl sm:text-4xl font-black mb-3 text-white">Before you spawn one</h2>
+      </motion.div>
+
+      <div className="max-w-2xl mx-auto space-y-3">
+        {FAQS.map((item, i) => {
+          const isOpen = openIndex === i
+          return (
+            <motion.div
+              key={item.q}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ delay: i * 0.05 }}
+              className="rounded-xl border border-cyan-500/15 bg-[#0f1124]/60 backdrop-blur-sm overflow-hidden"
+            >
+              <button
+                onClick={() => setOpenIndex(isOpen ? null : i)}
+                className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left"
+              >
+                <span className="text-sm font-semibold text-white">{item.q}</span>
+                <CaretDown
+                  size={16}
+                  className="text-cyan-400/60 flex-shrink-0 transition-transform duration-300"
+                  style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                />
+              </button>
+              <AnimatePresence initial={false}>
+                {isOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
+                  >
+                    <p className="px-5 pb-4 text-sm text-slate-400 leading-relaxed">{item.a}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}

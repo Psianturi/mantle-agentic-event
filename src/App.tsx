@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
-import { Agent, NFT, TerminalLog, Event, ScoutedEvent, SubAgentType, AgentProposal, MarketplaceAgent, Niche, RarityTier } from '@/lib/types'
+import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent, Niche, RarityTier } from '@/lib/types'
 import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
 import { cn } from '@/lib/utils'
+import { buildScoutedOpportunities } from '@/lib/scoutUtils'
 import { AgentCard } from '@/components/AgentCard'
 import { MarketplaceAgentCard } from '@/components/MarketplaceAgentCard'
 import { MarketplaceFilters } from '@/components/MarketplaceFilters'
@@ -43,7 +44,7 @@ import { BreedingCooldownBoost } from '@/components/BreedingCooldownBoost'
 import { ProactiveScoutingPanel } from '@/components/ProactiveScoutingPanel'
 import { ProposalModal } from '@/components/ProposalModal'
 import { ScoutingBriefCard } from '@/components/ScoutingBriefCard'
-import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, LockKey, Binoculars } from '@phosphor-icons/react'
+import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, LockKey, Binoculars, House } from '@phosphor-icons/react'
 import maefLogo from '@/assets/maef-logo.png'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -54,6 +55,10 @@ import { CloudRunAPIError, cloudRunService, validateEventUrl } from '@/services/
 import { ContractVerificationData, verificationService } from '@/lib/blockchain/verificationService'
 import { CONTRACT_ADDRESSES } from '@/lib/blockchain/config'
 import { mantleService } from '@/lib/blockchain/mantleService'
+import { ChainSelector } from '@/components/ChainSelector'
+import { NetworkMismatchAlert } from '@/components/NetworkMismatchAlert'
+import { DEFAULT_CHAIN_ID, getChain } from '@/lib/blockchain/chains'
+import { useNavigate } from 'react-router-dom'
 
 const simulationMessages = [
   { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
@@ -62,81 +67,8 @@ const simulationMessages = [
   { type: 'mint-master', messages: ['Estimating Mantle gas fees...', 'Optimizing transaction parameters...', 'Preparing NFT metadata...', 'Calculating optimal mint timing...'] }
 ]
 
-const NICHE_SCOUT_KEYWORDS: Record<Niche, string[]> = {
-  'Blockchain/DeFi': ['blockchain', 'defi', 'mantle', 'layer 2', 'rollup', 'smart contract', 'on-chain'],
-  'Trading/Investment': ['trading', 'investment', 'market', 'portfolio', 'analysis', 'quant', 'risk'],
-  'Technology': ['technology', 'ai', 'agent', 'developer', 'infrastructure', 'architecture', 'automation'],
-  'Health/Wellness': ['health', 'wellness', 'fitness', 'preventive', 'lifestyle', 'mental', 'nutrition'],
-}
-
-function tokenizeScoutText(input: string): string[] {
-  return input
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((t) => t.trim())
-    .filter((t) => t.length >= 4)
-}
-
-function computeScoutRelevance(agent: Agent, source: Event): number {
-  const base = 55
-  const nicheKeywords = NICHE_SCOUT_KEYWORDS[agent.niche] || []
-  const agendaKeywords = tokenizeScoutText(agent.customAgenda || '')
-  const queryKeywords = [...new Set([...nicheKeywords, ...agendaKeywords])]
-  const searchable = `${source.title} ${source.summary} ${source.url} ${source.platform}`.toLowerCase()
-
-  const keywordHits = queryKeywords.reduce((acc, keyword) => (
-    searchable.includes(keyword.toLowerCase()) ? acc + 1 : acc
-  ), 0)
-
-  const platformBoost = source.platform === 'YouTube' || source.platform === 'Luma' ? 6 : 3
-  const recencyDays = Math.max(0, Math.floor((Date.now() - source.date) / (24 * 60 * 60 * 1000)))
-  const recencyBoost = Math.max(0, 12 - Math.min(12, recencyDays))
-
-  return Math.min(98, base + (keywordHits * 7) + platformBoost + recencyBoost)
-}
-
-function buildScoutedOpportunities(agent: Agent, eventPool: Event[]): ScoutedEvent[] {
-  const existingUrls = new Set(
-    eventPool
-      .filter((evt) => evt.agentId === agent.id)
-      .map((evt) => evt.url.trim().toLowerCase())
-  )
-
-  const dedupedByUrl = new Map<string, Event>()
-  eventPool.forEach((evt) => {
-    const key = evt.url.trim().toLowerCase()
-    if (!key) return
-    const previous = dedupedByUrl.get(key)
-    if (!previous || evt.date > previous.date) {
-      dedupedByUrl.set(key, evt)
-    }
-  })
-
-  const ranked = Array.from(dedupedByUrl.values())
-    .filter((evt) => !existingUrls.has(evt.url.trim().toLowerCase()))
-    .map((evt) => ({
-      source: evt,
-      relevance: computeScoutRelevance(agent, evt),
-    }))
-    .sort((a, b) => b.relevance - a.relevance)
-    .slice(0, 5)
-
-  const now = Date.now()
-  return ranked.map(({ source, relevance }, idx) => ({
-    id: `scouted-${agent.id}-${source.id}-${idx}`,
-    title: source.title,
-    platform: source.platform,
-    url: source.url,
-    date: now + ((idx + 1) * 2 * 24 * 60 * 60 * 1000),
-    description: source.summary,
-    relevanceScore: relevance,
-    scoutedAt: now,
-    approved: false,
-  }))
-}
-
 function App() {
+  const navigate = useNavigate()
   type PendingAttendContext = {
     agentId: string
     eventUrl: string
@@ -152,6 +84,8 @@ function App() {
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
+  const [selectedChainId, setSelectedChainId] = useState(DEFAULT_CHAIN_ID)
+  const [walletChainId, setWalletChainId] = useState<number | undefined>()
   type MainView = 'dashboard' | 'analytics' | 'vault' | 'marketplace'
   const HASH_TO_VIEW: Record<string, MainView> = { analytics: 'analytics', 'nft-vault': 'vault', marketplace: 'marketplace' }
   const VIEW_TO_HASH: Record<MainView, string> = { dashboard: '', analytics: 'analytics', vault: 'nft-vault', marketplace: 'marketplace' }
@@ -170,22 +104,46 @@ function App() {
   }, [mainView])
 
   // Auto-reconnect on page load if any EIP-1193 wallet is already authorized.
-  // TTL: session expires after 24h — user must manually reconnect after that.
   const WALLET_SESSION_KEY = 'maef-wallet-session-at'
-  const WALLET_SESSION_TTL = 24 * 60 * 60 * 1000 // 24 hours
+  const WALLET_LAST_ACTIVITY_KEY = 'maef-wallet-last-activity'
+  const WALLET_SESSION_TTL = 20 * 60 * 60 * 1000 // 20 hours max session
+  const WALLET_IDLE_TIMEOUT = 5 * 60 * 60 * 1000 // 5 hours idle timeout
+
+  // Activity tracker: updates last activity timestamp to reset idle timeout
+  const updateActivity = () => {
+    if (walletConnected) {
+      localStorage.setItem(WALLET_LAST_ACTIVITY_KEY, Date.now().toString())
+    }
+  }
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const eth = window.okxwallet ?? window.ethereum
     if (!eth) return
     eth.request({ method: 'eth_accounts' })
-      .then((accounts) => {
+      .then(async (accounts) => {
         if ((accounts as string[]).length === 0) return
         const savedAt = parseInt(localStorage.getItem(WALLET_SESSION_KEY) || '0')
-        if (Date.now() - savedAt < WALLET_SESSION_TTL) {
-          handleWalletConnect('')
-        } else {
+        const lastActivity = parseInt(localStorage.getItem(WALLET_LAST_ACTIVITY_KEY) || '0')
+        const now = Date.now()
+
+        // Check both TTL and idle timeout
+        const sessionExpired = now - savedAt >= WALLET_SESSION_TTL
+        const idleExpired = now - lastActivity >= WALLET_IDLE_TIMEOUT
+
+        if (sessionExpired || idleExpired) {
           localStorage.removeItem(WALLET_SESSION_KEY)
+          localStorage.removeItem(WALLET_LAST_ACTIVITY_KEY)
+        } else {
+          // Silent reconnect on page load: activate whatever chain the wallet
+          // is already on, instead of forcing it back to DEFAULT_CHAIN_ID.
+          let detectedChainId: number | undefined
+          try {
+            const chainHex = (await eth.request({ method: 'eth_chainId' })) as string
+            const parsed = parseInt(chainHex, 16)
+            if (getChain(parsed)) detectedChainId = parsed
+          } catch { /* fall back to default */ }
+          handleWalletConnect('', detectedChainId)
         }
       })
       .catch(() => {})
@@ -196,7 +154,8 @@ function App() {
     if (typeof window === 'undefined') return
     const eth = window.okxwallet ?? window.ethereum
     if (!eth) return
-    const onAccountsChanged = (accounts: unknown[]) => {
+    const onAccountsChanged = (...args: unknown[]) => {
+      const accounts = args[0] as unknown[]
       if (accounts.length === 0) {
         handleWalletDisconnect()
       } else if ((accounts[0] as string)?.toLowerCase() !== walletAddress?.toLowerCase()) {
@@ -206,6 +165,29 @@ function App() {
     eth.on('accountsChanged', onAccountsChanged)
     return () => eth.removeListener('accountsChanged', onAccountsChanged)
   }, [walletAddress]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen to chainChanged events - auto-sync when user switches network in wallet
+  useEffect(() => {
+    if (typeof window === 'undefined' || !walletConnected) return
+    const eth = window.okxwallet ?? window.ethereum
+    if (!eth) return
+    
+    const onChainChanged = (...args: unknown[]) => {
+      const chainIdHex = args[0] as string
+      const newChainId = parseInt(chainIdHex, 16)
+      setWalletChainId(newChainId)
+      setSelectedChainId(newChainId)
+      const chain = getChain(newChainId)
+      if (chain) {
+        toast.info(`Network changed to ${chain.name}`)
+      } else {
+        toast.warning(`Switched to unsupported chain ${newChainId}`)
+      }
+    }
+    
+    eth.on('chainChanged', onChainChanged)
+    return () => eth.removeListener('chainChanged', onChainChanged)
+  }, [walletConnected]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [lastSocialPost, setLastSocialPost] = useState<{ agentId: string; text: string; eventTitle: string } | null>(null)
 
@@ -366,19 +348,91 @@ function App() {
     return () => { window.removeEventListener('keydown', handler); clearTimeout(timer) }
   }, [])
 
-  const handleWalletConnect = async (address: string) => {
+  const handleSwitchNetwork = async () => {
+    const eth = (window as any).okxwallet ?? (window as any).ethereum
+    if (!eth?.request) {
+      toast.error('No wallet detected')
+      return
+    }
+
+    const targetChain = getChain(selectedChainId)
+    if (!targetChain) return
+
     try {
-      const connectedAddress = await blockchain.connectWallet()
+      // Try to switch to the target chain
+      await eth.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: `0x${selectedChainId.toString(16)}` }],
+      })
+      setWalletChainId(selectedChainId)
+      toast.success(`Switched to ${targetChain.name}`)
+    } catch (switchError: any) {
+      // Error 4902: chain not added to wallet yet
+      if (switchError.code === 4902) {
+        try {
+          // Add the chain first, then switch
+          await eth.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: `0x${targetChain.chainId.toString(16)}`,
+              chainName: targetChain.name,
+              nativeCurrency: {
+                name: targetChain.nativeSymbol,
+                symbol: targetChain.nativeSymbol,
+                decimals: 18,
+              },
+              rpcUrls: [targetChain.rpcUrl],
+              blockExplorerUrls: [targetChain.explorerUrl],
+            }],
+          })
+          setWalletChainId(selectedChainId)
+          toast.success(`Added and switched to ${targetChain.name}`)
+        } catch (addError: any) {
+          console.error('Failed to add chain:', addError)
+          toast.error('Failed to add network', { 
+            description: addError.message || 'Add manually in wallet settings.' 
+          })
+        }
+      } else if (switchError.code === 4001) {
+        // User rejected the request
+        toast.info('Network switch cancelled')
+      } else {
+        // Other error
+        console.error('Switch network error:', switchError)
+        toast.error('Failed to switch network', { 
+          description: switchError.message || 'Try manually in your wallet.' 
+        })
+      }
+    }
+  }
+
+  // chainIdOverride is used by the silent auto-reconnect effect to connect to
+  // whatever chain the wallet is already on. Manual connect clicks omit it,
+  // so they keep using selectedChainId (the user's ChainSelector choice).
+  const handleWalletConnect = async (address: string, chainIdOverride?: number) => {
+    try {
+      const initialChainId = chainIdOverride ?? selectedChainId
+      const connectedAddress = await blockchain.connectWallet(initialChainId)
       setWalletConnected(true)
       setWalletAddress(connectedAddress)
-      localStorage.setItem(WALLET_SESSION_KEY, Date.now().toString())
+      // Detect wallet's current chain
+      try {
+        const eth = (window as any).okxwallet ?? (window as any).ethereum
+        const chainHex: string = await eth.request({ method: 'eth_chainId' })
+        const detectedChainId = parseInt(chainHex, 16)
+        setWalletChainId(detectedChainId)
+        setSelectedChainId(detectedChainId)
+      } catch { /* non-fatal */ }
+      const now = Date.now().toString()
+      localStorage.setItem(WALLET_SESSION_KEY, now)
+      localStorage.setItem(WALLET_LAST_ACTIVITY_KEY, now)
       // Clear any previous wallet's data before loading new wallet's data
       setAgents([])
       setEvents([])
       setNFTs([])
       setLogs([])
       toast.success('Wallet connected successfully!', {
-        description: `Connected to Mantle Network`
+        description: `Connected to ${getChain(selectedChainId)?.name ?? 'the selected network'}`
       })
       // Load cloud state persisted in Firestore for this wallet
       const cloudAgents = await cloudRunService.getAgentsByWallet(connectedAddress)
@@ -388,6 +442,7 @@ function App() {
       const restoredEvents: Event[] = cloudHistory.map((item) => ({
         id: item.id,
         agentId: item.agentId,
+        chainId: item.chainId,
         url: item.eventUrl,
         title: item.eventTitle,
         platform: normalizePlatform(item.platform),
@@ -406,6 +461,7 @@ function App() {
         .map((item) => ({
           id: `nft-${item.id}`,
           agentId: item.agentId,
+          chainId: item.chainId,
           eventId: item.id,
           eventTitle: item.eventTitle,
           summary: item.wisdomSummary,
@@ -454,7 +510,7 @@ function App() {
               id: `hist-mint-${item.id}`,
               agentId: item.agentId,
               subAgentType: 'mint-master' as SubAgentType,
-              message: `[${agentName} - Mint-Master] NFT minted on Mantle. TX: ${item.txHash.slice(0, 18)}...`,
+              message: `[${agentName} - Mint-Master] NFT minted on ${getChain(item.chainId)?.shortName ?? 'chain'}. TX: ${item.txHash.slice(0, 18)}...`,
               timestamp: ts + 2000,
               type: 'success',
             })
@@ -468,7 +524,7 @@ function App() {
         const enriched = await Promise.all(
           cloudAgents.map(async (a) => {
             try {
-              const balStr = await blockchain.getBalance(a.walletAddress)
+              const balStr = await blockchain.getBalance(a.walletAddress, a.chainId)
               const liveBalance = parseFloat(balStr)
               return { ...a, agentGasBalance: liveBalance, mantleBalance: liveBalance }
             } catch {
@@ -496,6 +552,7 @@ function App() {
     localStorage.removeItem(WALLET_SESSION_KEY)
     setWalletConnected(false)
     setWalletAddress(undefined)
+    setWalletChainId(undefined)
     setAgents([])
     setNFTs([])
     setEvents([])
@@ -629,6 +686,7 @@ function App() {
   }
 
   const handleAttendEvent = async () => {
+    updateActivity() // Track user interaction
     if (!walletConnected) {
       toast.error('Please connect your wallet first!')
       return
@@ -651,6 +709,8 @@ function App() {
 
     const eventTitle = deriveTitleFromUrl(eventUrl.trim())
     const platform = derivePlatformFromUrl(eventUrl.trim())
+    const agentChainId = agent.chainId ?? DEFAULT_CHAIN_ID
+    const agentChain = getChain(agentChainId)
 
     setIsProcessingEvent(true)
     setActiveAgentId(agent.id)
@@ -720,6 +780,7 @@ function App() {
         eventTitle,
         platform,
         niche: agent.niche,
+        chainId: agentChainId,
         modeB: true,  // Enable autonomous signing by default for demo impact
       })
 
@@ -737,7 +798,7 @@ function App() {
       } else {
         addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Wisdom generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
         addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Transaction signed by ${signingMode}. TX: ${result.txHash.slice(0, 18)}...`, 'info')
-        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on Mantle! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
+        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on ${agentChain?.shortName ?? 'chain'}! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
         addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units`, 'info')
       }
 
@@ -752,6 +813,7 @@ function App() {
       const newEvent: Event = {
         id: `event-${Date.now()}`,
         agentId: agent.id,
+        chainId: agentChainId,
         url: eventUrl.trim(),
         title: resolvedTitle,
         platform,
@@ -764,6 +826,7 @@ function App() {
       const newNFT: NFT = {
         id: `nft-${Date.now()}`,
         agentId: agent.id,
+        chainId: agentChainId,
         eventId: newEvent.id,
         eventTitle: resolvedTitle,
         summary: result.wisdomSummary,
@@ -783,7 +846,7 @@ function App() {
         : (result.newLevel ?? (result.levelUp ? agent.level + 1 : agent.level))
       let refreshedBalance: number | undefined
       try {
-        const nextBalance = await blockchain.getBalance(agent.walletAddress)
+        const nextBalance = await blockchain.getBalance(agent.walletAddress, agentChainId)
         refreshedBalance = parseFloat(nextBalance)
       } catch {
         refreshedBalance = undefined
@@ -810,10 +873,10 @@ function App() {
       setActiveAgentId(null)
       clearTasks()
 
-      toast.success(`NFT #${result.tokenId} minted on Mantle Sepolia!`, {
+      toast.success(`NFT #${result.tokenId} minted on ${agentChain?.name ?? 'the selected network'}!`, {
         description: `Token ID: ${result.tokenId} | Gas: ${Number(result.gasUsed || 0).toLocaleString()} units`,
         action: {
-          label: 'View Agent Wisdom on MantleScan',
+          label: `View Agent Wisdom on ${agentChain?.shortName ?? 'Explorer'}`,
           onClick: () => window.open(result.explorerUrl, '_blank'),
         },
         duration: 10000,
@@ -855,12 +918,14 @@ function App() {
   }
 
   const handleTopUpAgentGas = async (agentId: string, amount: number): Promise<void> => {
+    updateActivity() // Track user interaction
     const agent = (agents ?? []).find((a) => a.id === agentId)
     if (!agent) {
       throw new Error('Agent not found for gas top-up')
     }
 
-    const tx = await mantleService.topUpAgentGas(agent.walletAddress, amount)
+    const agentChainId = agent.chainId ?? DEFAULT_CHAIN_ID
+    const tx = await mantleService.topUpAgentGas(agent.walletAddress, amount, agentChainId)
     if (!tx.success) {
       throw new Error(tx.error || 'Gas top-up transaction failed')
     }
@@ -871,7 +936,7 @@ function App() {
 
     let refreshedAgentBalance = agent.agentGasBalance
     try {
-      const bal = await blockchain.getBalance(agent.walletAddress)
+      const bal = await blockchain.getBalance(agent.walletAddress, agentChainId)
       refreshedAgentBalance = parseFloat(bal)
     } catch {
       refreshedAgentBalance = (agent.agentGasBalance ?? 0) + amount
@@ -986,6 +1051,7 @@ function App() {
   }, [isProcessingEvent, activeAgentId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRunAutoScout = async (agentId: string) => {
+    updateActivity() // Track user interaction
     if (!backendConnected) {
       toast.error('Backend not available', { description: 'Connect to Cloud Run backend first.' })
       return
@@ -1382,20 +1448,32 @@ function App() {
       />
 
       <div className="relative z-10">
+        <NetworkMismatchAlert
+          walletChainId={walletChainId}
+          selectedChainId={selectedChainId}
+          onSwitch={handleSwitchNetwork}
+        />
         <header className="border-b border-primary/20 backdrop-blur-xl bg-background/70 sticky top-0 z-40 shadow-lg shadow-primary/5">
           <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3">
             <div className="flex items-center gap-3">
-              {/* Logo — left */}
+              {/* Left: Home icon + Logo */}
               <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => navigate('/')}
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all"
+                  title="Back to home"
+                >
+                  <House size={16} weight="duotone" />
+                </button>
                 <img
                   src={maefLogo}
-                  alt="MAEF"
+                  alt="ASAJU AI"
                   className="h-12 w-auto object-contain"
                   style={{ mixBlendMode: 'lighten' }}
                 />
                 <div>
-                  <h1 className="text-sm font-black tracking-widest text-white leading-none">MAEF</h1>
-                  <p className="text-[9px] text-muted-foreground font-mono hidden sm:block leading-none mt-0.5">Mantle Agentic Event Factory</p>
+                  <h1 className="text-sm font-black tracking-widest text-white leading-none">ASAJU AI</h1>
+                  <p className="text-[9px] text-muted-foreground font-mono hidden sm:block leading-none mt-0.5">Autonomous Agent Intelligence</p>
                 </div>
               </div>
 
@@ -1446,6 +1524,10 @@ function App() {
                   {backendStatus === 'live' ? 'Live' : backendStatus === 'checking' ? '...' : 'Offline'}
                 </div>
 
+                <ChainSelector
+                  selectedChainId={selectedChainId}
+                  onChainChange={setSelectedChainId}
+                />
                 {walletConnected && <GasPriceMonitor />}
                 <WalletConnect
                   onConnect={handleWalletConnect}
@@ -1464,6 +1546,7 @@ function App() {
               {/* Hero section */}
               <div className="text-center py-8 px-4 mb-6">
                 <h1 className="text-2xl sm:text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+<<<<<<< HEAD
                   Autonomous AI Agents That Learn From the Real World.
                 </h1>
                 <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
@@ -1473,6 +1556,17 @@ function App() {
                <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium">
             🚀 AI Agents • On-Chain NFTs • Autonomous Learning • Mantle Network
              </div>
+=======
+                  Autonomous AI Agents That Turn Information Overload Into On-Chain Wisdom.
+                </h1>
+                <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-4">
+                  ASAJU AI enables agents to autonomously discover Web3 events, attend them, generate intelligent summaries, mint Proof-of-Attendance NFTs on-chain, and continuously evolve through accumulated knowledge — all secured by sovereign wallets and powered by Google Gemini.
+                </p>
+
+                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium">
+                  🚀 AI Agents • On-Chain NFTs • Autonomous Learning • Mantle Network
+                </div>
+>>>>>>> origin/main
 
                 {/* 5-step autonomous pipeline */}
                 <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap mb-5">
@@ -1508,7 +1602,7 @@ function App() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 font-mono flex items-center gap-1.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${isPlatformView ? 'bg-emerald-400 animate-pulse' : 'bg-primary'}`} />
-                  {isPlatformView ? 'Platform Totals — all agents on MAEF' : 'Your Stats'}
+                  {isPlatformView ? 'Platform Totals — all agents on ASAJU AI' : 'Your Stats'}
                 </span>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
@@ -1564,6 +1658,23 @@ function App() {
                         </select>
                       )}
                     </h2>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Choose one of your AI agents, paste a YouTube or Luma event URL, and let the agent autonomously attend, analyze the content, and mint an on-chain Proof-of-Attendance NFT.
+                    </p>
+                    <div className="grid grid-cols-3 gap-3 mb-5">
+                      <div className="rounded-lg border border-primary/20 p-3 text-center">
+                        <div className="text-lg">🤖</div>
+                        <p className="font-semibold text-sm mt-2">Select Agent</p>
+                      </div>
+                      <div className="rounded-lg border border-primary/20 p-3 text-center">
+                        <div className="text-lg">🔗</div>
+                        <p className="font-semibold text-sm mt-2">Paste Event URL</p>
+                      </div>
+                      <div className="rounded-lg border border-primary/20 p-3 text-center">
+                        <div className="text-lg">🏆</div>
+                        <p className="font-semibold text-sm mt-2">Earn NFT</p>
+                      </div>
+                    </div>
                     <div className="flex gap-3 mb-3">
                    <div className="grid grid-cols-3 gap-3 mb-5">
                    <div className="rounded-lg border border-primary/20 p-3 text-center">
@@ -1599,13 +1710,23 @@ function App() {
                         disabled={walletConnected && (!eventUrl.trim() || isProcessingEvent)}
                         className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
                       >
+<<<<<<< HEAD
                     {!walletConnected
                         ? 'Connect & Attend'
                         : isProcessingEvent
                         ? 'Processing...'
                         : 'Launch Autonomous Attendance'}
+=======
+                        {!walletConnected ? 'Connect & Attend' : isProcessingEvent ? 'Processing...' : 'Launch Autonomous Attendance'}
+>>>>>>> origin/main
                       </Button>
                     </div>
+                    <p className="text-xs text-muted-foreground mb-1">
+                      Your AI agent will automatically attend, analyze the event, mint an NFT, and gain experience.
+                    </p>
+                    <p className="text-xs text-muted-foreground/60">
+                      Examples: YouTube Live • Luma Event • Conference • Webinar
+                    </p>
                     {walletConnected && activeAgent && (
                       <div className="flex items-center gap-3 pt-2 border-t border-primary/10">
                         <span className="text-xs text-muted-foreground">Auto Scout</span>
@@ -2270,8 +2391,13 @@ function App() {
         onOpenChange={setSpawnDialogOpen}
         onAgentCreated={handleAgentCreated}
         userWallet={walletAddress}
-        originalAgentCount={displayedAgents.filter(a => a.ownershipStatus === 'original-creator').length}
-        bredAgentCount={displayedAgents.filter(a => a.ownershipStatus === 'bred').length}
+        chainId={selectedChainId}
+        originalAgentCount={displayedAgents.filter(a =>
+          a.ownershipStatus === 'original-creator' && (a.chainId ?? DEFAULT_CHAIN_ID) === selectedChainId
+        ).length}
+        bredAgentCount={displayedAgents.filter(a =>
+          a.ownershipStatus === 'bred' && (a.chainId ?? DEFAULT_CHAIN_ID) === selectedChainId
+        ).length}
       />
 
       {selectedAgent && (

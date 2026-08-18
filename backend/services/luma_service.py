@@ -455,12 +455,10 @@ def _extract_embedded_start_at(html: str) -> str | None:
     return None
 
 
-def build_luma_context(event_data: dict, elfa_signals: dict | None = None) -> str:
+def build_luma_context(event_data: dict) -> str:
     """
     Format Luma event data into a rich context string for Gemini summarization.
     Equivalent to a YouTube transcript — provides Gemini with real content.
-    If elfa_signals is provided, appends a REAL-TIME MARKET INTELLIGENCE section
-    so Gemini can cross-reference event topics against live social sentiment.
     """
     parts = [f"Event: {event_data.get('title', 'Untitled')}"]
 
@@ -492,16 +490,5 @@ def build_luma_context(event_data: dict, elfa_signals: dict | None = None) -> st
     description = event_data.get("description", "")
     if description:
         parts.append(f"\nEvent Description:\n{description}")
-
-    if elfa_signals:
-        query = elfa_signals.get("query_used", "")
-        velocity = elfa_signals.get("mentions_velocity_24h", "Stable/Neutral")
-        sentiment = elfa_signals.get("sentiment_bullish_pct", 50)
-        parts.append(
-            f"\n=== REAL-TIME MARKET INTELLIGENCE (via ELFA API) ===\n"
-            f"Target Query Tracked: {query}\n"
-            f"Social Mention Volume (24h): {velocity}\n"
-            f"Market Sentiment Score: {sentiment}% Bullish Momentum"
-        )
 
     return "\n".join(parts)

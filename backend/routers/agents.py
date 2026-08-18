@@ -24,6 +24,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from pydantic import BaseModel, field_validator
 from web3 import Web3
 
+from core.config import get_chain_config
 from core.database import get_db
 from core.kms_service import decrypt_private_key, encrypt_private_key
 from services.llm_service import chat_with_agent, generate_lineage_biography, generate_wisdom_report
@@ -106,6 +107,7 @@ class SpawnRequest(BaseModel):
     agent_name: str
     niche: str = "General"
     personality: str = "Analytical"
+    chain_id: int = 5003
 
     @field_validator("user_wallet")
     @classmethod
@@ -113,6 +115,12 @@ class SpawnRequest(BaseModel):
         if not Web3.is_address(v):
             raise ValueError("Invalid Ethereum wallet address")
         return Web3.to_checksum_address(v)
+
+    @field_validator("chain_id")
+    @classmethod
+    def validate_chain_id(cls, value: int) -> int:
+        get_chain_config(value)
+        return value
 
 
 class SpawnResponse(BaseModel):
@@ -146,6 +154,8 @@ class SpawnResponse(BaseModel):
     ownership_status: str | None = None
     luma_connected_at: float | None = None
     agent_gas_balance: float | None = None
+    chain_id: int = 5003
+    skill_scores: dict[str, int] | None = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -188,6 +198,8 @@ def _to_response(data: dict, needs_funding: bool) -> SpawnResponse:
         ownership_status=data.get("ownership_status"),
         luma_connected_at=data.get("luma_connected_at"),
         agent_gas_balance=data.get("agent_gas_balance"),
+        chain_id=data.get("chain_id", 5003),
+        skill_scores=data.get("skill_scores"),
     )
 
 
@@ -263,7 +275,7 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
     fund the agent with 0.5 MNT for gas autonomy.
     """
     agent_id = hashlib.sha256(
-        f"{req.user_wallet}:{req.agent_name}".encode()
+        f"{req.user_wallet}:{req.chain_id}:{req.agent_name}".encode()
     ).hexdigest()[:16]
 
     db = get_db()
@@ -280,7 +292,7 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         data = doc.to_dict()
         return _to_response(data, needs_funding=not data.get("funded", False))
 
-    # Per-wallet agent limit applies only to directly spawned agents (ownership_status='original-creator').
+    # Per-wallet, per-chain limit applies only to directly spawned agents.
     # Bred offspring are excluded — their slot cost is paid via breedAgents() on-chain.
     MAX_AGENTS_PER_WALLET = 3
     try:
@@ -289,11 +301,12 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         existing_count = sum(
             1 for doc in existing_docs
             if (doc.to_dict() or {}).get("ownership_status") != "bred"
+            and (doc.to_dict() or {}).get("chain_id", 5003) == req.chain_id
         )
         if existing_count >= MAX_AGENTS_PER_WALLET:
             raise HTTPException(
                 status_code=422,
-                detail=f"Wallet has reached the maximum of {MAX_AGENTS_PER_WALLET} agents. Breed existing agents to create stronger hybrids.",
+                detail=f"Wallet has reached the maximum of {MAX_AGENTS_PER_WALLET} direct agents on this network. Breed existing agents to create stronger hybrids.",
             )
     except HTTPException:
         raise
@@ -318,6 +331,7 @@ async def spawn_agent(req: SpawnRequest) -> SpawnResponse:
         "private_key_enc": encrypt_private_key(private_key),
         "funded": False,
         "created_at": now,
+        "chain_id": req.chain_id,
         # Autonomous scout scheduling — disabled by default, user opts in per agent
         "auto_scout_enabled": False,
         "scout_interval_hours": 6,
@@ -394,6 +408,7 @@ async def _spawn_bred_agent_on_chain(
     offspring_id: str,
     offspring_wallet: str,
     onchain_offspring_key: str | None = None,
+    chain_id: int = 5003,
 ) -> None:
     """
     Fire-and-forget: call spawnBredAgent() on V4 signed by MINTER_SERVICE.
@@ -414,6 +429,7 @@ async def _spawn_bred_agent_on_chain(
         result = await web3_service.send_spawn_bred_agent_tx(
             offspring_wallet=offspring_wallet,
             offspring_id=onchain_offspring_key,
+            chain_id=chain_id,
         )
         if result.get("status") == "success":
             await db.collection(AGENTS_COLLECTION).document(offspring_id).update(
@@ -535,6 +551,17 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
     if p2.get("user_wallet") != req.user_wallet:
         raise HTTPException(status_code=403, detail=f"Parent '{p2_id}' does not belong to your wallet")
 
+    # Same-chain parents required (guardrail #10) — breedAgents()/breedRecords/agentStats
+    # all live on one contract instance per chain, so cross-chain breeding has no
+    # coherent on-chain representation.
+    p1_chain_id = p1.get("chain_id", 5003)
+    p2_chain_id = p2.get("chain_id", 5003)
+    if p1_chain_id != p2_chain_id:
+        raise HTTPException(
+            status_code=422,
+            detail="Both parents must be on the same chain to breed",
+        )
+
     # Wisdom unlock: level >= 3 or total_events >= 5
     for p_id, p_data in [(p1_id, p1), (p2_id, p2)]:
         if p_data.get("level", 1) < 3 and p_data.get("total_events", 0) < 5:
@@ -571,8 +598,9 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
                 )
 
     # ── On-chain breed cost verification (guardrail #9) ──────────────────────
-    # When a breed_tx_hash is supplied, verify it on Mantle before creating offspring.
-    # This proves the user paid the 2.5 MNT fee via breedAgents() on the contract.
+    # Verify breed_tx_hash on the parents' chain before creating the offspring —
+    # proves the user paid breedCost via breedAgents() on that chain's contract.
+    # breedCost is owner-mutable per chain; read live, don't hardcode a number here.
     # Optional for backwards compat — will become required once contract is upgraded.
     # on-chain generation/heritageScore — set by the verified event, fallback to None
     onchain_generation: int | None = None
@@ -584,6 +612,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
             breed_tx_data = await web3_service.verify_breed_tx(
                 tx_hash=req.breed_tx_hash,
                 expected_user_wallet=req.user_wallet,
+                chain_id=p1_chain_id,
             )
             onchain_generation = breed_tx_data.get("generation")
             onchain_heritage_score = breed_tx_data.get("heritage_score")
@@ -661,6 +690,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
         "niche": offspring_niche,
         "personality": personality,
         "user_wallet": req.user_wallet,
+        "chain_id": p1_chain_id,  # inherited from parents (enforced equal above)
         "level": inherited_level,
         "total_events": inherited_events,
         "private_key_enc": encrypt_private_key(offspring_private_key),
@@ -783,6 +813,7 @@ async def breed_agents(req: BreedRequest) -> SpawnResponse:
             offspring_id=offspring_id,
             offspring_wallet=offspring_account.address,
             onchain_offspring_key=onchain_offspring_key,
+            chain_id=p1_chain_id,
         )
     )
 
@@ -897,6 +928,7 @@ async def retry_spawn_bred_agent(
             offspring_id=agent_id,
             offspring_wallet=offspring_wallet,
             onchain_offspring_key=offspring_key,
+            chain_id=data.get("chain_id", 5003),
         )
     )
 
@@ -1294,6 +1326,7 @@ async def run_auto_scout(agent_id: str, scheduler_run_id: str | None = None) -> 
         platform="YouTube",
         niche=niche,
         mode_b=is_funded,
+        chain_id=int(data.get("chain_id", 5003)),
     )
 
     try:

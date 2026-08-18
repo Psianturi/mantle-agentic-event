@@ -8,6 +8,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature, Dna, Lightbulb, Trash, Warning } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
+import { GasStatusBadge } from './GasStatusBadge'
+import { ChainBadge } from './ChainBadge'
+import { DEFAULT_CHAIN_ID, getChain } from '@/lib/blockchain/chains'
 
 interface AgentCardProps {
   agent: Agent
@@ -140,9 +143,12 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                     </Badge>
                   )}
                 </h3>
-                <p className="text-xs text-muted-foreground font-mono">
-                  {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
-                </p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-xs text-muted-foreground font-mono">
+                    {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
+                  </p>
+                  <ChainBadge chainId={(agent as any).chainId ?? DEFAULT_CHAIN_ID} />
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -244,9 +250,9 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <CurrencyCircleDollar size={18} className="text-primary" weight="duotone" />
-                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Mantle Balance</span>
+                  <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Native Balance</span>
                 </div>
-                <span className="text-sm font-bold font-mono text-primary">{agent.mantleBalance?.toFixed(3) || '0.000'} MNT</span>
+                <span className="text-sm font-bold font-mono text-primary">{agent.mantleBalance?.toFixed(3) || '0.000'} {getChain(agent.chainId ?? DEFAULT_CHAIN_ID)?.nativeSymbol ?? 'MNT'}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">Gas Used:</span>
@@ -269,7 +275,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                   <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Agentic Smart Account</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-muted-foreground">Agent Gas Balance:</span>
                 <TooltipProvider>
                   <Tooltip>
@@ -281,6 +287,12 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+              </div>
+
+              {/* Real-time gas status from backend monitoring */}
+              <div className="mb-3 flex items-center justify-between px-2 py-1.5 rounded-md bg-background/30 border border-border/30">
+                <span className="text-xs text-muted-foreground">Live Status:</span>
+                <GasStatusBadge agentWallet={agent.walletAddress} chainId={agent.chainId} showLabel={true} />
               </div>
               
               {(agent.agentGasBalance ?? 0) > 0 && (agent.agentGasBalance ?? 0) < 0.08 && (

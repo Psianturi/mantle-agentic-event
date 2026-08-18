@@ -44,6 +44,37 @@ MAEF_ABI: list[dict] = [
         "type": "function",
     },
     {
+        "inputs": [],
+        "name": "spawnFee",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "agentProvision",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    # Uppercase legacy getters — Mantle's live contract (0x66fD...) predates the
+    # mutable-fee upgrade and only has these, not the lowercase pair above.
+    # See Web3Service._read_spawn_fee_wei / _read_agent_provision_wei.
+    {
+        "inputs": [],
+        "name": "SPAWN_FEE",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "AGENT_PROVISION",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
         "anonymous": False,
         "inputs": [
             {"indexed": True, "internalType": "uint256", "name": "tokenId", "type": "uint256"},
@@ -128,42 +159,63 @@ MAEF_ABI: list[dict] = [
 
 class Web3Service:
     def __init__(self) -> None:
-        self._w3: Web3 | None = None
-        self._contract: Any = None
+        # Per-chain caches — keyed by chain_id (e.g. 5003, 11155111)
+        self._w3_cache: dict[int, Web3] = {}
+        self._contract_cache: dict[int, Any] = {}
 
     # ── Connection helpers ────────────────────────────────────────────────────
 
-    def _init_w3(self) -> Web3:
-        if self._w3 and self._w3.is_connected():
-            return self._w3
+    def _init_w3(self, chain_id: int = 5003) -> Web3:
+        if chain_id in self._w3_cache and self._w3_cache[chain_id].is_connected():
+            return self._w3_cache[chain_id]
 
-        rpc_url = get_mantle_rpc_url()
-        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 30}))
-        # Mantle is OP Stack (L2) — does not need PoA middleware
+        from core.config import get_chain_config
+        # Mantle: allow Secret Manager override via get_mantle_rpc_url()
+        # Other chains: use hardcoded RPC from CHAIN_CONFIGS
+        if chain_id == 5003:
+            rpc_url = get_mantle_rpc_url()
+        else:
+            rpc_url = get_chain_config(chain_id)["rpc_url"]
 
+        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 60}))
         if not w3.is_connected():
-            raise ConnectionError(f"Cannot connect to Mantle RPC: {rpc_url}")
+            logger.warning("Initial connection check failed for chain %d RPC: %s", chain_id, rpc_url)
+            try:
+                w3.eth.get_block("latest")
+                logger.info("RPC connection verified via get_block for chain %d", chain_id)
+            except Exception as retry_exc:
+                raise ConnectionError(
+                    f"Cannot connect to chain {chain_id} RPC: {rpc_url} | Error: {retry_exc}"
+                ) from retry_exc
 
-        self._w3 = w3
+        self._w3_cache[chain_id] = w3
         return w3
 
-    def _init_contract(self) -> Any:
-        if self._contract:
-            return self._contract
+    def _init_contract(self, chain_id: int = 5003) -> Any:
+        if chain_id in self._contract_cache:
+            return self._contract_cache[chain_id]
 
-        w3 = self._init_w3()
-        addr = settings.contract_address
+        from core.config import get_chain_config
+        w3 = self._init_w3(chain_id)
+
+        # Mantle: contract address from Cloud Run env var (CONTRACT_ADDRESS) for flexibility
+        # Other chains: hardcoded address from CHAIN_CONFIGS
+        if chain_id == 5003:
+            addr = settings.contract_address
+        else:
+            addr = get_chain_config(chain_id)["contract_address"]
+
         if not addr or not Web3.is_address(addr):
             raise ValueError(
-                "CONTRACT_ADDRESS env var is not set or is invalid. "
-                "Deploy the contract first and set the env var."
+                f"No valid contract address for chain {chain_id}. "
+                "Check CHAIN_CONFIGS or CONTRACT_ADDRESS env var."
             )
 
-        self._contract = w3.eth.contract(
+        self._contract_cache[chain_id] = w3.eth.contract(
             address=Web3.to_checksum_address(addr),
             abi=MAEF_ABI,
         )
-        return self._contract
+        return self._contract_cache[chain_id]
 
     # ── Public async interface ────────────────────────────────────────────────
 
@@ -178,13 +230,14 @@ class Web3Service:
         niche: str = "General",
         agent_private_key: str | None = None,  # Agent's own key for autonomy
         allow_mode_b_fallback: bool = True,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         """
-        Signs and broadcasts mintAttendanceNFT to Mantle.
-        
+        Signs and broadcasts mintAttendanceNFT to the target chain.
+
         If agent_private_key is provided, the agent signs its own transaction
         (true agentic autonomy). Otherwise, falls back to backend master key.
-        
+
         Runs the blocking web3 call in a thread executor so FastAPI stays non-blocking.
         """
         loop = asyncio.get_event_loop()
@@ -200,16 +253,94 @@ class Web3Service:
             niche,
             agent_private_key,
             allow_mode_b_fallback,
+            chain_id,
         )
 
-    async def get_total_minted(self) -> int:
+    async def get_total_minted(self, chain_id: int = 5003) -> int:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._sync_total_minted)
+        return await loop.run_in_executor(None, self._sync_total_minted, chain_id)
 
-    async def get_native_balance(self, address: str) -> float:
-        """Return the wallet's native MNT balance from Mantle RPC in ether units."""
+    async def get_native_balance(self, address: str, chain_id: int = 5003) -> float:
+        """Return the wallet's native token balance from the target chain RPC in ether units."""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, self._sync_native_balance, address)
+        return await loop.run_in_executor(None, self._sync_native_balance, address, chain_id)
+
+    async def get_balance(self, address: str, chain_id: int = 5003) -> int:
+        """Return the wallet's native balance in wei (for gas monitoring endpoints)."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._sync_balance_wei, address, chain_id)
+
+    async def get_agent_provision(self, chain_id: int = 5003) -> float:
+        """
+        Live-read agentProvision for a chain (in ether units) — the amount a
+        freshly-spawned agent receives as its starting gas reserve. Used to size
+        gas-health thresholds *relative* to what's normal for that chain, instead
+        of hardcoding one absolute number that only makes sense for Mantle.
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._sync_agent_provision, chain_id)
+
+    def _sync_agent_provision(self, chain_id: int = 5003) -> float:
+        contract = self._init_contract(chain_id)
+        provision_wei = self._read_agent_provision_wei(contract)
+        return float(Web3.from_wei(provision_wei, "ether"))
+
+    def _read_spawn_fee_wei(self, contract) -> int:
+        """
+        Read spawnFee tolerating both contract generations. Mantle's original
+        deployment (0x66fD...) predates the mutable-fee upgrade added 10 Aug
+        2026 — it still has the immutable `SPAWN_FEE` constant (uppercase),
+        not the new owner-mutable `spawnFee()` getter — and was never
+        redeployed, since that would orphan every existing Mantle agent.
+        This fallback is therefore permanent, not a transitional shim.
+        """
+        try:
+            return contract.functions.spawnFee().call()
+        except Exception:
+            return contract.functions.SPAWN_FEE().call()
+
+    def _read_agent_provision_wei(self, contract) -> int:
+        """Same generational fallback as _read_spawn_fee_wei, for agentProvision."""
+        try:
+            return contract.functions.agentProvision().call()
+        except Exception:
+            return contract.functions.AGENT_PROVISION().call()
+
+    def check_minter_balance_health(self, chain_id: int = 5003) -> None:
+        """
+        Log-only early warning — call right before MINTER_SERVICE is about to spend
+        its own balance (spawnBredAgent, recordExecutedProposal). Does NOT block the
+        transaction; this is deliberately just a loud, greppable Cloud Run log line
+        for the operator, not a user-facing alert (MINTER_SERVICE isn't the user's
+        concern) and not an automatic treasury sweep (would require the deployer's
+        cold-admin key to become hot — see reference_contracts_wallets memory).
+
+        Threshold is relative — 4x spawnFee for the chain — so it means the same
+        thing ("~4 more operations left") on every chain, not one absolute MNT
+        number that's meaningless once a chain's economy is calibrated differently.
+        """
+        try:
+            w3 = self._init_w3(chain_id)
+            contract = self._init_contract(chain_id)
+            private_key = get_minter_service_private_key()
+            minter_address = Account.from_key(private_key).address
+
+            balance_wei = w3.eth.get_balance(minter_address)
+            balance = float(Web3.from_wei(balance_wei, "ether"))
+            spawn_fee_wei = self._read_spawn_fee_wei(contract)
+            spawn_fee = float(Web3.from_wei(spawn_fee_wei, "ether"))
+            threshold = spawn_fee * 4
+
+            if balance < threshold:
+                logger.warning(
+                    "MINTER_SERVICE_LOW_BALANCE chain=%d address=%s balance=%.4f "
+                    "threshold=%.4f spawn_fee=%.4f — top up before bred-agent "
+                    "activations / proposal recordings start failing silently",
+                    chain_id, minter_address, balance, threshold, spawn_fee,
+                )
+        except Exception as exc:
+            # Never let a monitoring check break the actual transaction it's guarding.
+            logger.warning("MINTER_SERVICE balance health check failed (non-fatal): %s", exc)
 
     # ── Synchronous implementations (run in thread pool) ─────────────────────
 
@@ -224,9 +355,10 @@ class Web3Service:
         niche: str,
         agent_private_key: str | None = None,
         allow_mode_b_fallback: bool = True,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
-        w3 = self._init_w3()
-        contract = self._init_contract()
+        w3 = self._init_w3(chain_id)
+        contract = self._init_contract(chain_id)
         
         using_agent_key = bool(agent_private_key)
         if using_agent_key:
@@ -237,6 +369,7 @@ class Web3Service:
             )
         else:
             private_key = get_minter_service_private_key()
+            self.check_minter_balance_health(chain_id)
             logger.info("Minter service wallet signing transaction (Mode A)")
 
         signer = Account.from_key(private_key)
@@ -283,6 +416,7 @@ class Web3Service:
                         "missing role" if lacks_minter else "insufficient gas",
                     )
                     private_key = get_minter_service_private_key()
+                    self.check_minter_balance_health(chain_id)
                     signer = Account.from_key(private_key)
                     signer_address = signer.address
                     nonce = w3.eth.get_transaction_count(signer_address, "pending")
@@ -304,7 +438,7 @@ class Web3Service:
 
         raw_tx = fn_call.build_transaction(
             {
-                "chainId": settings.chain_id,
+                "chainId": chain_id,
                 "from": signer_address,
                 "nonce": nonce,
                 "gas": gas_limit,
@@ -336,31 +470,46 @@ class Web3Service:
             "signing_mode": actual_signing_mode,
         }
 
-    def _sync_total_minted(self) -> int:
-        contract = self._init_contract()
+    def _sync_total_minted(self, chain_id: int = 5003) -> int:
+        contract = self._init_contract(chain_id)
         return int(contract.functions.getTotalMinted().call())
 
-    def _sync_native_balance(self, address: str) -> float:
-        w3 = self._init_w3()
+    def _sync_native_balance(self, address: str, chain_id: int = 5003) -> float:
+        w3 = self._init_w3(chain_id)
         if not Web3.is_address(address):
             raise ValueError("Invalid Ethereum wallet address")
 
         try:
             wei_balance = w3.eth.get_balance(Web3.to_checksum_address(address))
         except Exception as exc:
-            raise ConnectionError(f"Failed to fetch native balance from Mantle RPC: {exc}") from exc
+            raise ConnectionError(f"Failed to fetch native balance from chain {chain_id} RPC: {exc}") from exc
 
         return float(Web3.from_wei(wei_balance, "ether"))
+
+    def _sync_balance_wei(self, address: str, chain_id: int = 5003) -> int:
+        """Return wallet's native balance in wei (int) for gas monitoring."""
+        w3 = self._init_w3(chain_id)
+        if not Web3.is_address(address):
+            raise ValueError("Invalid Ethereum wallet address")
+
+        try:
+            wei_balance = w3.eth.get_balance(Web3.to_checksum_address(address))
+        except Exception as exc:
+            raise ConnectionError(f"Failed to fetch balance from chain {chain_id} RPC: {exc}") from exc
+
+        return int(wei_balance)
 
     async def send_spawn_bred_agent_tx(
         self,
         offspring_wallet: str,
         offspring_id: str,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         """
         Register a bred offspring on V4 via spawnBredAgent() — signed by MINTER_SERVICE.
 
-        Pays 1 MNT from minter wallet, sets isAgentSpawned[offspringWallet]=true on V4.
+        Pays spawnFee (read live from the contract, not hardcoded — it's owner-mutable
+        and differs per chain) from minter wallet, sets isAgentSpawned[offspringWallet]=true.
         offspring_id must be the 64-char hex bytes32 parsed from the AgentsBred event
         (breed_tx_data["offspring_key"]) — this is what the contract stored in breedRecords.
         """
@@ -370,11 +519,15 @@ class Web3Service:
             self._sync_spawn_bred_agent,
             offspring_wallet,
             offspring_id,
+            chain_id,
         )
 
-    def _sync_spawn_bred_agent(self, offspring_wallet: str, offspring_id: str) -> dict[str, Any]:
-        w3 = self._init_w3()
-        contract = self._init_contract()
+    def _sync_spawn_bred_agent(
+        self, offspring_wallet: str, offspring_id: str, chain_id: int = 5003
+    ) -> dict[str, Any]:
+        self.check_minter_balance_health(chain_id)
+        w3 = self._init_w3(chain_id)
+        contract = self._init_contract(chain_id)
 
         private_key = get_minter_service_private_key()
         signer = Account.from_key(private_key)
@@ -385,7 +538,8 @@ class Web3Service:
         offspring_id_bytes = bytes.fromhex(offspring_id.replace("0x", ""))
 
         fn_call = contract.functions.spawnBredAgent(offspring_wallet_cs, offspring_id_bytes)
-        spawn_value = Web3.to_wei(1, "ether")
+        # Read live — spawnFee is owner-mutable and differs per chain (see setFees()).
+        spawn_value = self._read_spawn_fee_wei(contract)
 
         nonce = w3.eth.get_transaction_count(signer.address, "pending")
         gas_price = w3.eth.gas_price
@@ -399,7 +553,7 @@ class Web3Service:
 
         raw_tx = fn_call.build_transaction(
             {
-                "chainId": settings.chain_id,
+                "chainId": chain_id,
                 "from": signer.address,
                 "nonce": nonce,
                 "gas": gas_limit,
@@ -428,6 +582,7 @@ class Web3Service:
         self,
         agent_wallet: str,
         proposal_hash_hex: str,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         """
         Call recordExecutedProposal(agentWallet, proposalHash) on V4.
@@ -441,13 +596,15 @@ class Web3Service:
             self._sync_record_executed_proposal,
             agent_wallet,
             proposal_hash_hex,
+            chain_id,
         )
 
     def _sync_record_executed_proposal(
-        self, agent_wallet: str, proposal_hash_hex: str
+        self, agent_wallet: str, proposal_hash_hex: str, chain_id: int = 5003
     ) -> dict[str, Any]:
-        w3 = self._init_w3()
-        contract = self._init_contract()
+        self.check_minter_balance_health(chain_id)
+        w3 = self._init_w3(chain_id)
+        contract = self._init_contract(chain_id)
 
         private_key = get_minter_service_private_key()
         signer = Account.from_key(private_key)
@@ -472,7 +629,7 @@ class Web3Service:
 
         raw_tx = fn_call.build_transaction(
             {
-                "chainId": settings.chain_id,
+                "chainId": chain_id,
                 "from": signer.address,
                 "nonce": nonce,
                 "gas": gas_limit,
@@ -517,9 +674,10 @@ class Web3Service:
         agent_private_key: str,
         amount_mnt: float = 0.1,
         vault_address: str = "",
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         """
-        Agent signs a native MNT transfer from its own wallet to the autonomous vault.
+        Agent signs a native token transfer from its own wallet to the autonomous vault.
         Used by Option A: Semi-Autonomous Proposal Execution — no MINTER_ROLE needed.
         agent_private_key must already be KMS-decrypted by the caller.
         """
@@ -531,6 +689,7 @@ class Web3Service:
             agent_private_key,
             amount_mnt,
             vault_address,
+            chain_id,
         )
 
     def _sync_autonomous_transfer(
@@ -539,8 +698,9 @@ class Web3Service:
         agent_private_key: str,
         amount_mnt: float,
         vault_address: str,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
-        w3 = self._init_w3()
+        w3 = self._init_w3(chain_id)
 
         signer = Account.from_key(agent_private_key)
         from_address = signer.address
@@ -560,7 +720,7 @@ class Web3Service:
         gas_price = w3.eth.gas_price
 
         raw_tx = {
-            "chainId": settings.chain_id,
+            "chainId": chain_id,
             "from": from_address,
             "to": to_address,
             "nonce": nonce,
@@ -594,6 +754,7 @@ class Web3Service:
         tx_hash: str,
         expected_user_wallet: str,
         max_age_seconds: int = 3600,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         """
         Verify an on-chain breedAgents() transaction.
@@ -607,6 +768,7 @@ class Web3Service:
             tx_hash,
             expected_user_wallet,
             max_age_seconds,
+            chain_id,
         )
 
     def _sync_verify_breed_tx(
@@ -614,9 +776,10 @@ class Web3Service:
         tx_hash: str,
         expected_user_wallet: str,
         max_age_seconds: int = 3600,
+        chain_id: int = 5003,
     ) -> dict[str, Any]:
         import time as _time
-        w3 = self._init_w3()
+        w3 = self._init_w3(chain_id)
 
         # 1. Fetch receipt
         try:
@@ -630,14 +793,12 @@ class Web3Service:
         if receipt.get("status") != 1:
             raise ValueError("Transaction was reverted")
 
-        # 2. Verify destination is MAEF contract
-        contract_addr = Web3.to_checksum_address(settings.contract_address)
+        # 2. Verify destination is the MAEF contract on the parents' chain
+        contract = self._init_contract(chain_id)
+        contract_addr = contract.address
         tx_to = receipt.get("to") or ""
         if not tx_to or Web3.to_checksum_address(tx_to) != contract_addr:
             raise ValueError("Transaction was not sent to the MAEF contract")
-
-        # 3. Parse AgentsBred event
-        contract = self._init_contract()
         try:
             events = contract.events.AgentsBred().process_receipt(receipt, errors=DISCARD)
         except Exception as exc:

@@ -15,6 +15,7 @@ interface WalletConnectProps {
 
 const WALLET_STYLES: Record<DetectedWallet['id'], { border: string; bg: string; dot: string; label: string }> = {
   okx:      { border: 'border-blue-500/40 hover:border-blue-500/70',    bg: 'from-blue-500/10 to-cyan-500/10',     dot: 'bg-blue-400',   label: 'OKX' },
+  bitget:   { border: 'border-cyan-500/40 hover:border-cyan-500/70',    bg: 'from-cyan-500/10 to-teal-500/10',     dot: 'bg-cyan-400',   label: 'BG' },
   metamask: { border: 'border-orange-500/40 hover:border-orange-500/70', bg: 'from-orange-500/10 to-amber-500/10', dot: 'bg-orange-400', label: 'MM' },
   rabby:    { border: 'border-purple-500/40 hover:border-purple-500/70', bg: 'from-purple-500/10 to-violet-500/10', dot: 'bg-purple-400', label: 'R' },
   injected: { border: 'border-primary/30 hover:border-primary/60',       bg: 'from-primary/10 to-accent/10',       dot: 'bg-primary',    label: '⬡' },

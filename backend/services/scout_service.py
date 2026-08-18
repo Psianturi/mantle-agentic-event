@@ -24,11 +24,11 @@ _NICHE_QUERIES: dict[str, list[str]] = {
         "blockchain DeFi summit webinar 2026",
         "crypto decentralized finance conference talk",
     ],
-    "Trading": [
+    "Trading/Investment": [
         "crypto trading strategy analysis webinar 2026",
         "algorithmic trading conference workshop",
     ],
-    "Tech": [
+    "Technology": [
         "AI technology developer conference 2026",
         "software engineering summit workshop",
     ],

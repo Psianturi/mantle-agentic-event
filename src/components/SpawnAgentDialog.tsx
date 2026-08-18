@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +9,8 @@ import { Sparkle, Lightning, CheckCircle, XCircle, Info } from '@phosphor-icons/
 import { motion, AnimatePresence } from 'framer-motion'
 import { cloudRunService } from '@/services/cloudRunService'
 import { mantleService } from '@/lib/blockchain/mantleService'
+import { getChain } from '@/lib/blockchain/chains'
+import { monitoringService, SpawnQuotaResponse } from '@/services/monitoringService'
 import { toast } from 'sonner'
 
 const ORIGINAL_AGENT_LIMIT = 3
@@ -18,6 +20,7 @@ interface SpawnAgentDialogProps {
   onOpenChange: (open: boolean) => void
   onAgentCreated: (agent: Agent) => void
   userWallet?: string
+  chainId: number
   originalAgentCount?: number  // Directly spawned agents (counts toward 3-slot limit)
   bredAgentCount?: number      // Neural Fusion offspring (does NOT count toward limit)
 }
@@ -27,7 +30,8 @@ const personalities: Personality[] = ['Aggressive', 'Analytical', 'Creative']
 
 type SpawnPhase = 'form' | 'spawning' | 'deploying' | 'success' | 'error'
 
-export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWallet, originalAgentCount = 0, bredAgentCount = 0 }: SpawnAgentDialogProps) {
+export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWallet, chainId, originalAgentCount = 0, bredAgentCount = 0 }: SpawnAgentDialogProps) {
+  const chain = getChain(chainId)
   const [name, setName] = useState('')
   const [personality, setPersonality] = useState<Personality>('Analytical')
   const [niche, setNiche] = useState<Niche>('Blockchain/DeFi')
@@ -35,6 +39,28 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
   const [deploymentSteps, setDeploymentSteps] = useState<{step: string, status: 'pending' | 'active' | 'complete' | 'error'}[]>([])
   const [errorMessage, setErrorMessage] = useState('')
   const [deployedAgent, setDeployedAgent] = useState<Agent | null>(null)
+  const [spawnQuota, setSpawnQuota] = useState<SpawnQuotaResponse | null>(null)
+  const [loadingQuota, setLoadingQuota] = useState(false)
+
+  // Fetch real-time spawn quota from backend when dialog opens
+  useEffect(() => {
+    if (open && userWallet && phase === 'form') {
+      const fetchSpawnQuota = async () => {
+        try {
+          setLoadingQuota(true)
+          const quota = await monitoringService.getSpawnQuota(userWallet, chainId)
+          setSpawnQuota(quota)
+        } catch (error) {
+          console.error('Failed to fetch spawn quota:', error)
+          // Silently fail - we still have the prop-based counts as fallback
+        } finally {
+          setLoadingQuota(false)
+        }
+      }
+      
+      fetchSpawnQuota()
+    }
+  }, [open, userWallet, chainId, phase])
 
   const handleSpawn = async () => {
     if (!name.trim()) return
@@ -50,7 +76,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
     
     const steps = [
       { step: 'Generating deterministic wallet...', status: 'pending' as const },
-      { step: 'Provisioning gas reserves (0.5 MNT)...', status: 'pending' as const },
+      { step: `Provisioning gas reserves (0.5 ${chain?.nativeSymbol ?? 'token'})...`, status: 'pending' as const },
       { step: 'Finalizing agent identity...', status: 'pending' as const },
     ]
     setDeploymentSteps(steps)
@@ -70,14 +96,15 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
         niche,
         personality,
         userWallet,
+        chainId,
       })
 
       if (response.success) {
         const fundingTx = response.needsFunding
-          ? await mantleService.spawnAgent(response.mantleAddress)
+            ? await mantleService.spawnAgent(response.mantleAddress, chainId)
           : {
               success: true,
-              contractAddress: mantleService.getContractAddress(),
+              contractAddress: mantleService.getContractAddress(chainId),
               provisionAmount: '0.5',
             }
 
@@ -124,6 +151,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
           personality,
           niche,
           walletAddress: response.mantleAddress,
+          chainId: response.chainId,
           eventsAttended: 0,
           level: 1,
           status: 'idle',
@@ -143,8 +171,8 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
 
         toast.success('Agent deployed successfully!', {
           description: fundingTx.transactionHash
-            ? 'Agent registered and funded on Mantle Network'
-            : 'Agent already registered on Mantle Network'
+            ? `Agent registered and funded on ${chain?.name ?? 'the selected network'}`
+            : `Agent already registered on ${chain?.name ?? 'the selected network'}`
         })
 
         setTimeout(() => {
@@ -188,6 +216,10 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
     setDeploymentSteps([])
   }
 
+  const isQuotaReached = spawnQuota
+    ? !spawnQuota.can_spawn
+    : originalAgentCount >= ORIGINAL_AGENT_LIMIT
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[550px] glass-card border-primary/30">
@@ -197,7 +229,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
             Spawn New Agent
           </DialogTitle>
           <DialogDescription>
-            Create an autonomous AI agent with an on-chain wallet identity on Mantle
+            Create an autonomous AI agent with an on-chain wallet identity on {chain?.name ?? 'the selected network'}
           </DialogDescription>
         </DialogHeader>
 
@@ -254,35 +286,78 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
                 </Select>
               </div>
 
-              {/* Spawn quota counter */}
-              <div className={`flex flex-col gap-1 px-3 py-2 rounded-md text-xs border ${
-                originalAgentCount >= ORIGINAL_AGENT_LIMIT
-                  ? 'bg-destructive/10 border-destructive/30 text-destructive'
-                  : originalAgentCount >= ORIGINAL_AGENT_LIMIT - 1
-                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                    : 'bg-muted/40 border-border/40 text-muted-foreground'
-              }`}>
-                <div className="flex items-center gap-2">
-                  <Info size={13} weight="fill" className="flex-shrink-0" />
-                  <span>
-                    <span className="font-mono font-bold">{originalAgentCount}/{ORIGINAL_AGENT_LIMIT}</span>
-                    {' '}original slots used
-                    {originalAgentCount >= ORIGINAL_AGENT_LIMIT
-                      ? ' — limit reached. Use Neural Fusion to breed offspring.'
-                      : ' · bred offspring don\'t count toward this limit.'}
-                  </span>
+              {/* Spawn quota counter - real-time backend data */}
+              {loadingQuota ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-md text-xs border bg-muted/40 border-border/40">
+                  <motion.div
+                    animate={{ opacity: [0.4, 1, 0.4] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="w-3 h-3 bg-primary/50 rounded-full"
+                  />
+                  <span className="text-muted-foreground">Loading spawn quota...</span>
                 </div>
-                {bredAgentCount > 0 && (
-                  <div className="flex items-center gap-2 pl-[21px] text-muted-foreground">
-                    <span className="font-mono font-bold text-violet-400">{bredAgentCount}</span>
-                    <span>Neural Fusion offspring (unlimited)</span>
+              ) : spawnQuota ? (
+                <div className={`flex flex-col gap-1.5 px-3 py-2 rounded-md text-xs border ${
+                  !spawnQuota.can_spawn
+                    ? 'bg-destructive/10 border-destructive/30 text-destructive'
+                    : spawnQuota.remaining_slots <= 1
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                      : 'bg-muted/40 border-border/40 text-muted-foreground'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Info size={13} weight="fill" className="flex-shrink-0" />
+                    <span>
+                      <span className="font-mono font-bold">{spawnQuota.spawned_count}/{spawnQuota.max_spawn_limit}</span>
+                      {' '}original slots used
+                      {!spawnQuota.can_spawn
+                        ? ' — limit reached. Use Neural Fusion to breed offspring.'
+                        : ` · ${spawnQuota.remaining_slots} slot${spawnQuota.remaining_slots !== 1 ? 's' : ''} remaining.`}
+                    </span>
                   </div>
-                )}
-              </div>
+                  {spawnQuota.agents && spawnQuota.agents.length > 0 && (
+                    <div className="pl-[21px] space-y-0.5">
+                      {spawnQuota.agents.map((agent, idx) => (
+                        <div key={idx} className="text-muted-foreground/70 text-[10px]">
+                          • {agent.agent_name} ({agent.agent_wallet.slice(0, 6)}...{agent.agent_wallet.slice(-4)})
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5 pl-[21px] pt-0.5">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] text-green-500 font-semibold">Live data from backend</span>
+                  </div>
+                </div>
+              ) : (
+                <div className={`flex flex-col gap-1 px-3 py-2 rounded-md text-xs border ${
+                  originalAgentCount >= ORIGINAL_AGENT_LIMIT
+                    ? 'bg-destructive/10 border-destructive/30 text-destructive'
+                    : originalAgentCount >= ORIGINAL_AGENT_LIMIT - 1
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                      : 'bg-muted/40 border-border/40 text-muted-foreground'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Info size={13} weight="fill" className="flex-shrink-0" />
+                    <span>
+                      <span className="font-mono font-bold">{originalAgentCount}/{ORIGINAL_AGENT_LIMIT}</span>
+                      {' '}original slots used
+                      {originalAgentCount >= ORIGINAL_AGENT_LIMIT
+                        ? ' — limit reached. Use Neural Fusion to breed offspring.'
+                        : ' · bred offspring don\'t count toward this limit.'}
+                    </span>
+                  </div>
+                  {bredAgentCount > 0 && (
+                    <div className="flex items-center gap-2 pl-[21px] text-muted-foreground">
+                      <span className="font-mono font-bold text-violet-400">{bredAgentCount}</span>
+                      <span>Neural Fusion offspring (unlimited)</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <Button
                 onClick={handleSpawn}
-                disabled={!name.trim() || originalAgentCount >= ORIGINAL_AGENT_LIMIT}
+                disabled={!name.trim() || isQuotaReached}
                 className="w-full bg-gradient-to-r from-secondary to-accent hover:opacity-90 transition-opacity disabled:opacity-50"
               >
                 <Lightning className="mr-2" weight="fill" />
@@ -312,7 +387,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
                 >
                   <Sparkle size={32} className="text-background" weight="fill" />
                 </motion.div>
-                <h3 className="text-xl font-bold mb-2">Registering Agent on Mantle Network</h3>
+                <h3 className="text-xl font-bold mb-2">Registering Agent on {chain?.name ?? 'the selected network'}</h3>
                 <p className="text-sm text-muted-foreground">Initializing agentic wallet and gas reserves...</p>
               </div>
 
@@ -367,7 +442,7 @@ export function SpawnAgentDialog({ open, onOpenChange, onAgentCreated, userWalle
               <h3 className="text-2xl font-bold mb-2 text-green-500">Registration Successful!</h3>
               {deployedAgent && (
                 <div className="text-center space-y-2 mt-4">
-                  <p className="text-sm text-muted-foreground">Agent registered and funded on Mantle Network</p>
+                  <p className="text-sm text-muted-foreground">Agent registered and funded on {chain?.name ?? 'the selected network'}</p>
                   <p className="text-xs font-mono bg-card px-3 py-2 rounded border border-border">
                     {deployedAgent.walletAddress}
                   </p>

@@ -19,7 +19,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
-from routers import agents, events, health, proposals, public, scheduler
+from routers import agents, events, health, monitoring, proposals, public, scheduler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,7 +41,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
     allow_credentials=False,  # Must be False when allow_origins=["*"]
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -52,6 +52,7 @@ app.include_router(events.router)
 app.include_router(proposals.router)
 app.include_router(public.router)
 app.include_router(scheduler.router)
+app.include_router(monitoring.router)
 
 logger.info(
     "MAEF backend started | env=%s chain=%s contract=%s",

@@ -9,7 +9,8 @@
         "build": "tsc -b --noCheck && vite build",
         "lint": "eslint .",
         "optimize": "vite optimize",
-        "preview": "vite preview"
+        "preview": "vite preview",
+        "test": "vitest run"
     },
     "dependencies": {
         "@github/spark": ">=0.43.1 <1",
@@ -66,6 +67,7 @@
         "react-error-boundary": "^6.0.0",
         "react-hook-form": "^7.54.2",
         "react-resizable-panels": "^2.1.7",
+        "react-router-dom": "^6.30.4",
         "recharts": "^2.15.1",
         "sonner": "^2.0.1",
         "tailwind-merge": "^3.0.2",
@@ -88,7 +90,8 @@
         "tailwindcss": "^4.1.11",
         "typescript": "~5.7.2",
         "typescript-eslint": "^8.59.3",
-        "vite": "^7.3.2"
+        "vite": "^7.3.2",
+        "vitest": "^4.1.10"
     },
     "workspaces": {
         "packages": [
@@ -99,8 +102,16 @@
         "picomatch": "4.0.4",
         "path-to-regexp": "8.4.0",
         "lodash": "4.18.0",
+        "brace-expansion": "^5.0.8",
+        "minimatch": "^10.0.3",
         "@typescript-eslint/typescript-estree": {
-            "minimatch": "9.0.7"
+            "minimatch": "^10.0.3"
+        },
+        "@eslint/config-array": {
+            "minimatch": "^10.0.3"
+        },
+        "@eslint/eslintrc": {
+            "minimatch": "^10.0.3"
         }
     }
 }

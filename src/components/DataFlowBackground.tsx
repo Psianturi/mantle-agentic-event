@@ -20,10 +20,16 @@ interface Pulse {
   color: string
 }
 
-export function DataFlowBackground() {
+interface DataFlowBackgroundProps {
+  variant?: 'dark' | 'light'
+}
+
+export function DataFlowBackground({ variant = 'dark' }: DataFlowBackgroundProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -37,23 +43,24 @@ export function DataFlowBackground() {
     resizeCanvas()
     window.addEventListener('resize', resizeCanvas)
 
+    const isLight = variant === 'light'
     const dataStreams: DataStream[] = []
     const pulses: Pulse[] = []
-    const streamCount = 25
-    const colors = [
-      'rgba(0, 243, 255,',
-      'rgba(157, 0, 255,',
-      'rgba(100, 150, 255,',
-    ]
+    const streamCount = isLight ? 18 : 25
+    const colors = isLight
+      ? ['rgba(0, 180, 200,', 'rgba(20, 160, 180,', 'rgba(0, 140, 160,']
+      : ['rgba(0, 243, 255,', 'rgba(157, 0, 255,', 'rgba(100, 150, 255,']
+    const speedMult = isLight ? 0.45 : 1
+    const opacityMult = isLight ? 0.45 : 1
 
     for (let i = 0; i < streamCount; i++) {
       const angle = Math.random() * Math.PI * 2
       dataStreams.push({
         x: Math.random() * canvas.width,
         y: Math.random() * canvas.height,
-        speed: Math.random() * 1.5 + 0.5,
+        speed: (Math.random() * 1.5 + 0.5) * speedMult,
         length: Math.random() * 80 + 40,
-        opacity: Math.random() * 0.4 + 0.2,
+        opacity: (Math.random() * 0.4 + 0.2) * opacityMult,
         color: colors[Math.floor(Math.random() * colors.length)],
         angle: angle
       })
@@ -66,8 +73,8 @@ export function DataFlowBackground() {
           y: Math.random() * canvas.height,
           radius: 0,
           maxRadius: Math.random() * 100 + 80,
-          speed: Math.random() * 2 + 1,
-          opacity: 0.6,
+          speed: (Math.random() * 2 + 1) * speedMult,
+          opacity: isLight ? 0.25 : 0.6,
           color: colors[Math.floor(Math.random() * colors.length)]
         })
       }
@@ -76,7 +83,7 @@ export function DataFlowBackground() {
     let animationFrameId: number
 
     const animate = () => {
-      ctx.fillStyle = 'rgba(18, 18, 35, 0.05)'
+      ctx.fillStyle = isLight ? 'rgba(245, 250, 252, 0.04)' : 'rgba(18, 18, 35, 0.05)'
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       dataStreams.forEach(stream => {
@@ -154,7 +161,7 @@ export function DataFlowBackground() {
     <canvas
       ref={canvasRef}
       className="fixed inset-0 pointer-events-none z-0"
-      style={{ mixBlendMode: 'screen' }}
+      style={{ mixBlendMode: variant === 'light' ? 'multiply' : 'screen' }}
     />
   )
 }

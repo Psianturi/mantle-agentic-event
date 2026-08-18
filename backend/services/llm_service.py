@@ -177,13 +177,6 @@ valuable insights a blockchain AI agent would gain from this event.
 Focus on: Web3 concepts, AI/agentic systems, DeFi, NFTs, developer tools, speaker insights, \
 or actionable takeaways specific to the event content below.
 
-[CRITICAL INSTRUCTION FOR MARKET INTEGRATION]
-If the section "REAL-TIME MARKET INTELLIGENCE" is present in the context below, your Wisdom \
-Summary must not be isolated to the room's walls. Frame the key takeaways against the broader \
-market velocity. Example framing: "While speaker X highlighted the technical boundaries of \
-protocol Y, real-time social metrics indicate a [Sentiment Score]% bullish demand for this \
-niche, suggesting high ecosystem absorption for the discussed technology."
-
 {luma_context}
 
 Return ONLY the wisdom summary text. No bullet points, no preamble, no labels.\
@@ -197,14 +190,6 @@ Generate a concise "Pre-Event Scouting Brief" — exactly 2-3 sentences — that
 1. Identifies the most likely key topics, trends, or technologies to be discussed
 2. Highlights why this event is strategically relevant to a blockchain AI agent
 3. Ends with one sharp question or angle the agent should probe during the event
-
-[CRITICAL INSTRUCTION FOR MARKET INTEGRATION]
-If the section "REAL-TIME MARKET INTELLIGENCE" is provided in the context below, you MUST \
-cross-reference the event topic with the current social sentiment. Analyze how the event's \
-agenda aligns with the current bullish/bearish momentum. In your "Strategic Outlook", explain \
-whether this event is riding a macro trend (e.g., if social mentions are surging) or acting \
-as a contrarian developer pocket. Provide 1 actionable question that explicitly combines the \
-speaker's domain and the ELFA sentiment score.
 
 {luma_context}
 
@@ -719,6 +704,62 @@ Respond ONLY with valid JSON in this exact format:
         return _PROPOSAL_FALLBACKS[fallback_idx]
 
 
+# Skill taxonomy — mirrors the niche options users pick from at spawn
+# (src/components/SpawnAgentDialog.tsx). "Other" is a deliberate escape hatch:
+# classification is forced-choice-free, so events that genuinely don't fit
+# land here instead of Gemini guessing a wrong category.
+SKILL_TAXONOMY: list[str] = [
+    "Blockchain/DeFi", "Trading/Investment", "Technology", "Health/Wellness", "Other",
+]
+
+
+async def classify_event_niche(summary_text: str) -> str:
+    """
+    Classify an attended event's ACTUAL content category from its wisdom summary —
+    this is what grows an agent's skill_scores, deliberately independent of the
+    agent's static preset niche. An agent whose owner pastes an off-niche event URL
+    (manual Attend isn't niche-restricted) should get skill credit for what it
+    really learned, not have it silently mislabeled as its home niche.
+
+    Always returns a value in SKILL_TAXONOMY — falls back to "Other" on any
+    failure or non-exact-match response rather than forcing a guess.
+    """
+    try:
+        api_key = get_llm_api_key()
+    except RuntimeError:
+        return "Other"
+
+    options = ", ".join(f'"{n}"' for n in SKILL_TAXONOMY)
+    prompt = (
+        "Classify the PRIMARY topic of the following event summary into exactly "
+        f"one category from this list: {options}.\n"
+        'If it does not clearly fit any specific category, answer "Other".\n\n'
+        f"Summary:\n{summary_text[:1500]}\n\n"
+        "Respond with ONLY the category name — no punctuation, no explanation."
+    )
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.0, "maxOutputTokens": 20, "topP": 0.1},
+    }
+    try:
+        data = await _call_gemini_with_retry(
+            api_key, payload, timeout=15.0, context="event niche classification"
+        )
+        parts = data["candidates"][0]["content"]["parts"]
+        raw = next(
+            (p["text"].strip() for p in reversed(parts) if p.get("text", "").strip()), ""
+        )
+        cleaned = raw.strip(" .\"'\n")
+        for niche in SKILL_TAXONOMY:
+            if niche.lower() == cleaned.lower():
+                return niche
+        logger.info("Niche classification returned non-exact match %r, defaulting to Other", raw)
+        return "Other"
+    except Exception as exc:
+        logger.warning("Niche classification failed, defaulting to Other: %s", exc.__class__.__name__)
+        return "Other"
+
+
 async def summarize_event(
     event_title: str,
     event_url: str,
@@ -726,7 +767,6 @@ async def summarize_event(
     agent_name: str = "Agent",
     luma_event_data: dict | None = None,
     luma_status: str | None = None,
-    elfa_signals: dict | None = None,
 ) -> str:
     """
     Call Gemini to produce a wisdom summary or scouting brief.
@@ -750,7 +790,7 @@ async def summarize_event(
 
     # ── Branch 1: Luma future event → Scouting Brief (no transcript needed) ──
     if luma_status == "scheduled" and luma_event_data and _LUMA_AVAILABLE:
-        luma_context = build_luma_context(luma_event_data, elfa_signals)
+        luma_context = build_luma_context(luma_event_data)
         logger.info("Luma SCOUTING BRIEF mode for '%s' (event not yet started)", event_title)
         payload = {
             "contents": [{"parts": [{"text": _PROMPT_LUMA_SCOUTING_BRIEF.format(luma_context=luma_context)}]}],
@@ -799,7 +839,7 @@ async def summarize_event(
                             "SUPER RICH mode: Luma + YouTube transcript for '%s' (%d chars)",
                             event_title, len(transcript),
                         )
-                luma_context = build_luma_context(luma_event_data, elfa_signals)
+                luma_context = build_luma_context(luma_event_data)
                 logger.info("Using pre-fetched Luma data for '%s' (%d chars)", event_title, len(luma_context))
             else:
                 try:
@@ -807,7 +847,7 @@ async def summarize_event(
                     yt_url = extract_youtube_from_luma(fetched)
                     if yt_url and _YT_AVAILABLE:
                         transcript = await _fetch_youtube_transcript(yt_url)
-                    luma_context = build_luma_context(fetched, elfa_signals)
+                    luma_context = build_luma_context(fetched)
                     logger.info(
                         "Luma event fetched for '%s' (%d chars) — using rich prompt",
                         event_title, len(luma_context),

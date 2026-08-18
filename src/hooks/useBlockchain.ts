@@ -20,12 +20,12 @@ export function useBlockchain() {
     error: null
   })
 
-  const connectWallet = useCallback(async () => {
+  const connectWallet = useCallback(async (chainId?: number) => {
     setState(prev => ({ ...prev, isConnecting: true, error: null }))
 
     try {
-      const { address, network } = await mantleService.connectWallet()
-      const balance = await mantleService.getBalance(address)
+      const { address, network } = await mantleService.connectWallet(chainId)
+      const balance = await mantleService.getBalance(address, chainId)
 
       setState({
         isConnected: true,
@@ -78,25 +78,25 @@ export function useBlockchain() {
     []
   )
 
-  const refreshBalance = useCallback(async () => {
+  const refreshBalance = useCallback(async (chainId?: number) => {
     if (state.address) {
-      const balance = await mantleService.getBalance(state.address)
+      const balance = await mantleService.getBalance(state.address, chainId)
       setState(prev => ({ ...prev, balance }))
       return balance
     }
     return '0.0'
   }, [state.address])
 
-  const getExplorerUrl = useCallback((txHash: string) => {
-    return mantleService.getExplorerUrl(txHash)
+  const getExplorerUrl = useCallback((txHash: string, chainId?: number) => {
+    return mantleService.getExplorerUrl(txHash, chainId)
   }, [])
 
-  const getAddressExplorerUrl = useCallback((address: string) => {
-    return mantleService.getAddressExplorerUrl(address)
+  const getAddressExplorerUrl = useCallback((address: string, chainId?: number) => {
+    return mantleService.getAddressExplorerUrl(address, chainId)
   }, [])
 
-  const getBalance = useCallback(async (address: string): Promise<string> => {
-    return mantleService.getBalance(address)
+  const getBalance = useCallback(async (address: string, chainId?: number): Promise<string> => {
+    return mantleService.getBalance(address, chainId)
   }, [])
 
   return {
