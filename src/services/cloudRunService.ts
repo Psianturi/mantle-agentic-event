@@ -459,6 +459,7 @@ export const cloudRunService = {
         luma_last_rsvp_at?: number
         agent_gas_balance?: number | null
         chain_id?: number
+        skill_scores?: Record<string, number>
       }>>(response)
 
       const validNiches: Niche[] = ['Blockchain/DeFi', 'Trading/Investment', 'Technology', 'Health/Wellness']
@@ -498,6 +499,7 @@ export const cloudRunService = {
         lumaConnectedAt: r.luma_connected_at,
         lumaLastRsvpAt: r.luma_last_rsvp_at,
         agentGasBalance: r.agent_gas_balance ?? 0,
+        skillScores: r.skill_scores,
       }))
     } catch (error) {
       // Non-fatal: return empty list if backend is unreachable
@@ -853,6 +855,8 @@ export const cloudRunService = {
         total_events_attended: number
         average_agent_level: number
         global_wisdom_index: number
+        total_bred_agents: number
+        total_proposals_approved: number
       }>(response)
     } catch (error) {
       console.warn('[cloudRunService] getPublicMetrics failed:', error)
@@ -862,6 +866,8 @@ export const cloudRunService = {
         total_events_attended: 0,
         average_agent_level: 0,
         global_wisdom_index: 0,
+        total_bred_agents: 0,
+        total_proposals_approved: 0,
       }
     }
   },

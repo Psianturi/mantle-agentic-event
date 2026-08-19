@@ -438,6 +438,29 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
             )}
           </div>
 
+          {agent.skillScores && Object.keys(agent.skillScores).length > 0 && (
+            <div className="mb-5" onClick={onClick}>
+              <div className="flex items-center gap-1.5 mb-2">
+                <Brain size={13} className="text-accent" weight="duotone" />
+                <span className="text-xs text-muted-foreground font-medium">Skills earned from events attended</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(agent.skillScores)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 4)
+                  .map(([category, score]) => (
+                    <span
+                      key={category}
+                      className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-1 rounded-full bg-accent/10 border border-accent/25 text-accent"
+                    >
+                      {category}
+                      <span className="font-bold">{score}</span>
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {agent.lineageBiography && (agent.generation ?? 1) >= 2 && (
             <div className="mt-3 p-3 rounded-lg bg-secondary/5 border border-secondary/20" onClick={onClick}>
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 font-semibold flex items-center gap-1.5">

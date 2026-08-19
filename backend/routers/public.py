@@ -28,6 +28,7 @@ router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
 AGENTS_COLLECTION = "agents"
 EVENTS_COLLECTION = "agent_events"
+PROPOSALS_COLLECTION = "proposals"
 
 # Patterns that mark internal QA / E2E test artifacts, not showcase material.
 # Shared by every public endpoint that surfaces agent identity — fix once at
@@ -69,6 +70,8 @@ class PublicMetricsResponse(BaseModel):
     total_events_attended: int
     average_agent_level: float
     global_wisdom_index: float
+    total_bred_agents: int = 0
+    total_proposals_approved: int = 0
 
 
 @router.get("/featured-wisdom", response_model=list[FeaturedWisdomItem])
@@ -247,28 +250,41 @@ async def get_public_metrics() -> PublicMetricsResponse:
         async for _ in db.collection(AGENTS_COLLECTION).stream():
             total_agents += 1
         
-        # Count wisdom NFTs and events
+        # Count wisdom NFTs, events, and bred agents
         total_wisdom_nfts = 0
         total_events = 0
+        total_bred_agents = 0
         async for doc in db.collection(AGENTS_COLLECTION).stream():
             agent_data = doc.to_dict() or {}
             total_events += agent_data.get("total_events", 0)
             total_level_sum += agent_data.get("level", 1)
-        
+            if agent_data.get("ownership_status") == "bred":
+                total_bred_agents += 1
+
         async for doc in db.collection(EVENTS_COLLECTION).stream():
             if doc.to_dict():
                 total_wisdom_nfts += 1
-        
+
+        # Count approved strategic proposals (HITL governance)
+        total_proposals_approved = 0
+        async for doc in db.collection(PROPOSALS_COLLECTION).where(
+            filter=FieldFilter("status", "==", "approved")
+        ).stream():
+            if doc.to_dict():
+                total_proposals_approved += 1
+
         # Calculate global wisdom index
         avg_level = total_level_sum / max(1, total_agents)
         global_wisdom_index = (total_wisdom_nfts * avg_level)
-        
+
         return PublicMetricsResponse(
             total_agents=total_agents,
             total_wisdom_nfts=total_wisdom_nfts,
             total_events_attended=total_events,
             average_agent_level=round(avg_level, 2),
             global_wisdom_index=round(global_wisdom_index, 1),
+            total_bred_agents=total_bred_agents,
+            total_proposals_approved=total_proposals_approved,
         )
         
     except Exception as exc:
