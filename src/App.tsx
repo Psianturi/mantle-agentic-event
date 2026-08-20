@@ -13,6 +13,7 @@ import { VaultView } from '@/views/VaultView'
 import { MarketplaceView } from '@/views/MarketplaceView'
 import { AgentCard } from '@/components/AgentCard'
 import { AttendEventCard } from '@/components/AttendEventCard'
+import { NeuralFusionLab } from '@/components/NeuralFusionLab'
 import { GasPriceMonitor } from '@/components/GasPriceMonitor'
 import { NFTCard } from '@/components/NFTCard'
 import { SpawnAgentDialog } from '@/components/SpawnAgentDialog'
@@ -38,11 +39,9 @@ import { GenesisMintConfirmation } from '@/components/GenesisMintConfirmation'
 import { SecurityAuditLog } from '@/components/SecurityAuditLog'
 import { GlobalSecurityAuditLog } from '@/components/GlobalSecurityAuditLog'
 import { AgentBreedingDialog } from '@/components/AgentBreedingDialog'
-import { FusionCooldownTimer } from '@/components/FusionCooldownTimer'
-import { BreedingCooldownBoost } from '@/components/BreedingCooldownBoost'
 import { ProactiveScoutingPanel } from '@/components/ProactiveScoutingPanel'
 import { ProposalModal } from '@/components/ProposalModal'
-import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, Binoculars, House } from '@phosphor-icons/react'
+import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Newspaper, Binoculars, House } from '@phosphor-icons/react'
 import maefLogo from '@/assets/maef-logo.png'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -251,6 +250,17 @@ function App() {
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
   const [verificationData, setVerificationData] = useLocalStorage<ContractVerificationData[]>('maef-verifications', [])
   const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())
+
+  // Entries persisted before verification was chain-aware got stuck at "failed"
+  // (polled against Mantle's explorer regardless of the agent's actual chain).
+  useEffect(() => {
+    setVerificationData((current) => {
+      if (!current?.length) return current ?? []
+      const healed = verificationService.reconcilePersisted(current)
+      const changed = healed.some((h, i) => h.verificationStatus !== current[i].verificationStatus)
+      return changed ? healed : current
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [proposals, setProposals] = useLocalStorage<AgentProposal[]>('maef-proposals', [])
   const [userBalance, setUserBalance] = useLocalStorage<number>('maef-user-balance', 45.50)
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false)
@@ -582,7 +592,7 @@ function App() {
 
         if (verificationData.verificationStatus === 'verified') {
           toast.success(`Contract verified for ${newAgent.name}!`, {
-            description: 'Contract is now visible on Mantle Explorer',
+            description: `Contract is now visible on ${getChain(newAgent.chainId ?? selectedChainId)?.name ?? 'the block explorer'}`,
             action: {
               label: 'View Contract',
               onClick: () => window.open(verificationData.explorerUrl, '_blank')
@@ -603,7 +613,8 @@ function App() {
             return next
           })
         }
-      }
+      },
+      newAgent.chainId ?? selectedChainId
     )
   }
 
@@ -1839,50 +1850,22 @@ function App() {
 
               {/* ── Fusion Lab (inline, only when ≥ 2 agents) ─── */}
               {displayedAgents.length >= 2 && (
-                <Card className="glass-card-hover p-5 border border-accent/30">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
-                        <Dna className="text-accent" weight="duotone" size={20} />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold">Neural Fusion Lab</h3>
-                        <p className="text-xs text-muted-foreground">Merge wisdom-unlocked agents to breed powerful hybrids</p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={!walletConnected ? () => handleWalletConnect('') : () => setBreedingDialogOpen(true)}
-                      disabled={walletConnected && displayedAgents.filter(a => a.wisdomUnlocked).length < 2}
-                      size="sm"
-                      className="bg-gradient-to-r from-accent to-secondary hover:opacity-90 font-semibold shadow-lg shadow-accent/20"
-                    >
-                      <Dna className="mr-1.5" weight="duotone" size={14} />
-                      {!walletConnected ? 'Connect to Fuse' : 'Initiate Fusion'}
-                    </Button>
-                  </div>
-                  {walletConnected && displayedAgents.filter(a => a.wisdomUnlocked).length < 2 && (
-                    <p className="text-xs text-muted-foreground">
-                      Need {Math.max(0, 2 - displayedAgents.filter(a => a.wisdomUnlocked).length)} more wisdom-unlocked agent(s) — attend more events to unlock
-                    </p>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                    {displayedAgents.map((agent, idx) => {
-                      const isOnCooldown = agent.lastBreedingTime && agent.breedingCooldownHours &&
-                        (Date.now() - agent.lastBreedingTime) < (agent.breedingCooldownHours * 60 * 60 * 1000)
-                      return (
-                        <motion.div key={agent.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.08 }} className="space-y-2">
-                          <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} onToggleAutoReplenish={handleToggleAutoReplenish} pendingProposalCount={proposalCounts[agent.id] ?? 0} onOpenProposals={(a) => setProposalModalAgent(a)} onDeleteAgent={handleDeleteAgent} onRetrySpawn={handleRetrySpawn} />
-                          {isOnCooldown && (
-                            <div className="space-y-2">
-                              <FusionCooldownTimer agent={agent} />
-                              <BreedingCooldownBoost agent={agent} userBalance={userBalance ?? 0} onBoost={handleCooldownBoost} />
-                            </div>
-                          )}
-                        </motion.div>
-                      )
-                    })}
-                  </div>
-                </Card>
+                <NeuralFusionLab
+                  agents={displayedAgents}
+                  walletConnected={walletConnected}
+                  userBalance={userBalance ?? 0}
+                  proposalCounts={proposalCounts}
+                  onConnectWallet={() => handleWalletConnect('')}
+                  onInitiateFusion={() => setBreedingDialogOpen(true)}
+                  onConfigureAgent={handleConfigureAgent}
+                  onChatWithAgent={handleChatWithAgent}
+                  onViewEvolution={handleViewEvolution}
+                  onToggleAutoReplenish={handleToggleAutoReplenish}
+                  onOpenProposals={(a) => setProposalModalAgent(a)}
+                  onDeleteAgent={handleDeleteAgent}
+                  onRetrySpawn={handleRetrySpawn}
+                  onCooldownBoost={handleCooldownBoost}
+                />
               )}
 
               {/* ── How the Agentic Economy Works ─────────── */}
@@ -1910,6 +1893,7 @@ function App() {
           )}
 
           {/* ── NFT Vault ─────────────────────────────── */}
+          {/* -- NFT Vault ------------------------------- */}
           {mainView === 'vault' && (
             <VaultView
               displayedAgents={displayedAgents}
