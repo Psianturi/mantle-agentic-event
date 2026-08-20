@@ -219,7 +219,7 @@ export function VerificationDashboard({ verifications }: VerificationDashboardPr
                       variant="outline"
                       size="sm"
                       onClick={() => window.open(
-                        verificationService.getExplorerTxUrl(verification.deploymentTxHash),
+                        verificationService.getExplorerTxUrl(verification.deploymentTxHash, verification.chainId),
                         '_blank'
                       )}
                       className="flex-1 h-7 text-xs border-primary/30 hover:border-primary/50"

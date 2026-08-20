@@ -1,4 +1,4 @@
-import { CONTRACT_ADDRESSES, DEFAULT_NETWORK } from './config'
+import { getChain, getSupportedChains, DEFAULT_CHAIN_ID } from './chains'
 
 export type VerificationStatus = 'pending' | 'verifying' | 'verified' | 'failed' | 'already-verified'
 
@@ -7,6 +7,8 @@ export interface ContractVerificationData {
   agentId: string
   agentName: string
   deploymentTxHash: string
+  /** Chain this contract lives on. Optional for entries persisted before multichain. */
+  chainId?: number
   verificationStatus: VerificationStatus
   verificationTimestamp?: number
   explorerUrl: string
@@ -37,29 +39,44 @@ export interface ExplorerAPIResponse {
 }
 
 class ContractVerificationService {
-  private readonly EXPLORER_API_BASE = DEFAULT_NETWORK.blockExplorer
   private readonly POLL_INTERVAL = 5000
   private readonly MAX_ATTEMPTS = 20
   private verificationCache: Map<string, ContractVerificationData> = new Map()
   private pollingIntervals: Map<string, NodeJS.Timeout> = new Map()
 
-  private isKnownMAEFContract(contractAddress: string): boolean {
-    const normalized = contractAddress.toLowerCase()
-    return normalized === CONTRACT_ADDRESSES.sepolia.MAEF_NFT.toLowerCase() ||
-      normalized === CONTRACT_ADDRESSES.mainnet.MAEF_NFT.toLowerCase()
+  /**
+   * Explorer base for a specific chain. chains.ts is the single source of
+   * truth — never fall back to a Mantle-only default, or ETH Sepolia
+   * contracts get polled against Mantle's explorer and always fail.
+   */
+  private explorerBase(chainId: number = DEFAULT_CHAIN_ID): string {
+    return getChain(chainId)?.explorerUrl ?? getChain(DEFAULT_CHAIN_ID)!.explorerUrl
   }
 
-  async checkVerificationStatus(contractAddress: string): Promise<VerificationCheckResult> {
+  /**
+   * True if the address is the deployed ASAJU contract on any supported chain.
+   * Reads chains.ts (the live config the rest of the app uses) rather than the
+   * env-driven constants in config.ts, which may be unset or point at an
+   * orphaned deployment.
+   */
+  isKnownMAEFContract(contractAddress: string): boolean {
+    const normalized = contractAddress.toLowerCase()
+    return getSupportedChains().some(
+      chain => chain.contractAddress.toLowerCase() === normalized
+    )
+  }
+
+  async checkVerificationStatus(contractAddress: string, chainId: number = DEFAULT_CHAIN_ID): Promise<VerificationCheckResult> {
     if (this.isKnownMAEFContract(contractAddress)) {
       return {
         isVerified: true,
         status: 'verified',
-        message: 'Known MAEF contract address. Open explorer for canonical verification.'
+        message: 'Known ASAJU contract address. Open explorer for canonical verification.'
       }
     }
 
     try {
-      const apiUrl = `${this.EXPLORER_API_BASE}/api?module=contract&action=getsourcecode&address=${contractAddress}`
+      const apiUrl = `${this.explorerBase(chainId)}/api?module=contract&action=getsourcecode&address=${contractAddress}`
       
       const response = await fetch(apiUrl)
       
@@ -126,10 +143,11 @@ class ContractVerificationService {
     compilerVersion: string,
     constructorArgs: string = '',
     optimizationEnabled: boolean = true,
-    runs: number = 200
+    runs: number = 200,
+    chainId: number = DEFAULT_CHAIN_ID
   ): Promise<{ success: boolean; guid?: string; error?: string }> {
     try {
-      const apiUrl = `${this.EXPLORER_API_BASE}/api`
+      const apiUrl = `${this.explorerBase(chainId)}/api`
       
       const formData = new FormData()
       formData.append('module', 'contract')
@@ -180,9 +198,9 @@ class ContractVerificationService {
     }
   }
 
-  async checkVerificationResult(guid: string): Promise<VerificationCheckResult> {
+  async checkVerificationResult(guid: string, chainId: number = DEFAULT_CHAIN_ID): Promise<VerificationCheckResult> {
     try {
-      const apiUrl = `${this.EXPLORER_API_BASE}/api?module=contract&action=checkverifystatus&guid=${guid}`
+      const apiUrl = `${this.explorerBase(chainId)}/api?module=contract&action=checkverifystatus&guid=${guid}`
       
       const response = await fetch(apiUrl)
       
@@ -243,15 +261,17 @@ class ContractVerificationService {
     agentId: string,
     agentName: string,
     deploymentTxHash: string,
-    onStatusUpdate?: (data: ContractVerificationData) => void
+    onStatusUpdate?: (data: ContractVerificationData) => void,
+    chainId: number = DEFAULT_CHAIN_ID
   ): Promise<void> {
     const verificationData: ContractVerificationData = {
       contractAddress,
       agentId,
       agentName,
       deploymentTxHash,
+      chainId,
       verificationStatus: 'pending',
-      explorerUrl: `${this.EXPLORER_API_BASE}/address/${contractAddress}`,
+      explorerUrl: `${this.explorerBase(chainId)}/address/${contractAddress}`,
       verificationAttempts: 0
     }
 
@@ -268,7 +288,7 @@ class ContractVerificationService {
       verificationData.verificationAttempts = attempts
       verificationData.lastAttemptTimestamp = Date.now()
 
-      const result = await this.checkVerificationStatus(contractAddress)
+      const result = await this.checkVerificationStatus(contractAddress, chainId)
 
       if (result.isVerified) {
         verificationData.verificationStatus = 'verified'
@@ -369,12 +389,34 @@ class ContractVerificationService {
     this.verificationCache.clear()
   }
 
-  getExplorerContractUrl(contractAddress: string): string {
-    return `${this.EXPLORER_API_BASE}/address/${contractAddress}`
+  getExplorerContractUrl(contractAddress: string, chainId: number = DEFAULT_CHAIN_ID): string {
+    return `${this.explorerBase(chainId)}/address/${contractAddress}`
   }
 
-  getExplorerTxUrl(txHash: string): string {
-    return `${this.EXPLORER_API_BASE}/tx/${txHash}`
+  getExplorerTxUrl(txHash: string, chainId: number = DEFAULT_CHAIN_ID): string {
+    return `${this.explorerBase(chainId)}/tx/${txHash}`
+  }
+
+  /**
+   * Heal verification entries persisted before this was chain-aware: entries
+   * for a contract that IS the live ASAJU contract on some chain were being
+   * polled against the wrong explorer and stuck at "failed". Re-resolve their
+   * status and explorer URL against the correct chain.
+   */
+  reconcilePersisted(entries: ContractVerificationData[]): ContractVerificationData[] {
+    return entries.map(entry => {
+      const chain = getSupportedChains().find(
+        c => c.contractAddress.toLowerCase() === entry.contractAddress.toLowerCase()
+      )
+      if (!chain) return entry
+      return {
+        ...entry,
+        chainId: chain.chainId,
+        verificationStatus: 'verified' as VerificationStatus,
+        errorMessage: undefined,
+        explorerUrl: `${chain.explorerUrl}/address/${entry.contractAddress}`,
+      }
+    })
   }
 }
 
