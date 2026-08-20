@@ -1,9 +1,10 @@
 import { Event } from '@/lib/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Binoculars, CalendarBlank, Globe, Clock, ArrowSquareOut } from '@phosphor-icons/react'
+import { Binoculars, CalendarBlank, Globe, Clock, ArrowSquareOut, CalendarPlus } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { generateIcs, downloadIcs } from '@/lib/icsUtils'
 
 interface ScoutingBriefCardProps {
   event: Event
@@ -113,17 +114,38 @@ export function ScoutingBriefCard({ event, agentName }: ScoutingBriefCardProps) 
           </p>
         </div>
 
-        {/* Footer: link to event */}
-        <a
-          href={event.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="flex items-center gap-1 text-[10px] text-amber-400/70 hover:text-amber-400 transition-colors font-mono"
-        >
-          <ArrowSquareOut size={11} weight="duotone" />
-          View on Luma
-        </a>
+        {/* Footer: event link + calendar export */}
+        <div className="flex items-center justify-between gap-2">
+          <a
+            href={event.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="flex items-center gap-1 text-[10px] text-amber-400/70 hover:text-amber-400 transition-colors font-mono"
+          >
+            <ArrowSquareOut size={11} weight="duotone" />
+            View on Luma
+          </a>
+          {event.lumaStartAt && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                const ics = generateIcs({
+                  title: event.title,
+                  description: event.summary,
+                  url: event.url,
+                  startAt: event.lumaStartAt!,
+                  uid: `${event.id}@asaju.ai`,
+                })
+                downloadIcs(`asaju-scout-${event.id}.ics`, ics)
+              }}
+              className="flex items-center gap-1.5 text-[10px] font-semibold px-2.5 py-1 rounded-lg border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors"
+            >
+              <CalendarPlus size={12} weight="duotone" />
+              Add to Calendar
+            </button>
+          )}
+        </div>
       </Card>
     </motion.div>
   )
