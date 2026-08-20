@@ -8,12 +8,14 @@ import { ScoutingBriefCard } from '@/components/ScoutingBriefCard'
 import { VerificationDashboard } from '@/components/VerificationDashboard'
 import { Agent, Event, NFT } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { DEFAULT_CHAIN_ID, getChain } from '@/lib/blockchain/chains'
 import type { ContractVerificationData } from '@/lib/blockchain/verificationService'
 
 interface VaultViewProps {
   displayedAgents: Agent[]
   displayedEvents: Event[]
   displayedNFTs: NFT[]
+  selectedChainId: number
   verificationData: ContractVerificationData[] | null
   setMainView: (view: 'dashboard' | 'analytics' | 'vault' | 'marketplace') => void
   isViewOnly: boolean
@@ -26,6 +28,7 @@ export function VaultView({
   displayedAgents,
   displayedEvents,
   displayedNFTs,
+  selectedChainId,
   verificationData,
   setMainView,
   isViewOnly,
@@ -62,7 +65,9 @@ export function VaultView({
             </h2>
             <div className="flex items-center gap-1.5 mt-0.5">
               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              <p className="text-xs text-muted-foreground font-mono">Mantle Sepolia</p>
+              <p className="text-xs text-muted-foreground font-mono">
+                {getChain(selectedChainId)?.name ?? `Chain ${selectedChainId}`}
+              </p>
             </div>
           </div>
         </div>
