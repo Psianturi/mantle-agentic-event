@@ -9,6 +9,7 @@ import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, Marketplac
 import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
 import { cn } from '@/lib/utils'
 import { buildScoutedOpportunities } from '@/lib/scoutUtils'
+import { AnalyticsView } from '@/views/AnalyticsView'
 import { AgentCard } from '@/components/AgentCard'
 import { MarketplaceAgentCard } from '@/components/MarketplaceAgentCard'
 import { MarketplaceFilters } from '@/components/MarketplaceFilters'
@@ -19,7 +20,6 @@ import { TerminalConsole } from '@/components/TerminalConsole'
 import { WalletConnect } from '@/components/WalletConnect'
 import { WisdomReportDialog } from '@/components/WisdomReportDialog'
 import { AgentConfigDialog } from '@/components/AgentConfigDialog'
-import { AnalyticsCharts } from '@/components/AnalyticsCharts'
 import { AgentChatDialog } from '@/components/AgentChatDialog'
 import { NFTMetadataDialog } from '@/components/NFTMetadataDialog'
 import { BatchIPFSUploadDialog } from '@/components/BatchIPFSUploadDialog'
@@ -2022,23 +2022,7 @@ function App() {
 
           {/* ── Analytics ─────────────────────────────── */}
           {mainView === 'analytics' && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-6"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                  <ChartLine className="text-primary" weight="duotone" size={22} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold">Event Analytics</h2>
-                  <p className="text-sm text-muted-foreground">Agent performance, event trends, platform insights</p>
-                </div>
-              </div>
-              <AnalyticsCharts agents={displayedAgents} events={displayedEvents} nfts={displayedNFTs} />
-            </motion.div>
+            <AnalyticsView agents={displayedAgents} events={displayedEvents} nfts={displayedNFTs} />
           )}
 
           {/* ── NFT Vault ─────────────────────────────── */}
