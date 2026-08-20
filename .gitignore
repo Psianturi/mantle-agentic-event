@@ -88,3 +88,5 @@ dmypy.json
 
 # Local memory / AI context docs — never commit
 memory/
+
+.kilo/
