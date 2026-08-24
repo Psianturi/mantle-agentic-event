@@ -227,23 +227,14 @@ export function MarketplaceAgentCard({ agent, onBuy, isPurchasing }: Marketplace
               </div>
             </div>
 
+            {/* Marketplace is not yet on-chain (see "Coming Soon" banner above) —
+                buying is disabled rather than completing a fake purchase. */}
             <Button
-              onClick={() => onBuy(agent)}
-              disabled={isPurchasing}
-              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold shadow-lg shadow-green-500/30 group-hover:shadow-green-500/50 transition-all duration-300"
+              disabled
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold opacity-50 cursor-not-allowed"
             >
-              {isPurchasing ? (
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                  className="mr-2"
-                >
-                  <Fire size={18} weight="fill" />
-                </motion.div>
-              ) : (
-                <ShoppingCart className="mr-2" weight="bold" size={18} />
-              )}
-              {isPurchasing ? 'Processing...' : 'Acquire Agent'}
+              <ShoppingCart className="mr-2" weight="bold" size={18} />
+              Coming Soon
             </Button>
 
             <p className="text-[10px] text-muted-foreground/50 text-center font-mono">

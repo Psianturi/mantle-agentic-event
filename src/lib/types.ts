@@ -54,6 +54,7 @@ export interface Agent {
   lumaConnected?: boolean
   lumaConnectedAt?: number
   lumaLastRsvpAt?: number
+  skillScores?: Record<string, number>
 }
 
 export interface ScoutLogEntry {

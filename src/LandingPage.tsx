@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { ChainBadge } from '@/components/ChainBadge'
 import { AgentShowcase } from '@/components/AgentShowcase'
+import { EvolutionShowcase } from '@/components/EvolutionShowcase'
 import { FAQSection } from '@/components/FAQSection'
 import { cloudRunService } from '@/services/cloudRunService'
 import { getSupportedChains } from '@/lib/blockchain/chains'
@@ -24,6 +25,8 @@ interface PlatformMetrics {
   total_wisdom_nfts: number
   total_events_attended: number
   average_agent_level: number
+  total_bred_agents: number
+  total_proposals_approved: number
 }
 
 interface ActivityEntry {
@@ -525,6 +528,13 @@ export function LandingPage() {
             ))}
           </div>
         </section>
+
+        {metrics && (
+          <EvolutionShowcase
+            totalBredAgents={metrics.total_bred_agents}
+            totalProposalsApproved={metrics.total_proposals_approved}
+          />
+        )}
 
         <FAQSection />
 

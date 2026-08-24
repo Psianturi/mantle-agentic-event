@@ -232,7 +232,7 @@ export function ContractVerificationTracker({
                       variant="outline"
                       size="sm"
                       onClick={() => window.open(
-                        verificationService.getExplorerTxUrl(verificationData.deploymentTxHash),
+                        verificationService.getExplorerTxUrl(verificationData.deploymentTxHash, verificationData.chainId),
                         '_blank'
                       )}
                       className="flex-1 border-primary/30 hover:border-primary/50"

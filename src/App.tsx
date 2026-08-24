@@ -2,16 +2,18 @@ import { useState, useEffect, useCallback, startTransition } from 'react'
 import { useLocalStorage } from '@/hooks/useLocalStorage'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
-import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent, Niche, RarityTier } from '@/lib/types'
+import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent } from '@/lib/types'
 import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
 import { cn } from '@/lib/utils'
 import { buildScoutedOpportunities } from '@/lib/scoutUtils'
+import { AnalyticsView } from '@/views/AnalyticsView'
+import { VaultView } from '@/views/VaultView'
+import { MarketplaceView } from '@/views/MarketplaceView'
 import { AgentCard } from '@/components/AgentCard'
-import { MarketplaceAgentCard } from '@/components/MarketplaceAgentCard'
-import { MarketplaceFilters } from '@/components/MarketplaceFilters'
+import { AttendEventCard } from '@/components/AttendEventCard'
+import { NeuralFusionLab } from '@/components/NeuralFusionLab'
 import { GasPriceMonitor } from '@/components/GasPriceMonitor'
 import { NFTCard } from '@/components/NFTCard'
 import { SpawnAgentDialog } from '@/components/SpawnAgentDialog'
@@ -19,7 +21,6 @@ import { TerminalConsole } from '@/components/TerminalConsole'
 import { WalletConnect } from '@/components/WalletConnect'
 import { WisdomReportDialog } from '@/components/WisdomReportDialog'
 import { AgentConfigDialog } from '@/components/AgentConfigDialog'
-import { AnalyticsCharts } from '@/components/AnalyticsCharts'
 import { AgentChatDialog } from '@/components/AgentChatDialog'
 import { NFTMetadataDialog } from '@/components/NFTMetadataDialog'
 import { BatchIPFSUploadDialog } from '@/components/BatchIPFSUploadDialog'
@@ -30,7 +31,6 @@ import { SubAgentDelegation } from '@/components/SubAgentDelegation'
 import { FeaturedWisdomFeed, type WisdomFeedItem } from '@/components/FeaturedWisdomFeed'
 import { ContractDeploymentProgress } from '@/components/ContractDeploymentProgress'
 import { ContractVerificationTracker } from '@/components/ContractVerificationTracker'
-import { VerificationDashboard } from '@/components/VerificationDashboard'
 import { AgentEvolutionDialog } from '@/components/AgentEvolutionDialog'
 import { PendingProposals } from '@/components/PendingProposals'
 import { TransactionSignatureModal } from '@/components/TransactionSignatureModal'
@@ -39,12 +39,9 @@ import { GenesisMintConfirmation } from '@/components/GenesisMintConfirmation'
 import { SecurityAuditLog } from '@/components/SecurityAuditLog'
 import { GlobalSecurityAuditLog } from '@/components/GlobalSecurityAuditLog'
 import { AgentBreedingDialog } from '@/components/AgentBreedingDialog'
-import { FusionCooldownTimer } from '@/components/FusionCooldownTimer'
-import { BreedingCooldownBoost } from '@/components/BreedingCooldownBoost'
 import { ProactiveScoutingPanel } from '@/components/ProactiveScoutingPanel'
 import { ProposalModal } from '@/components/ProposalModal'
-import { ScoutingBriefCard } from '@/components/ScoutingBriefCard'
-import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Dna, Newspaper, LockKey, Binoculars, House } from '@phosphor-icons/react'
+import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Newspaper, Binoculars, House } from '@phosphor-icons/react'
 import maefLogo from '@/assets/maef-logo.png'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -193,17 +190,6 @@ function App() {
 
   const [featuredWisdom, setFeaturedWisdom] = useState<WisdomFeedItem[]>([])
   const [featuredWisdomLoading, setFeaturedWisdomLoading] = useState(false)
-  const [marketplaceFilters, setMarketplaceFilters] = useState<{
-    generation: number[]
-    niche: Niche[]
-    rarityTier: RarityTier[]
-    sortBy: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc' | 'rarity-desc'
-  }>({
-    generation: [],
-    niche: [],
-    rarityTier: [],
-    sortBy: 'level-desc'
-  })
   const blockchain = useBlockchain()
   const [useMockData, setUseMockData] = useState(false)
 
@@ -259,13 +245,22 @@ function App() {
   const [isProcessingEvent, setIsProcessingEvent] = useState(false)
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null)
   const [healthCheckOpen, setHealthCheckOpen] = useState(false) // no auto-popup
-  const [nftPage, setNftPage] = useState(0)
-  const [nftVaultTab, setNftVaultTab] = useState<'nfts' | 'scouts'>('nfts')
   const [backendConnected, setBackendConnected] = useState(false)
   const [backendStatus, setBackendStatus] = useState<'checking' | 'live' | 'error'>('checking')
   const [deployingAgentId, setDeployingAgentId] = useState<string | null>(null)
   const [verificationData, setVerificationData] = useLocalStorage<ContractVerificationData[]>('maef-verifications', [])
   const [activeVerifications, setActiveVerifications] = useState<Set<string>>(new Set())
+
+  // Entries persisted before verification was chain-aware got stuck at "failed"
+  // (polled against Mantle's explorer regardless of the agent's actual chain).
+  useEffect(() => {
+    setVerificationData((current) => {
+      if (!current?.length) return current ?? []
+      const healed = verificationService.reconcilePersisted(current)
+      const changed = healed.some((h, i) => h.verificationStatus !== current[i].verificationStatus)
+      return changed ? healed : current
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [proposals, setProposals] = useLocalStorage<AgentProposal[]>('maef-proposals', [])
   const [userBalance, setUserBalance] = useLocalStorage<number>('maef-user-balance', 45.50)
   const [topUpDialogOpen, setTopUpDialogOpen] = useState(false)
@@ -597,7 +592,7 @@ function App() {
 
         if (verificationData.verificationStatus === 'verified') {
           toast.success(`Contract verified for ${newAgent.name}!`, {
-            description: 'Contract is now visible on Mantle Explorer',
+            description: `Contract is now visible on ${getChain(newAgent.chainId ?? selectedChainId)?.name ?? 'the block explorer'}`,
             action: {
               label: 'View Contract',
               onClick: () => window.open(verificationData.explorerUrl, '_blank')
@@ -618,7 +613,8 @@ function App() {
             return next
           })
         }
-      }
+      },
+      newAgent.chainId ?? selectedChainId
     )
   }
 
@@ -1398,37 +1394,6 @@ function App() {
         { label: 'Wisdom Unlocked', value: displayedAgents.filter(a => a.wisdomUnlocked).length, icon: ChartLine, color: 'text-secondary' }
       ]
 
-  const filteredAndSortedMarketplace = () => {
-    let filtered = [...(marketplaceAgents ?? [])]
-    
-    if (marketplaceFilters.generation.length > 0) {
-      filtered = filtered.filter(a => marketplaceFilters.generation.includes(a.generation ?? 1))
-    }
-    
-    if (marketplaceFilters.niche.length > 0) {
-      filtered = filtered.filter(a => marketplaceFilters.niche.includes(a.niche))
-    }
-    
-    filtered.sort((a, b) => {
-      switch (marketplaceFilters.sortBy) {
-        case 'price-asc':
-          return a.price - b.price
-        case 'price-desc':
-          return b.price - a.price
-        case 'level-desc':
-          return b.level - a.level
-        case 'wisdom-desc':
-          return b.eventsAttended - a.eventsAttended
-        case 'generation-desc':
-          return (b.generation ?? 1) - (a.generation ?? 1)
-        default:
-          return 0
-      }
-    })
-    
-    return filtered
-  }
-
   const isViewOnly = !walletConnected
   const visiblePendingProposals = displayedProposals.filter((proposal) =>
     proposal.status === 'pending' && displayedAgents.some((agent) => agent.id === proposal.agentId)
@@ -1546,17 +1511,6 @@ function App() {
               {/* Hero section */}
               <div className="text-center py-8 px-4 mb-6">
                 <h1 className="text-2xl sm:text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-<<<<<<< HEAD
-                  Autonomous AI Agents That Learn From the Real World.
-                </h1>
-                <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-6">
-                  MAEF gives AI agents the ability to discover events, attend them autonomously, analyze what they learn, earn verifiable on-chain proof, and continuously evolve their knowledge.
-                </p>
-
-               <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium">
-            🚀 AI Agents • On-Chain NFTs • Autonomous Learning • Mantle Network
-             </div>
-=======
                   Autonomous AI Agents That Turn Information Overload Into On-Chain Wisdom.
                 </h1>
                 <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-4">
@@ -1566,7 +1520,6 @@ function App() {
                 <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium">
                   🚀 AI Agents • On-Chain NFTs • Autonomous Learning • Mantle Network
                 </div>
->>>>>>> origin/main
 
                 {/* 5-step autonomous pipeline */}
                 <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap mb-5">
@@ -1630,163 +1583,48 @@ function App() {
               </div>
 
               <div className="space-y-5">
-              {(() => {
-                const [attendAgentId, setAttendAgentId] = [
-                  (selectedAgent ?? displayedAgents[0])?.id ?? '',
-                  (id: string) => { const a = displayedAgents.find(x => x.id === id); if (a) setSelectedAgent(a) }
-                ]
-                const activeAgent = displayedAgents.find(a => a.id === attendAgentId) ?? displayedAgents[0]
-                return (
-                  <Card className="glass-card-hover p-6 border-2 border-primary/20">
-                    <h2 className="text-xl font-bold mb-4 flex items-center gap-3">
-                    <p className="text-sm text-muted-foreground mb-5 max-w-2xl">
-                    Choose one of your AI agents, paste a YouTube or Luma event URL, and let the agent autonomously attend, analyze the content, and mint an on-chain Proof-of-Attendance NFT.
-                    </p>
-                      <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                        <Globe className="text-primary" weight="duotone" size={22} />
-                      </div>
-                      <span>Attend Event</span>
-                      {displayedAgents.length > 1 && (
-                        <select
-                          value={attendAgentId}
-                          onChange={e => setAttendAgentId(e.target.value)}
-                          className="ml-auto text-xs font-mono bg-background/50 border border-primary/30 rounded-md px-2 py-1 text-foreground cursor-pointer"
-                        >
-                          {displayedAgents.map(a => (
-                            <option key={a.id} value={a.id}>{a.name} (Lv {a.level})</option>
-                          ))}
-                        </select>
-                      )}
-                    </h2>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Choose one of your AI agents, paste a YouTube or Luma event URL, and let the agent autonomously attend, analyze the content, and mint an on-chain Proof-of-Attendance NFT.
-                    </p>
-                    <div className="grid grid-cols-3 gap-3 mb-5">
-                      <div className="rounded-lg border border-primary/20 p-3 text-center">
-                        <div className="text-lg">🤖</div>
-                        <p className="font-semibold text-sm mt-2">Select Agent</p>
-                      </div>
-                      <div className="rounded-lg border border-primary/20 p-3 text-center">
-                        <div className="text-lg">🔗</div>
-                        <p className="font-semibold text-sm mt-2">Paste Event URL</p>
-                      </div>
-                      <div className="rounded-lg border border-primary/20 p-3 text-center">
-                        <div className="text-lg">🏆</div>
-                        <p className="font-semibold text-sm mt-2">Earn NFT</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 mb-3">
-                   <div className="grid grid-cols-3 gap-3 mb-5">
-                   <div className="rounded-lg border border-primary/20 p-3 text-center">
-                   <div className="text-lg">🤖</div>
-                   <p className="font-semibold text-sm mt-2">Select Agent</p>
-                 </div>
-
-               <div className="rounded-lg border border-primary/20 p-3 text-center">
-                 <div className="text-lg">🔗</div>
-                 <p className="font-semibold text-sm mt-2">Paste Event URL</p>
-               </div>
-
-              <div className="rounded-lg border border-primary/20 p-3 text-center">
-             <div className="text-lg">🏆</div>
-              <p className="font-semibold text-sm mt-2">Earn NFT</p>
-            </div>
-           </div>
-                      <Input
-                        placeholder="Paste a YouTube or Luma event URL to start autonomous attendance..."
-                        value={eventUrl}
-                        onChange={(e) => setEventUrl(e.target.value)}
-                        className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
-                      />
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Paste a YouTube or Luma event URL. Your AI agent will automatically attend, analyze the event, mint an NFT, and gain experience.
-                     </p>
-                     <p className="text-xs text-muted-foreground mt-2">
-                      Examples:
-                       YouTube Live • Luma Event • Conference • Webinar
-                      </p>             
-                      <Button
-                        onClick={!walletConnected ? () => handleWalletConnect('') : handleAttendEvent}
-                        disabled={walletConnected && (!eventUrl.trim() || isProcessingEvent)}
-                        className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
-                      >
-<<<<<<< HEAD
-                    {!walletConnected
-                        ? 'Connect & Attend'
-                        : isProcessingEvent
-                        ? 'Processing...'
-                        : 'Launch Autonomous Attendance'}
-=======
-                        {!walletConnected ? 'Connect & Attend' : isProcessingEvent ? 'Processing...' : 'Launch Autonomous Attendance'}
->>>>>>> origin/main
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-1">
-                      Your AI agent will automatically attend, analyze the event, mint an NFT, and gain experience.
-                    </p>
-                    <p className="text-xs text-muted-foreground/60">
-                      Examples: YouTube Live • Luma Event • Conference • Webinar
-                    </p>
-                    {walletConnected && activeAgent && (
-                      <div className="flex items-center gap-3 pt-2 border-t border-primary/10">
-                        <span className="text-xs text-muted-foreground">Auto Scout</span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleRunAutoScout(activeAgent.id)}
-                          disabled={scoutingAgentId === activeAgent.id}
-                          className="border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/10 text-xs font-semibold"
-                        >
-                          {scoutingAgentId === activeAgent.id ? 'Secretary searching...' : 'Run Auto Scout'}
-                        </Button>
-                        <span className="text-xs text-muted-foreground">
-                          {activeAgent.name} discovers &amp; attends a {activeAgent.niche} event autonomously
-                        </span>
-                      </div>
-                    )}
-                  </Card>
-                )
-              })()}
+              <AttendEventCard
+                selectedAgent={selectedAgent ?? displayedAgents[0]}
+                displayedAgents={displayedAgents}
+                onSelectAgent={(id) => { const a = displayedAgents.find(x => x.id === id); if (a) setSelectedAgent(a) }}
+                walletConnected={walletConnected}
+                onConnectWallet={() => handleWalletConnect('')}
+                onAttendEvent={handleAttendEvent}
+                eventUrl={eventUrl}
+                onEventUrlChange={setEventUrl}
+                isProcessingEvent={isProcessingEvent}
+                scoutingAgentId={scoutingAgentId}
+                onRunAutoScout={handleRunAutoScout}
+              />
 
               {lastSocialPost && (
-  <>
-    <Card className="glass-card-hover p-4 border border-green-500/30 bg-green-500/5">
-      ...
-    </Card>
+                <Card className="glass-card-hover p-4 border border-green-500/30 bg-green-500/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-green-500/20 border border-green-500/40 flex items-center justify-center">
+                        <span className="text-sm">💬</span>
+                      </div>
+                      <span className="text-sm font-semibold text-green-400">Social-Lite: Post Draft Ready</span>
+                    </div>
+                    <button onClick={() => setLastSocialPost(null)} className="text-muted-foreground/50 hover:text-muted-foreground text-xs">✕</button>
+                  </div>
+                  <pre className="text-xs text-muted-foreground font-sans whitespace-pre-wrap leading-relaxed bg-background/50 rounded-md p-3 border border-border/30 mb-3">
+                    {lastSocialPost.text}
+                  </pre>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="text-xs border-green-500/40 text-green-400 hover:bg-green-500/10"
+                      onClick={() => { navigator.clipboard.writeText(lastSocialPost.text); toast.success('Copied for Twitter/X!') }}>
+                      🐦 Copy for X/Twitter
+                    </Button>
+                    <Button size="sm" variant="outline" className="text-xs border-primary/40 text-primary hover:bg-primary/10"
+                      onClick={() => { navigator.clipboard.writeText(lastSocialPost.text.replace(/\n\n/g, ' ')); toast.success('Copied for LinkedIn!') }}>
+                      💼 Copy for LinkedIn
+                    </Button>
+                  </div>
+                </Card>
+              )}
 
-    <Card className="mt-4 border border-primary/20 bg-primary/5">
-      <div className="p-4">
-        <h3 className="font-semibold mb-3">Expected Result</h3>
-
-        <div className="space-y-2 text-sm">
-          <div>✅ AI attends the event</div>
-          <div>✅ Generates an intelligent summary</div>
-          <div>✅ Mints an on-chain NFT</div>
-          <div>✅ Updates agent experience</div>
-        </div>
-      </div>
-    </Card>
-  </>
-)}
-
-{isProcessingEvent && (
-  <Card className="mt-4 border border-primary/20">
-    <div className="p-4">
-      <h3 className="font-semibold mb-3">
-        Autonomous Execution
-      </h3>
-
-      <div className="space-y-2 text-sm">
-        <div>🔍 Discovering Event</div>
-        <div>📋 Registering</div>
-        <div>🧠 Analyzing Content</div>
-        <div>✍️ Signing Transaction</div>
-        <div>🏆 NFT Minted</div>
-      </div>
-    </div>
-  </Card>
-  )}
-       {displayedAgents.length > 0 && (
+              {displayedAgents.length > 0 && (
                 <SubAgentDelegation
                   agents={displayedAgents}
                   isActive={isProcessingEvent}
@@ -2012,50 +1850,22 @@ function App() {
 
               {/* ── Fusion Lab (inline, only when ≥ 2 agents) ─── */}
               {displayedAgents.length >= 2 && (
-                <Card className="glass-card-hover p-5 border border-accent/30">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
-                        <Dna className="text-accent" weight="duotone" size={20} />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold">Neural Fusion Lab</h3>
-                        <p className="text-xs text-muted-foreground">Merge wisdom-unlocked agents to breed powerful hybrids</p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={!walletConnected ? () => handleWalletConnect('') : () => setBreedingDialogOpen(true)}
-                      disabled={walletConnected && displayedAgents.filter(a => a.wisdomUnlocked).length < 2}
-                      size="sm"
-                      className="bg-gradient-to-r from-accent to-secondary hover:opacity-90 font-semibold shadow-lg shadow-accent/20"
-                    >
-                      <Dna className="mr-1.5" weight="duotone" size={14} />
-                      {!walletConnected ? 'Connect to Fuse' : 'Initiate Fusion'}
-                    </Button>
-                  </div>
-                  {walletConnected && displayedAgents.filter(a => a.wisdomUnlocked).length < 2 && (
-                    <p className="text-xs text-muted-foreground">
-                      Need {Math.max(0, 2 - displayedAgents.filter(a => a.wisdomUnlocked).length)} more wisdom-unlocked agent(s) — attend more events to unlock
-                    </p>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                    {displayedAgents.map((agent, idx) => {
-                      const isOnCooldown = agent.lastBreedingTime && agent.breedingCooldownHours &&
-                        (Date.now() - agent.lastBreedingTime) < (agent.breedingCooldownHours * 60 * 60 * 1000)
-                      return (
-                        <motion.div key={agent.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: idx * 0.08 }} className="space-y-2">
-                          <AgentCard agent={agent} onConfigure={handleConfigureAgent} onChat={handleChatWithAgent} onViewEvolution={handleViewEvolution} onToggleAutoReplenish={handleToggleAutoReplenish} pendingProposalCount={proposalCounts[agent.id] ?? 0} onOpenProposals={(a) => setProposalModalAgent(a)} onDeleteAgent={handleDeleteAgent} onRetrySpawn={handleRetrySpawn} />
-                          {isOnCooldown && (
-                            <div className="space-y-2">
-                              <FusionCooldownTimer agent={agent} />
-                              <BreedingCooldownBoost agent={agent} userBalance={userBalance ?? 0} onBoost={handleCooldownBoost} />
-                            </div>
-                          )}
-                        </motion.div>
-                      )
-                    })}
-                  </div>
-                </Card>
+                <NeuralFusionLab
+                  agents={displayedAgents}
+                  walletConnected={walletConnected}
+                  userBalance={userBalance ?? 0}
+                  proposalCounts={proposalCounts}
+                  onConnectWallet={() => handleWalletConnect('')}
+                  onInitiateFusion={() => setBreedingDialogOpen(true)}
+                  onConfigureAgent={handleConfigureAgent}
+                  onChatWithAgent={handleChatWithAgent}
+                  onViewEvolution={handleViewEvolution}
+                  onToggleAutoReplenish={handleToggleAutoReplenish}
+                  onOpenProposals={(a) => setProposalModalAgent(a)}
+                  onDeleteAgent={handleDeleteAgent}
+                  onRetrySpawn={handleRetrySpawn}
+                  onCooldownBoost={handleCooldownBoost}
+                />
               )}
 
               {/* ── How the Agentic Economy Works ─────────── */}
@@ -2079,307 +1889,33 @@ function App() {
 
           {/* ── Analytics ─────────────────────────────── */}
           {mainView === 'analytics' && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-6"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                  <ChartLine className="text-primary" weight="duotone" size={22} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold">Event Analytics</h2>
-                  <p className="text-sm text-muted-foreground">Agent performance, event trends, platform insights</p>
-                </div>
-              </div>
-              <AnalyticsCharts agents={displayedAgents} events={displayedEvents} nfts={displayedNFTs} />
-            </motion.div>
+            <AnalyticsView agents={displayedAgents} events={displayedEvents} nfts={displayedNFTs} />
           )}
 
           {/* ── NFT Vault ─────────────────────────────── */}
-          {mainView === 'vault' && (() => {
-            const scoutingEvents = displayedEvents.filter(e => e.status === 'scheduled')
-            const scoutingEventIds = new Set(scoutingEvents.map(e => e.id))
-            const wisdomNFTs = displayedNFTs.filter(n => !scoutingEventIds.has(n.eventId))
-            const agentMap: Record<string, string> = Object.fromEntries(
-              (displayedAgents ?? []).map(a => [a.id, a.name])
-            )
-            return (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="space-y-6"
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                    <WalletIcon className="text-primary" weight="duotone" size={22} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold flex items-center gap-2">
-                      NFT Vault
-                    </h2>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                      <p className="text-xs text-muted-foreground font-mono">Mantle Sepolia</p>
-                    </div>
-                  </div>
-                </div>
-                {displayedEvents.filter(e => e.status === 'completed').length > 0 && (
-                  <Button
-                    onClick={() => setBatchIPFSDialogOpen(true)}
-                    disabled={isViewOnly}
-                    size="sm"
-                    className="bg-gradient-to-r from-primary to-accent hover:opacity-90 font-semibold shadow-lg shadow-primary/30"
-                  >
-                    <CloudArrowUp className="mr-2" weight="duotone" size={16} />
-                    Batch Upload to IPFS
-                  </Button>
-                )}
-              </div>
+          {/* -- NFT Vault ------------------------------- */}
+          {mainView === 'vault' && (
+            <VaultView
+              displayedAgents={displayedAgents}
+              displayedEvents={displayedEvents}
+              displayedNFTs={displayedNFTs}
+              selectedChainId={selectedChainId}
+              verificationData={verificationData}
+              setMainView={setMainView}
+              isViewOnly={isViewOnly}
+              onOpenMetadata={(nft) => { setSelectedNFT(nft); setNFTMetadataDialogOpen(true) }}
+              onOpenBatchIPFS={() => setBatchIPFSDialogOpen(true)}
+              startTransition={startTransition}
+            />
+          )}
 
-              {/* Tab strip */}
-              <div className="flex gap-1 p-1 rounded-xl bg-muted/30 border border-border/40 w-fit">
-                <button
-                  onClick={() => setNftVaultTab('nfts')}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
-                    nftVaultTab === 'nfts'
-                      ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                  )}
-                >
-                  <WalletIcon size={15} weight="duotone" />
-                  My NFTs
-                  <span className={cn(
-                    'text-[10px] font-mono px-1.5 py-0.5 rounded-full',
-                    nftVaultTab === 'nfts' ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
-                  )}>{wisdomNFTs.length}</span>
-                </button>
-                <button
-                  onClick={() => setNftVaultTab('scouts')}
-                  className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all',
-                    nftVaultTab === 'scouts'
-                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                  )}
-                >
-                  <Binoculars size={15} weight="duotone" />
-                  Upcoming Scouts
-                  {scoutingEvents.length > 0 && (
-                    <span className={cn(
-                      'text-[10px] font-mono px-1.5 py-0.5 rounded-full',
-                      nftVaultTab === 'scouts' ? 'bg-amber-500/20 text-amber-400' : 'bg-amber-500/10 text-amber-500'
-                    )}>{scoutingEvents.length}</span>
-                  )}
-                </button>
-              </div>
-
-              {/* ── Tab: My NFTs ──────────────────────────── */}
-              {nftVaultTab === 'nfts' && (
-                wisdomNFTs.length === 0 ? (
-                  <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-primary/30">
-                    <WalletIcon size={56} className="mx-auto mb-4 text-muted-foreground opacity-50 animate-float" weight="duotone" />
-                    <h3 className="text-base font-bold mb-2">No NFTs Yet</h3>
-                    <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
-                      Attend events with your agents to mint Proof-of-Attendance NFTs on Mantle Sepolia
-                    </p>
-                    <Button
-                      onClick={() => startTransition(() => setMainView('dashboard'))}
-                      className="bg-gradient-to-r from-secondary to-accent font-semibold shadow-lg shadow-secondary/30"
-                    >
-                      <Globe className="mr-2" weight="duotone" />
-                      Go to Dashboard
-                    </Button>
-                  </Card>
-                ) : (() => {
-                  const NFT_PAGE_SIZE = 12
-                  const totalPages = Math.ceil(wisdomNFTs.length / NFT_PAGE_SIZE)
-                  const effectivePage = Math.min(nftPage, Math.max(0, totalPages - 1))
-                  const pagedNFTs = wisdomNFTs.slice(effectivePage * NFT_PAGE_SIZE, (effectivePage + 1) * NFT_PAGE_SIZE)
-                  return (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                        {pagedNFTs.map((nft, idx) => (
-                          <motion.div
-                            key={nft.id}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: idx * 0.04 }}
-                          >
-                            <NFTCard
-                              nft={nft}
-                              onClick={() => { setSelectedNFT(nft); setNFTMetadataDialogOpen(true) }}
-                            />
-                          </motion.div>
-                        ))}
-                      </div>
-                      {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-3 pt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setNftPage(p => Math.max(0, p - 1))}
-                            disabled={effectivePage === 0}
-                            className="border-primary/30 hover:border-primary/60 px-3"
-                          >
-                            ← Prev
-                          </Button>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            Page {effectivePage + 1} / {totalPages} &nbsp;·&nbsp; {wisdomNFTs.length} NFTs
-                          </span>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setNftPage(p => Math.min(totalPages - 1, p + 1))}
-                            disabled={effectivePage >= totalPages - 1}
-                            className="border-primary/30 hover:border-primary/60 px-3"
-                          >
-                            Next →
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })()
-              )}
-
-              {/* ── Tab: Upcoming Scouts ──────────────────── */}
-              {nftVaultTab === 'scouts' && (
-                scoutingEvents.length === 0 ? (
-                  <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-amber-500/20">
-                    <Binoculars size={48} className="mx-auto mb-4 text-amber-500/40 animate-float" weight="duotone" />
-                    <h3 className="text-base font-bold mb-2">No Upcoming Scouts</h3>
-                    <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
-                      Attend a future Luma event to generate a predictive Scouting Brief. Your agent will prepare intelligence before the event begins.
-                    </p>
-                    <Button
-                      onClick={() => startTransition(() => setMainView('dashboard'))}
-                      variant="outline"
-                      className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10"
-                    >
-                      <Binoculars className="mr-2" weight="duotone" />
-                      Go Scout an Event
-                    </Button>
-                  </Card>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-xs text-muted-foreground">
-                      {scoutingEvents.length} upcoming event{scoutingEvents.length !== 1 ? 's' : ''} scouted — agent will auto-upgrade to full wisdom NFT after the event completes.
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {scoutingEvents.map(event => (
-                        <ScoutingBriefCard
-                          key={event.id}
-                          event={event}
-                          agentName={agentMap[event.agentId]}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )
-              )}
-
-              {/* ── Contract Verification History ─────── */}
-              {nftVaultTab === 'nfts' && verificationData && verificationData.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
-                      <ShieldCheck className="text-emerald-500" weight="duotone" size={20} />
-                    </div>
-                    <div>
-                      <h3 className="text-base font-bold">Contract Verification</h3>
-                      <p className="text-xs text-muted-foreground">On-chain smart contract verification status per agent</p>
-                    </div>
-                  </div>
-                  <VerificationDashboard verifications={verificationData} />
-                </div>
-              )}
-            </motion.div>
-            )
-          })()}
 
           {mainView === 'marketplace' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="space-y-6 animate-slide-up"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-secondary/20 border border-secondary/40 flex items-center justify-center">
-                    <Storefront className="text-secondary" weight="duotone" size={22} />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold">Agent Marketplace</h2>
-                    <p className="text-sm text-muted-foreground">Buy pre-trained agents — identity wiped, wisdom inherited</p>
-                  </div>
-                </div>
-                <div className="text-sm text-muted-foreground font-mono">
-                  {marketplaceAgents?.length ?? 0} available · 1.8–4.5 MNT
-                </div>
-              </div>
-
-              <MarketplaceFilters
-                filters={marketplaceFilters}
-                onFiltersChange={setMarketplaceFilters}
-                totalAgents={marketplaceAgents?.length ?? 0}
-              />
-
-              {/* Coming Soon banner */}
-              <motion.div
-                initial={{ opacity: 0, y: -8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, ease: 'easeOut' }}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl border border-primary/30 bg-gradient-to-r from-primary/10 via-accent/5 to-secondary/10"
-              >
-                <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center flex-shrink-0">
-                  <LockKey size={16} weight="duotone" className="text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-xs font-mono text-muted-foreground tracking-[0.2em] uppercase">On-chain P2P Marketplace · </span>
-                  <span className="text-sm font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">Coming Soon</span>
-                  <span className="text-xs text-muted-foreground/70 ml-2">— launching after mainnet deployment</span>
-                </div>
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {[0, 0.25, 0.5].map((delay, i) => (
-                    <motion.div
-                      key={i}
-                      animate={{ scale: [1, 1.5, 1], opacity: [0.35, 1, 0.35] }}
-                      transition={{ repeat: Infinity, duration: 1.2, delay, ease: 'easeInOut' }}
-                      className="w-1.5 h-1.5 rounded-full bg-primary"
-                    />
-                  ))}
-                </div>
-              </motion.div>
-
-              {!marketplaceAgents || marketplaceAgents.length === 0 ? (
-                <Card className="glass-card-hover p-12 text-center border-2 border-dashed border-secondary/30">
-                  <Storefront size={64} className="mx-auto mb-4 text-muted-foreground animate-float" weight="duotone" />
-                  <h3 className="text-base font-bold mb-2">No Agents Available</h3>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    Check back later for agents listed by other users.
-                  </p>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredAndSortedMarketplace().map((agent) => (
-                    <MarketplaceAgentCard
-                      key={agent.id}
-                      agent={agent}
-                      onBuy={handleBuyAgent}
-                      isPurchasing={purchasingAgentId === agent.id}
-                    />
-                  ))}
-                </div>
-              )}
-            </motion.div>
+            <MarketplaceView
+              marketplaceAgents={marketplaceAgents ?? []}
+              purchasingAgentId={purchasingAgentId}
+              onBuy={handleBuyAgent}
+            />
           )}
 
 
