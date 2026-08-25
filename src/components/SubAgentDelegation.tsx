@@ -128,7 +128,7 @@ const getStatusColor = (status: SubAgentTask['status']) => {
   }
 }
 
-  export function SubAgentDelegation({ agents, isActive, currentTasks = [], activeAgentId, syncAgentId }: SubAgentDelegationProps) {
+export function SubAgentDelegation({ agents, isActive, currentTasks = [], activeAgentId, syncAgentId }: SubAgentDelegationProps) {
   const [selectedAgentId, setSelectedAgentId] = useState<string>(agents[0]?.id || '')
   const [activePulse, setActivePulse] = useState<SubAgentType | null>(null)
   const [taskQueue, setTaskQueue] = useState<SubAgentTask[]>(currentTasks)
@@ -421,13 +421,10 @@ const getStatusColor = (status: SubAgentTask['status']) => {
               <Robot className="text-primary" weight="duotone" size={22} />
             </div>
             <div>
-              <h3 className="text-lg font-bold">
-  Autonomous Agent Pipeline
-</h3>
-
-<p className="text-xs text-muted-foreground">
-  AI agents collaborate to discover events, generate intelligence, and mint on-chain Proof-of-Attendance NFTs.
-</p>
+              <h3 className="text-lg font-bold">Autonomous Agent Pipeline</h3>
+              <p className="text-xs text-muted-foreground">
+                AI agents collaborate to discover events, generate intelligence, and mint on-chain Proof-of-Attendance NFTs.
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -443,23 +440,20 @@ const getStatusColor = (status: SubAgentTask['status']) => {
           </div>
         </div>
 
-<Card className="mb-5 border border-primary/20 bg-primary/5">
-  <div className="p-4">
-    <h4 className="font-semibold mb-3">
-      Autonomous Workflow
-    </h4>
+        <Card className="mb-5 border border-primary/20 bg-primary/5">
+          <div className="p-4">
+            <h4 className="font-semibold mb-3">Autonomous Workflow</h4>
+            <div className="flex flex-wrap gap-2">
+              <Badge>🔍 Scout</Badge>
+              <Badge>📋 Register</Badge>
+              <Badge>🧠 Analyze</Badge>
+              <Badge>✍️ Sign</Badge>
+              <Badge>🏆 Mint NFT</Badge>
+            </div>
+          </div>
+        </Card>
 
-    <div className="flex flex-wrap gap-2">
-      <Badge>🔍 Scout</Badge>
-      <Badge>📋 Register</Badge>
-      <Badge>🧠 Analyze</Badge>
-      <Badge>✍️ Sign</Badge>
-      <Badge>🏆 Mint NFT</Badge>
-    </div>
-  </div>
-</Card>    
- 
-   {agents.length > 1 && (
+        {agents.length > 1 && (
           <div className="mb-6">
             <label className="text-xs text-muted-foreground font-semibold mb-2 block">
               Select Agent
