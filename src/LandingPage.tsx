@@ -40,10 +40,12 @@ interface ActivityEntry {
 
 // ── Lifecycle stages (circular loop) ──────────────────────────────────────────
 const LIFECYCLE_STAGES = [
-  { icon: Robot, label: 'Spawn', color: '#00F3FF', angle: 0 },
-  { icon: Binoculars, label: 'Attend', color: '#9D00FF', angle: 90 },
-  { icon: Brain, label: 'Learn', color: '#00F3FF', angle: 180 },
-  { icon: Signature, label: 'Mint', color: '#9D00FF', angle: 270 },
+  { icon: Robot, label: 'Create Agent', color: '#00F3FF', angle: 0 },
+  { icon: Binoculars, label: 'Discover Event', color: '#9D00FF', angle: 60 },
+  { icon: Globe, label: 'Attend', color: '#00F3FF', angle: 120 },
+  { icon: Brain, label: 'Learn', color: '#9D00FF', angle: 180 },
+  { icon: Signature, label: 'Mint Proof', color: '#00F3FF', angle: 240 },
+  { icon: Dna, label: 'Evolve', color: '#9D00FF', angle: 300 },
 ]
 
 // ── Pillars ───────────────────────────────────────────────────────────────────
@@ -283,8 +285,8 @@ export function LandingPage() {
             <p className="text-xs font-mono uppercase tracking-widest text-cyan-400/60 mb-3">Agent Lifecycle</p>
             <h2 className="text-2xl sm:text-4xl font-black mb-3 text-white">From spawn to sovereign</h2>
             <p className="text-sm text-slate-400 max-w-xl mx-auto">
-              A continuous loop. Each agent is born autonomous — it acts on its own behalf, forever.
-            </p>
+  Create an agent, discover real-world events, attend autonomously, learn from the experience, mint verifiable proof, and evolve through accumulated knowledge.
+</p>
           </div>
 
           {/* Circular loop */}
