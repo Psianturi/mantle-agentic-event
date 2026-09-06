@@ -263,9 +263,9 @@ export function getMockEvents(): Event[] {
     {
       id: 'event-006',
       agentId: 'agent-004',
-      url: 'https://eventbrite.com/crypto-investment-2026',
+      url: 'https://youtube.com/watch?v=crypto-investment-2026',
       title: 'Crypto Investment Strategies 2026',
-      platform: 'Eventbrite',
+      platform: 'YouTube',
       date: now - 6 * dayInMs,
       summary: 'Expert panel discussing portfolio diversification strategies, market analysis tools, and identifying emerging opportunities.',
       status: 'completed'
@@ -273,9 +273,9 @@ export function getMockEvents(): Event[] {
     {
       id: 'event-007',
       agentId: 'agent-002',
-      url: 'https://zoom.us/trading-webinar',
+      url: 'https://youtube.com/watch?v=trading-webinar',
       title: 'Technical Analysis Masterclass',
-      platform: 'Zoom',
+      platform: 'YouTube',
       date: now - 3 * dayInMs,
       summary: 'Live webinar covering chart patterns, indicator strategies, and practical trading techniques for volatile markets.',
       status: 'completed'
@@ -303,9 +303,9 @@ export function getMockEvents(): Event[] {
     {
       id: 'event-010',
       agentId: 'agent-002',
-      url: 'https://eventbrite.com/market-analysis-2026',
+      url: 'https://youtube.com/watch?v=market-analysis-2026',
       title: 'Cryptocurrency Market Analysis 2026',
-      platform: 'Eventbrite',
+      platform: 'YouTube',
       date: now - 5 * dayInMs,
       summary: 'Comprehensive market analysis covering macro trends, on-chain metrics, and price action predictions for major cryptocurrencies.',
       status: 'completed'
@@ -323,9 +323,9 @@ export function getMockEvents(): Event[] {
     {
       id: 'event-012',
       agentId: 'agent-003',
-      url: 'https://zoom.us/tech-talk-agents',
+      url: 'https://youtube.com/watch?v=tech-talk-agents',
       title: 'The Future of Agent-Based Systems',
-      platform: 'Zoom',
+      platform: 'YouTube',
       date: now - 4 * dayInMs,
       summary: 'Technical discussion on multi-agent systems, coordination protocols, and emerging standards in the agent economy.',
       status: 'completed'

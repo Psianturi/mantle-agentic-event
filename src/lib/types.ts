@@ -72,7 +72,7 @@ export interface ScoutLogEntry {
 export interface ScoutedEvent {
   id: string
   title: string
-  platform: 'YouTube' | 'Eventbrite' | 'Zoom'
+  platform: 'YouTube'
   url: string
   date: number
   description: string
@@ -137,7 +137,7 @@ export interface Event {
   chainId?: number
   url: string
   title: string
-  platform: 'YouTube' | 'Eventbrite' | 'Zoom'
+  platform: 'YouTube'
   date: number
   summary: string
   status: 'pending' | 'completed' | 'failed' | 'scheduled'

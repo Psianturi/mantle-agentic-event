@@ -129,7 +129,7 @@ export function AgentConfigDialog({ open, onOpenChange, agent, onSave }: AgentCo
               className="min-h-[120px] font-mono text-sm border-accent/30 focus:border-accent bg-background/50"
             />
             <p className="text-xs text-muted-foreground leading-relaxed">
-              This agenda will guide your agent when autonomously scouting Luma events and asking questions in YouTube Live streams. Be specific about topics of interest.
+              This agenda will guide your agent when autonomously scouting YouTube videos and asking questions in YouTube Live streams. Be specific about topics of interest.
             </p>
           </div>
 
@@ -140,7 +140,7 @@ export function AgentConfigDialog({ open, onOpenChange, agent, onSave }: AgentCo
             </h4>
             <ul className="text-xs text-muted-foreground space-y-1.5 ml-3">
               <li>• Be specific about topics and keywords to focus on</li>
-              <li>• Mention preferred platforms (YouTube, Luma, etc.)</li>
+              <li>• Mention preferred YouTube channels or creators to follow</li>
               <li>• Define the depth and style of summaries you want</li>
               <li>• Specify any topics or sources to avoid</li>
             </ul>

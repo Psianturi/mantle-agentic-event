@@ -58,7 +58,7 @@ import { DEFAULT_CHAIN_ID, getChain } from '@/lib/blockchain/chains'
 import { useNavigate } from 'react-router-dom'
 
 const simulationMessages = [
-  { type: 'secretary', messages: ['Scanning Luma events...', 'Registering for DeFi Summit 2026...', 'Checking Eventbrite for new conferences...', 'Joining Web3 Workshop...'] },
+  { type: 'secretary', messages: ['Scanning YouTube for new videos...', 'Checking channel uploads...', 'Watching latest livestream...', 'Queueing next video for analysis...'] },
   { type: 'scribe', messages: ['Transcribing YouTube podcast...', 'Extracting key insights from video...', 'Analyzing speaker sentiment...', 'Processing audio content...'] },
   { type: 'social-lite', messages: ['Monitoring Telegram channel...', 'Checking Discord notifications...', 'Analyzing community sentiment...', 'Engaging with community members...'] },
   { type: 'mint-master', messages: ['Estimating Mantle gas fees...', 'Optimizing transaction parameters...', 'Preparing NFT metadata...', 'Calculating optimal mint timing...'] }
@@ -625,40 +625,17 @@ function App() {
     setLogs((current) => [...current, log])
   }
 
-  // Derive a human-readable title + platform from URL (no extra input needed)
+  // Derive a human-readable title from a YouTube URL (no extra input needed)
   const deriveTitleFromUrl = (url: string): string => {
     try {
       const p = new URL(url)
-      const host = p.hostname.replace('www.', '')
-      if (host.includes('youtube') || host.includes('youtu.be')) {
-        const v = p.searchParams.get('v') || p.pathname.slice(1)
-        return `YouTube: ${v}`
-      }
-      if (host.includes('lu.ma')) return `Luma: ${p.pathname.replace('/', '')}`
-      if (host.includes('eventbrite')) {
-        const parts = p.pathname.split('/').filter(Boolean)
-        return `Eventbrite: ${parts[parts.length - 1] || 'Event'}`
-      }
-      return `${host} Event`
+      const v = p.searchParams.get('v') || p.pathname.slice(1)
+      return `YouTube: ${v}`
     } catch { return 'Event' }
   }
 
-  const derivePlatformFromUrl = (url: string): 'YouTube' | 'Eventbrite' | 'Zoom' => {
-    try {
-      const host = new URL(url).hostname.replace('www.', '')
-      if (host.includes('youtube') || host.includes('youtu.be')) return 'YouTube'
-      if (host.includes('eventbrite')) return 'Eventbrite'
-      if (host.includes('zoom')) return 'Zoom'
-      return 'YouTube'  // safe default
-    } catch { return 'YouTube' }
-  }
-
-  const normalizePlatform = (platform: string): Event['platform'] => {
-    if (platform === 'Eventbrite' || platform === 'Zoom') {
-      return platform
-    }
-    return 'YouTube'
-  }
+  // Backend history may contain legacy platform values from before YouTube-only support
+  const normalizePlatform = (_platform: string): Event['platform'] => 'YouTube'
 
   const handleAttendEvent = async () => {
     updateActivity() // Track user interaction
@@ -683,7 +660,7 @@ function App() {
     }
 
     const eventTitle = deriveTitleFromUrl(eventUrl.trim())
-    const platform = derivePlatformFromUrl(eventUrl.trim())
+    const platform: Event['platform'] = 'YouTube'
     const agentChainId = agent.chainId ?? DEFAULT_CHAIN_ID
     const agentChain = getChain(agentChainId)
 

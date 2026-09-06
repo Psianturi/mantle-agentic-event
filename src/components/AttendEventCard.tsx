@@ -54,7 +54,7 @@ export function AttendEventCard({
         )}
       </h2>
       <p className="text-sm text-muted-foreground mb-4">
-        Choose one of your AI agents, paste a YouTube or Luma event URL, and let the agent autonomously attend, analyze the content, and mint an on-chain Proof-of-Attendance NFT.
+        Choose one of your AI agents, paste a YouTube video URL, and let the agent autonomously watch, analyze the content, and mint an on-chain Proof-of-Attendance NFT.
       </p>
       <div className="grid grid-cols-3 gap-3 mb-5">
         <div className="rounded-lg border border-primary/20 p-3 text-center">
@@ -72,7 +72,7 @@ export function AttendEventCard({
       </div>
       <div className="flex gap-3 mb-3">
         <Input
-          placeholder="Paste a YouTube or Luma event URL to start autonomous attendance..."
+          placeholder="Paste a YouTube video URL to start autonomous attendance..."
           value={eventUrl}
           onChange={(e) => onEventUrlChange(e.target.value)}
           className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
@@ -89,7 +89,7 @@ export function AttendEventCard({
         Your AI agent will automatically attend, analyze the event, mint an NFT, and gain experience.
       </p>
       <p className="text-xs text-muted-foreground/60">
-        Examples: YouTube Live • Luma Event • Conference • Webinar
+        Examples: YouTube Live • Tutorial • Conference Talk • Podcast
       </p>
       {walletConnected && activeAgent && (
         <div className="flex items-center gap-3 pt-2 border-t border-primary/10">

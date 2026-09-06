@@ -62,16 +62,6 @@ describe('computeScoutRelevance', () => {
     )
   })
 
-  it('gives a platform boost to YouTube over other platforms', () => {
-    const agent = makeAgent()
-    const youtube = makeEvent({ platform: 'YouTube', title: '', summary: '' })
-    const eventbrite = makeEvent({ platform: 'Eventbrite', title: '', summary: '' })
-
-    expect(computeScoutRelevance(agent, youtube)).toBeGreaterThan(
-      computeScoutRelevance(agent, eventbrite)
-    )
-  })
-
   it('scores recent events higher than stale ones, all else equal', () => {
     const agent = makeAgent()
     const recent = makeEvent({ date: Date.now(), title: '', summary: '' })

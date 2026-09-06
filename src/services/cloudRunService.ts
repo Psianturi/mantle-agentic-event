@@ -14,11 +14,6 @@ const ALLOWED_EVENT_DOMAINS = [
   'youtube.com',
   'www.youtube.com',
   'youtu.be',
-  'lu.ma',
-  'luma.com',
-  'eventbrite.com',
-  'www.eventbrite.com',
-  'zoom.us',
 ]
 
 export function validateEventUrl(url: string): { valid: boolean; error?: string } {
@@ -36,7 +31,7 @@ export function validateEventUrl(url: string): { valid: boolean; error?: string 
   const hostname = parsed.hostname.toLowerCase()
   const isAllowed = ALLOWED_EVENT_DOMAINS.some(domain => hostname === domain || hostname.endsWith(`.${domain}`))
   if (!isAllowed) {
-    return { valid: false, error: 'Domain is not allowed. Supported platforms: YouTube, Luma, Eventbrite, Zoom.' }
+    return { valid: false, error: 'Domain is not allowed. Only YouTube URLs are supported.' }
   }
 
   return { valid: true }
@@ -113,7 +108,7 @@ export interface MissionStatusResponse {
   result?: {
     eventId: string
     eventTitle: string
-    platform: 'YouTube' | 'Luma' | 'Eventbrite' | 'Zoom'
+    platform: 'YouTube'
     summary: string
     transactionHash?: string
     tokenId?: string
@@ -148,8 +143,6 @@ export interface AttendEventResponse {
   levelUp: boolean
   newTotalEvents?: number
   newLevel?: number
-  lumaStatus?: 'scheduled' | 'completed' | 'unknown'  // only for Luma events
-  lumaStartAt?: string                                  // ISO 8601 event start time
 }
 
 export interface EventHistoryItem {
@@ -166,8 +159,6 @@ export interface EventHistoryItem {
   blockNumber?: number
   attendedAt: number
   explorerUrl?: string
-  lumaStatus?: 'scheduled' | 'completed' | 'unknown'
-  lumaStartAt?: string
 }
 
 export interface GenerateWisdomRequest {
@@ -455,8 +446,6 @@ export const cloudRunService = {
         lineage_biography?: string
         spawned_on_v4?: boolean
         ownership_status?: string
-        luma_connected_at?: number
-        luma_last_rsvp_at?: number
         agent_gas_balance?: number | null
         chain_id?: number
         skill_scores?: Record<string, number>
@@ -495,9 +484,6 @@ export const cloudRunService = {
         spawnedOnV4: r.spawned_on_v4 ?? false,
         ownershipStatus: r.ownership_status as Agent['ownershipStatus'] | undefined,
         isGenesis: r.ownership_status === 'original-creator',
-        lumaConnected: !!r.luma_connected_at,
-        lumaConnectedAt: r.luma_connected_at,
-        lumaLastRsvpAt: r.luma_last_rsvp_at,
         agentGasBalance: r.agent_gas_balance ?? 0,
         skillScores: r.skill_scores,
       }))
@@ -528,8 +514,6 @@ export const cloudRunService = {
         block_number: number | null
         attended_at: number
         explorer_url: string | null
-        luma_status?: string | null
-        luma_start_at?: string | null
       }>>(response)
 
       return raw.map((r) => ({
@@ -546,8 +530,6 @@ export const cloudRunService = {
         blockNumber: r.block_number ?? undefined,
         attendedAt: r.attended_at,
         explorerUrl: r.explorer_url ?? undefined,
-        lumaStatus: (r.luma_status as EventHistoryItem['lumaStatus']) ?? undefined,
-        lumaStartAt: r.luma_start_at ?? undefined,
       }))
     } catch (error) {
       console.warn('[cloudRunService] getEventHistoryByWallet failed:', error)
@@ -661,8 +643,6 @@ export const cloudRunService = {
         level_up: boolean
         new_total_events: number | null
         new_level: number | null
-        luma_status?: string | null
-        luma_start_at?: string | null
       }>(response)
 
       if (!raw.success) {
@@ -680,8 +660,6 @@ export const cloudRunService = {
         levelUp: raw.level_up,
         newTotalEvents: raw.new_total_events ?? undefined,
         newLevel: raw.new_level ?? undefined,
-        lumaStatus: (raw.luma_status as AttendEventResponse['lumaStatus']) ?? undefined,
-        lumaStartAt: raw.luma_start_at ?? undefined,
       }
     } catch (error) {
       if (error instanceof CloudRunAPIError) throw error
@@ -1039,91 +1017,4 @@ export const cloudRunService = {
     return handleAPIResponse<BackendProposal>(response)
   },
 
-  // ── Luma Autonomous RSVP ──────────────────────────────────────────────────
-
-  async lumaConnectStart(agentId: string, email: string, password?: string, forceReconnect?: boolean): Promise<{
-    session_id: string
-    status: string
-    already_connected?: boolean
-    email: string
-    mode: 'otp' | 'password' | 'reuse'
-  }> {
-    const response = await fetchWithTimeout(
-      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/luma-connect-start`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ email, ...(password ? { password } : {}), ...(forceReconnect ? { force_reconnect: true } : {}) }),
-      },
-      60_000,
-    )
-    return handleAPIResponse(response)
-  },
-
-  async lumaConnectStatus(agentId: string, sessionId: string): Promise<{
-    status: 'starting' | 'waiting_otp' | 'connected' | 'error' | string
-    error?: string
-  }> {
-    const response = await fetchWithTimeout(
-      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/luma-connect-status?session_id=${encodeURIComponent(sessionId)}`,
-      { method: 'GET' },
-      10_000,
-    )
-    return handleAPIResponse(response)
-  },
-
-  async lumaConnectVerify(agentId: string, sessionId: string, code: string): Promise<{
-    status: string
-    cookies_captured: number
-    luma_connected: boolean
-  }> {
-    const response = await fetchWithTimeout(
-      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/luma-connect-verify`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sessionId, code }),
-      },
-      210_000,
-    )
-    return handleAPIResponse(response)
-  },
-
-  async lumaConnect(agentId: string, cookies: object[]): Promise<{
-    status: string
-    agent_id: string
-    agent_name: string
-    cookies_captured: number
-    luma_connected: boolean
-  }> {
-    const response = await fetchWithTimeout(
-      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/luma-connect`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cookies }),
-      },
-    )
-    return handleAPIResponse(response)
-  },
-
-  async lumaRsvp(agentId: string, eventUrl: string): Promise<{
-    agent_id: string
-    agent_name: string
-    event_url: string
-    event_title: string
-    status: string
-    rsvp_confirmed: boolean
-    error?: string
-  }> {
-    const response = await fetchWithTimeout(
-      `${GCP_BACKEND_URL}/api/v1/agent/${encodeURIComponent(agentId)}/luma-rsvp`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event_url: eventUrl }),
-      },
-      240_000, // Playwright + Luma hydration can exceed 2 minutes on Cloud Run
-    )
-    return handleAPIResponse(response)
-  },
 }

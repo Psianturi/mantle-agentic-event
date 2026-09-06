@@ -13,7 +13,7 @@ export interface SubAgentTask {
 
 const taskTemplates: Record<SubAgentType, string[]> = {
   secretary: [
-    'Scanning Luma events',
+    'Scanning YouTube for new videos',
     'Auto-filling registration form',
     'Verifying access credentials',
     'Scheduling event attendance',
