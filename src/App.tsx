@@ -1895,7 +1895,6 @@ function App() {
           {/* -- NFT Vault ------------------------------- */}
           {mainView === 'vault' && (
             <VaultView
-              displayedAgents={displayedAgents}
               displayedEvents={displayedEvents}
               displayedNFTs={displayedNFTs}
               selectedChainId={selectedChainId}
