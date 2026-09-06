@@ -1521,14 +1521,13 @@ function App() {
                   🚀 AI Agents • On-Chain NFTs • Autonomous Learning • Mantle Network
                 </div>
 
-                {/* 5-step autonomous pipeline */}
+                {/* 4-step autonomous pipeline */}
                 <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap mb-5">
                   {([
-                    { emoji: '🔍', label: 'Discover', sub: 'YouTube · 6h cycle' },
-                    { emoji: '📋', label: 'Luma RSVP', sub: 'Playwright stealth' },
-                    { emoji: '🧠', label: 'Analyze', sub: 'Gemini + ELFA' },
-                    { emoji: '✍️', label: 'KMS Self-Sign', sub: 'Mode B · no human' },
-                    { emoji: '🏆', label: 'Earn NFT', sub: 'Mantle Sepolia' },
+                    { emoji: '🔍', label: 'Discover', sub: 'Finds relevant events' },
+                    { emoji: '🧠', label: 'Learn', sub: 'Understands what it watches' },
+                    { emoji: '✍️', label: 'Sign', sub: 'Proves it on its own' },
+                    { emoji: '🏆', label: 'Earn NFT', sub: 'Permanent on-chain proof' },
                   ] as const).map((step, i, arr) => (
                     <div key={step.label} className="flex items-center gap-1 sm:gap-2">
                       <div className="flex flex-col items-center gap-0.5 px-2.5 sm:px-3 py-2 rounded-xl bg-card/60 border border-border/40 min-w-[70px] sm:min-w-[88px] hover:border-primary/40 transition-colors">
@@ -1545,7 +1544,7 @@ function App() {
 
                 {/* Tech stack badges */}
                 <div className="flex flex-wrap items-center justify-center gap-1.5">
-                  {(['Google Gemini', 'ELFA AI', 'Mantle Network', 'Secure Wallets', 'Autonomous Agents', 'On-Chain NFTs'] as const).map(tag => (
+                  {(['Google Gemini', 'Skill Scores', 'Mantle Network', 'Secure Wallets', 'Autonomous Agents', 'On-Chain NFTs'] as const).map(tag => (
                     <span key={tag} className="text-[9px] font-mono text-muted-foreground/50 px-2 py-0.5 rounded-full bg-card/40 border border-border/30">
                       {tag}
                     </span>

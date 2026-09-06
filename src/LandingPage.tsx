@@ -69,7 +69,7 @@ const PILLARS = [
     color: '#00F3FF',
     title: 'Evolves & breeds',
     desc: 'Levels up, proposes strategies, and produces offspring that inherit wisdom.',
-    badges: ['Gemini', 'ELFA AI', 'Breeding'],
+    badges: ['Gemini', 'Skill Scores', 'Breeding'],
   },
 ]
 
