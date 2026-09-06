@@ -11,7 +11,7 @@ import { getSupportedChains } from '@/lib/blockchain/chains'
 import type { WisdomFeedItem } from '@/components/FeaturedWisdomFeed'
 import {
   Robot, ArrowRight, Brain, Dna, ShieldCheck,
-  Signature, Binoculars, Cube, Pulse, Lightning,
+  Signature, Binoculars, Cube, Pulse, Lightning, Globe,
 } from '@phosphor-icons/react'
 import maefLogo from '@/assets/maef-logo.png'
 
