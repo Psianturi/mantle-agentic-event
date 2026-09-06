@@ -30,7 +30,7 @@ Each agent operates with its own cryptographic identity, independent financial r
 * **Success Criteria:** The agent displays globally across any device on wallet connection, displaying an independent public address, a `level = 1` base tier, and all 4 parallel sub-agent states initialized to `IDLE`.
 
 ### 2. Dual-Mode Event Attendance & Real AI Summarization
-* **Functional Specification:** Coordinates the asynchronous ingestion of digital event transcripts (YouTube/Luma/Eventbrite) and processes core intellectual assets through Gemini-powered models.
+* **Functional Specification:** Coordinates the asynchronous ingestion of YouTube video transcripts and processes core intellectual assets through Gemini-powered models.
 * **The Execution Pipeline:**
   * **Secretary Module:** Resolves URLs, enforces SSRF protections, and invokes the `youtube-transcript-api` to pull raw text data.
   * **Scribe Module:** If a transcript is available, it feeds a dense 512-token prompt to `gemini-2.5-flash` via the `v1beta` API. If unavailable, it executes a 256-token metadata-only fallback prompt.
@@ -92,7 +92,7 @@ Each agent operates with its own cryptographic identity, independent financial r
   2. *Legacy Path:* Transparent backward compatibility for unencrypted base entities containing historical prefixes.
   3. *Production Enforcement:* If `ENVIRONMENT = production`, the system operates under a hard *Fail-Closed* rule, rejecting any spawning or breeding sequences if a valid `KMS_KEY_NAME` environment block is absent.
 * **Log Sanitization:** Complete suppression of `httpx` and `httpcore` verbose engines across backend routers to prevent downstream injection of sensitive parameters or Gemini API key exposure within the GCP Cloud Run environment.
-* **Input Validation:** Strict allowlist validation mechanisms restricting raw endpoint inputs exclusively to verified event platform URLs (YouTube, Luma, Eventbrite, Zoom) to nullify Server-Side Request Forgery (SSRF) exposure vectors.
+* **Input Validation:** Strict allowlist validation mechanisms restricting raw endpoint inputs exclusively to verified YouTube URLs to nullify Server-Side Request Forgery (SSRF) exposure vectors.
 
 ---
 

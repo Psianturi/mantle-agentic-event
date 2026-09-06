@@ -8,9 +8,7 @@ ASAJU AI gives people autonomous on-chain agents that turn digital events into A
 
 - **Active contracts:** Mantle Sepolia and Ethereum Sepolia contracts are deployed; the minter service wallet has the required role on both. Fees (`spawnFee`, `agentProvision`, `breedCost`) are owner-mutable per chain via `setFees()`/`setBreedCost()` — each chain is calibrated independently rather than sharing one hardcoded value.
 - **Multi-chain frontend wiring:** chain selection is propagated through spawn, wallet funding, event attendance, gas monitoring/top-up, event history, balances, and explorer links. **Ethereum Sepolia end-to-end verified** — spawn → on-chain `spawnAgent()` → Mode B self-signed mint, all confirmed on a live redeployed contract.
-- **Luma auth hardening:** OTP + password login and KMS-encrypted sessions are implemented. Auto-RSVP needs fresh production reproduction before it is called verified.
-- **Dual-State Luma hardening:** future events now rely on `start_at` extracted from `__NEXT_DATA__`, JSON-LD, or embedded page metadata before falling back to OpenGraph-only parsing.
-- **Upcoming Scouts sync:** frontend derives Luma scheduled/completed state from `lumaStartAt`, so future events stay visible in the NFT Vault's **Upcoming Scouts** tab.
+- **YouTube-only event attendance:** agents attend and mint from YouTube videos exclusively — Luma auto-RSVP and the Eventbrite/Zoom placeholders were removed as unsupported dead surface (no real API integration ever backed them).
 - **Still pending config:** `AUTONOMOUS_VAULT_ADDRESS` is not yet active in runtime config.
 
 ---
@@ -19,7 +17,7 @@ ASAJU AI gives people autonomous on-chain agents that turn digital events into A
 
 ASAJU AI lets you spawn agents that build persistent knowledge from events. Each agent:
 
-- **Autonomously attends** digital events (YouTube live, conferences, webinars)
+- **Autonomously attends** YouTube videos and livestreams
 - **Mints Proof-of-Attendance NFTs** on Mantle after generating AI summaries
 - **Evolves** through 5 levels, unlocking progressively autonomous capabilities
 - **Generates strategic proposals** for human approval (HITL governance)
@@ -89,42 +87,11 @@ Each agent progresses through 5 levels as it attends more events:
 
 ---
 
-## Key Features
-
-### Luma Event Integration (Dual-State Engine)
-
-Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube recordings.
-
-**Dual-State Logic:**
-- **Future event (scheduled):** Agent generates a *Scouting Brief* — predictive analysis of the upcoming event. No NFT minted yet. Saved to "Upcoming Scouts" in NFT Vault.
-- **Past event (completed):** Full Wisdom NFT minted on Mantle. XP awarded.
-- **Unknown timestamp fallback:** If Luma blocks richer metadata, MAEF falls back to embedded page metadata before treating the event as unknown. This reduces false mints for future events.
-
-**Luma Auto-RSVP Flow (implemented; production re-verification pending):**
-1. User connects Luma account via OTP (email → 6-digit code, Playwright-driven)
-2. Session encrypted with GCP KMS, stored in Firestore (multi-instance safe)
-3. On event attend: agent auto-RSVPs via headless Chromium before minting NFT
-4. "Already connected" detection — re-uses valid session without re-prompting OTP
-5. Re-connect button for forced session refresh
-6. Refreshed Luma cookies are persisted back to Firestore after RSVP, keeping long-lived sessions warm
-
-**Luma Fetch Cascade:**
-1. Official Luma API (requires LUMA_API_KEY)
-2. `httpx` + `__NEXT_DATA__` JSON parse
-3. `httpx` + schema.org JSON-LD / embedded event metadata (`startDate`, `start_at`, `eventStatus`)
-4. `httpx` + OpenGraph meta tags
-5. Domain fallback
-
-**Stale status prevention:** If a Scouting Brief was saved when the event was future but the event date has now passed, the frontend re-evaluates status dynamically from `lumaStartAt` — it appears as "completed" (not stuck as "scheduled" forever).
-
----
-
 ## Operational Limits and Guardrails
 
 - **Spawn quota:** max **3 directly spawned agents per wallet on each supported network** (`ownership_status != "bred"` counted). Bred offspring do not consume this quota.
 - **Breed constraints:** parent level 3+, max 3 breedings per parent, 24h cooldown, and no self-breeding.
 - **Mode B gas autonomy:** agents need gas balance for autonomous signing. If out of gas, top-up is required before retry.
-- **Luma automation safety:** OTP/password flow is supported; valid encrypted sessions are reused to avoid repeated login friction.
 
 ---
 
@@ -136,7 +103,7 @@ Agents can attend live events on [lu.ma](https://lu.ma) — not just YouTube rec
   - Improve injected provider detection/selection so other EIP-1193 wallets connect reliably.
 
 2. **E2E verification on Cloud Run**
-  - OTP and RSVP flows are implemented, but should be validated repeatedly as an end-to-end demo path under production latency.
+  - The YouTube attend → mint flow should be validated repeatedly as an end-to-end demo path under production latency.
 
 3. **`App.tsx` frontend maintainability**
   - Single ~2,500-line component holding most app state and handlers. No frontend tests. Refactor into hooks/views is planned before further UI-heavy features (skill profile display, public-analyst posting) land on top of it.
@@ -237,7 +204,7 @@ Each agent coordinates a squad of 4 specialized sub-agents:
 
 | Sub-Agent | Role |
 |-----------|------|
-| **Secretary** | Event registration, calendar management, Auto Scout discovery |
+| **Secretary** | Auto Scout discovery, event metadata resolution |
 | **Scribe** | Content extraction, transcript processing, AI summarization |
 | **Social-Lite** | Community sentiment monitoring, social signal analysis |
 | **Mint-Master** | Gas fee optimization, NFT minting coordination |
@@ -257,7 +224,6 @@ User Browser (React + Vite → Vercel)
        ├─ GCP Secret Mgr   — MINTER_SERVICE_PRIVATE_KEY, LLM_API_KEY, YOUTUBE_API_KEY
        ├─ Gemini 2.5 Flash — wisdom, chat, scout scoring, HITL proposals
        ├─ YouTube Data API — Auto Scout event discovery
-       ├─ Playwright       — headless Chromium for Luma OTP login + RSVP automation
       ├─ Web3.py          — per-chain RPC and contract cache
       │    ├─ Mantle Sepolia MAEFDynamicNFTV4 (0x66fD...)
       │    └─ Ethereum Sepolia MAEFDynamicNFTV4 (0x9FEF...)
