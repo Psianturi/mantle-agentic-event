@@ -29,7 +29,6 @@ from core.config import settings
 from core.database import get_db
 from core.kms_service import decrypt_private_key
 from services.llm_service import classify_event_niche, summarize_event
-from services.luma_service import fetch_luma_event, get_luma_event_status, is_luma_url
 from services.web3_service import web3_service
 
 AGENTS_COLLECTION = "agents"
@@ -44,11 +43,6 @@ _ALLOWED_HOSTS: frozenset[str] = frozenset(
         "youtube.com",
         "www.youtube.com",
         "youtu.be",
-        "lu.ma",
-        "luma.com",
-        "eventbrite.com",
-        "www.eventbrite.com",
-        "zoom.us",
     }
 )
 
@@ -82,7 +76,7 @@ class AttendRequest(BaseModel):
     agent_wallet: str       # NFT recipient (agent's derived address or user's wallet)
     agent_name: str
     event_url: str
-    event_title: str = ""   # Auto-populated from Luma API if empty and URL is a Luma event
+    event_title: str = ""
     platform: str = "YouTube"
     niche: str = "General"
     mode_b: bool = False    # If True, agent signs with its own private key (autonomous); else backend signs (Mode A)
@@ -119,8 +113,6 @@ class AttendResponse(BaseModel):
     level_up: bool
     new_total_events: int | None = None
     new_level: int | None = None
-    luma_status: str | None = None     # 'scheduled' | 'completed' | 'unknown' — only for Luma events
-    luma_start_at: str | None = None   # ISO 8601 event start time from Luma
 
 
 class EventHistoryItem(BaseModel):
@@ -137,8 +129,6 @@ class EventHistoryItem(BaseModel):
     block_number: int | None
     attended_at: float
     explorer_url: str | None
-    luma_status: str | None = None   # 'scheduled' | 'completed' | 'unknown' | None for non-Luma
-    luma_start_at: str | None = None
 
 
 # ── Endpoint ──────────────────────────────────────────────────────────────────
@@ -200,8 +190,6 @@ async def list_events_by_wallet(
                         "gas_used": data.get("gas_used"),
                         "block_number": data.get("block_number"),
                         "attended_at": float(data.get("attended_at", 0.0)),
-                        "luma_status": data.get("luma_status"),
-                        "luma_start_at": data.get("luma_start_at"),
                     }
                 )
     except Exception as exc:
@@ -266,28 +254,8 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     if int(agent_data.get("chain_id", 5003)) != req.chain_id:
         raise HTTPException(status_code=409, detail="Agent is registered on a different network")
 
-    # ── Luma auto-detection: pre-fetch event data once for title + summary ────
-    luma_event_data: dict | None = None
-    luma_status: str | None = None      # 'scheduled' | 'completed' | 'unknown'
-    luma_start_at: str | None = None
-    if is_luma_url(req.event_url):
-        req.platform = "Luma"
-        try:
-            luma_event_data = await fetch_luma_event(req.event_url)
-            # Always prefer real event title over frontend-derived URL slug
-            if luma_event_data.get("title"):
-                req.event_title = luma_event_data["title"]
-            # Resolve timing status for Dual-State wisdom mode
-            luma_start_at = luma_event_data.get("start_at")
-            luma_status = get_luma_event_status(luma_start_at)
-            logger.info(
-                "Luma event '%s' resolved — status=%s start_at=%s",
-                req.event_title, luma_status, luma_start_at,
-            )
-        except Exception as exc:
-            logger.info("Luma pre-fetch failed: %s", exc)
     if not req.event_title:
-        req.event_title = "Luma Event"
+        req.event_title = "YouTube Event"
 
     # ── Mode B: load agent private key for true autonomous signing ────────
     agent_private_key: str | None = None
@@ -322,55 +290,8 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
         event_url=req.event_url,
         platform=req.platform,
         agent_name=req.agent_name,
-        luma_event_data=luma_event_data,
-        luma_status=luma_status,
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
-
-    # ── Early exit: Scheduled (future) Luma events — no NFT mint ──────────
-    # Save a scouting brief record so it appears in Upcoming Scouts tab.
-    if luma_status == "scheduled":
-        db = get_db()
-        try:
-            await db.collection(EVENTS_COLLECTION).add({
-                "agent_id": req.agent_id,
-                "agent_wallet": req.agent_wallet,
-                "agent_name": req.agent_name,
-                "chain_id": req.chain_id,
-                "niche": req.niche,
-                "event_url": req.event_url,
-                "event_title": req.event_title,
-                "platform": req.platform,
-                "wisdom_summary": wisdom_summary,
-                "tx_hash": None,
-                "token_id": None,
-                "gas_used": None,
-                "block_number": None,
-                "attended_at": time.time(),
-                "mode": "B" if req.mode_b else "A",
-                "luma_status": "scheduled",
-                "luma_start_at": luma_start_at,
-            })
-            logger.info(
-                "Scouting brief saved for agent %s — future event '%s' (no NFT minted)",
-                req.agent_id, req.event_title,
-            )
-        except Exception as exc:
-            logger.error("Firestore scouting brief save failed for agent %s: %s", req.agent_id, exc)
-        return AttendResponse(
-            success=True,
-            tx_hash=None,
-            token_id=None,
-            wisdom_summary=wisdom_summary,
-            gas_used=None,
-            block_number=None,
-            explorer_url=None,
-            level_up=False,
-            new_total_events=None,
-            new_level=None,
-            luma_status="scheduled",
-            luma_start_at=luma_start_at,
-        )
 
     # ── Steps B + C: Mint on Mantle ────────────────────────────────────────
     # Mode B: agent signs with own key, agent pays gas (no fallback to minter).
@@ -427,14 +348,8 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     explorer_base = _resolve_explorer_base(req.chain_id)
 
     # ── Update agent stats in Firestore ───────────────────────────────────
-    # Scheduled Luma events (future) earn 0 XP — agent scouted, not yet attended.
-    # Completed/unknown Luma events and all YouTube events earn full XP.
-    is_scouting_brief = luma_status == "scheduled"
-
-    # Skill classification (V1) — only for real attendances, not 0-XP scouting
-    # briefs, so we don't spend a Gemini call on events that grant no progress.
     detected_niche: str | None = None
-    if success and not is_scouting_brief:
+    if success:
         detected_niche = await classify_event_niche(wisdom_summary)
     new_total_events: int | None = None
     new_level: int | None = None
@@ -448,30 +363,22 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 if signing_mode == "B":
                     autonomous_sigs += 1
 
-                if is_scouting_brief:
-                    # Scouting Brief: no XP, no level change — just record autonomous sig
-                    update_payload: dict = {"autonomous_signatures": autonomous_sigs}
-                    logger.info(
-                        "Agent %s scouted future Luma event '%s' — 0 XP (scheduled)",
-                        req.agent_id, req.event_title,
-                    )
-                else:
-                    current_events = data.get("total_events", 0) + 1
-                    current_level = data.get("level", 1)
-                    new_level = max(current_level, (current_events // 2) + 1)
-                    if level_up and new_level <= current_level:
-                        new_level = current_level + 1
-                    update_payload = {
-                        "total_events": Increment(1),
-                        "level": new_level,
-                        "autonomous_signatures": autonomous_sigs,
-                        **_skill_gain_field(detected_niche),
-                    }
-                    new_total_events = current_events
-                    logger.info(
-                        "Agent %s stats updated: total_events=%d level=%d mode=%s",
-                        req.agent_id, current_events, new_level, signing_mode,
-                    )
+                current_events = data.get("total_events", 0) + 1
+                current_level = data.get("level", 1)
+                new_level = max(current_level, (current_events // 2) + 1)
+                if level_up and new_level <= current_level:
+                    new_level = current_level + 1
+                update_payload = {
+                    "total_events": Increment(1),
+                    "level": new_level,
+                    "autonomous_signatures": autonomous_sigs,
+                    **_skill_gain_field(detected_niche),
+                }
+                new_total_events = current_events
+                logger.info(
+                    "Agent %s stats updated: total_events=%d level=%d mode=%s",
+                    req.agent_id, current_events, new_level, signing_mode,
+                )
 
                 await agent_ref.update(update_payload)
             else:
@@ -499,9 +406,6 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
                 "block_number": mint_result.get("block_number"),
                 "attended_at": time.time(),
                 "mode": signing_mode,
-                # Luma-specific fields (None for non-Luma events)
-                "luma_status": luma_status,
-                "luma_start_at": luma_start_at,
             }
             await db.collection(EVENTS_COLLECTION).add(event_doc)
         except Exception as exc:
@@ -518,6 +422,4 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
         level_up=level_up,
         new_total_events=new_total_events,
         new_level=new_level,
-        luma_status=luma_status,
-        luma_start_at=luma_start_at,
     )

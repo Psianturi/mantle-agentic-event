@@ -1,9 +1,9 @@
 """
 LLM service: generates a "Wisdom Summary" for an attended event using Gemini.
 
-For YouTube events, fetches the real video transcript and passes it to Gemini
-so the wisdom reflects actual content — not just event metadata.
-For non-YouTube events (Luma, Eventbrite, Zoom), falls back to metadata-only.
+Fetches the real YouTube video transcript and passes it to Gemini so the wisdom
+reflects actual content — not just event metadata. Falls back to a metadata-only
+prompt when no transcript is available.
 
 Uses the Gemini REST API directly via httpx (no SDK dependency) for minimal
 Docker image size and full async support.
@@ -169,33 +169,6 @@ Platform    : {platform}
 Return ONLY the wisdom summary text. No bullet points, no preamble, no labels.\
 """
 
-_PROMPT_WITH_LUMA_CONTENT = """\
-You are an autonomous AI agent that just attended a professional event hosted on Luma.
-You have access to the full event details below.
-Generate a concise "Wisdom Summary" — exactly 2-3 sentences — capturing the most \
-valuable insights a blockchain AI agent would gain from this event.
-Focus on: Web3 concepts, AI/agentic systems, DeFi, NFTs, developer tools, speaker insights, \
-or actionable takeaways specific to the event content below.
-
-{luma_context}
-
-Return ONLY the wisdom summary text. No bullet points, no preamble, no labels.\
-"""
-
-_PROMPT_LUMA_SCOUTING_BRIEF = """\
-You are an autonomous AI agent that has been assigned to scout an upcoming professional event \
-on Luma before it takes place.
-You have access to the event details published so far.
-Generate a concise "Pre-Event Scouting Brief" — exactly 2-3 sentences — that:
-1. Identifies the most likely key topics, trends, or technologies to be discussed
-2. Highlights why this event is strategically relevant to a blockchain AI agent
-3. Ends with one sharp question or angle the agent should probe during the event
-
-{luma_context}
-
-Return ONLY the scouting brief text. No bullet points, no preamble, no labels.\
-"""
-
 _FALLBACK_TEMPLATE = (
     "Agent '{agent_name}' attended '{event_title}' on {platform} and integrated "
     "key insights into its knowledge base. Core Web3 and agentic concepts from the "
@@ -210,19 +183,6 @@ try:
 except ImportError:
     _YT_AVAILABLE = False
     logger.warning("youtube-transcript-api not installed — transcript fetch disabled")
-
-try:
-    from services.luma_service import (
-        build_luma_context,
-        extract_youtube_from_luma,
-        fetch_luma_event,
-        is_luma_url,
-    )
-    _LUMA_AVAILABLE = True
-except ImportError:
-    _LUMA_AVAILABLE = False
-    logger.warning("luma_service not available — Luma event enrichment disabled")
-
 
 def _extract_video_id(url: str) -> str | None:
     """Extract YouTube video ID from watch, live, shorts, embed, or youtu.be URLs."""
@@ -765,18 +725,12 @@ async def summarize_event(
     event_url: str,
     platform: str,
     agent_name: str = "Agent",
-    luma_event_data: dict | None = None,
-    luma_status: str | None = None,
 ) -> str:
     """
-    Call Gemini to produce a wisdom summary or scouting brief.
+    Call Gemini to produce a wisdom summary for an attended YouTube event.
 
-    Prompt selection (priority order):
-      1. Luma FUTURE event (luma_status='scheduled') → Scouting Brief prompt (0 XP)
-      2. YouTube event → transcript fetch → RICH prompt
-      3. Luma PAST/PRESENT event with Luma context → LUMA RICH prompt
-      4. Luma PAST event where meeting_url is YouTube → SUPER RICH (transcript + Luma context)
-      5. All others → metadata-only prompt
+    Fetches the video transcript when available and uses it for a content-grounded
+    prompt; falls back to a metadata-only prompt when no transcript is available.
 
     Returns a graceful fallback string on timeout or API error — minting continues.
     """
@@ -788,89 +742,20 @@ async def summarize_event(
             agent_name=agent_name, event_title=event_title, platform=platform
         )
 
-    # ── Branch 1: Luma future event → Scouting Brief (no transcript needed) ──
-    if luma_status == "scheduled" and luma_event_data and _LUMA_AVAILABLE:
-        luma_context = build_luma_context(luma_event_data)
-        logger.info("Luma SCOUTING BRIEF mode for '%s' (event not yet started)", event_title)
-        payload = {
-            "contents": [{"parts": [{"text": _PROMPT_LUMA_SCOUTING_BRIEF.format(luma_context=luma_context)}]}],
-            "generationConfig": {"temperature": 0.75, "maxOutputTokens": 400, "topP": 0.9},
-        }
-        try:
-            data = await _call_gemini_with_retry(
-                api_key, payload, timeout=25.0, context=f"scouting brief ('{event_title}')"
-            )
-            parts = data["candidates"][0]["content"]["parts"]
-            return next(
-                (p["text"].strip() for p in reversed(parts) if p.get("text", "").strip()),
-                _FALLBACK_TEMPLATE.format(agent_name=agent_name, event_title=event_title, platform=platform),
-            )
-        except Exception as exc:
-            logger.error("Scouting brief failed for '%s': %s", event_title, exc.__class__.__name__)
-            return _FALLBACK_TEMPLATE.format(agent_name=agent_name, event_title=event_title, platform=platform)
-
-    # ── Branch 2: YouTube transcript fetch (direct YouTube URL) ──────────────
-    transcript: str | None = None
-    is_youtube = platform.lower() == "youtube" or any(
-        h in event_url for h in ("youtube.com", "youtu.be")
-    )
-    if is_youtube:
-        transcript = await _fetch_youtube_transcript(event_url)
-        if transcript:
-            logger.info(
-                "Transcript fetched for '%s' (%d chars) — using rich prompt",
-                event_title, len(transcript),
-            )
-        else:
-            logger.info("No transcript for '%s' — falling back to metadata-only prompt", event_title)
-
-    # ── Branch 3 & 4: Luma past/present event ────────────────────────────────
-    luma_context: str | None = None
-    if not transcript and _LUMA_AVAILABLE:
-        is_luma = platform.lower() == "luma" or is_luma_url(event_url)
-        if is_luma:
-            if luma_event_data:
-                # Branch 4: YouTube cascade — Luma event streamed on YouTube
-                yt_url = extract_youtube_from_luma(luma_event_data)
-                if yt_url and _YT_AVAILABLE:
-                    transcript = await _fetch_youtube_transcript(yt_url)
-                    if transcript:
-                        logger.info(
-                            "SUPER RICH mode: Luma + YouTube transcript for '%s' (%d chars)",
-                            event_title, len(transcript),
-                        )
-                luma_context = build_luma_context(luma_event_data)
-                logger.info("Using pre-fetched Luma data for '%s' (%d chars)", event_title, len(luma_context))
-            else:
-                try:
-                    fetched = await fetch_luma_event(event_url)
-                    yt_url = extract_youtube_from_luma(fetched)
-                    if yt_url and _YT_AVAILABLE:
-                        transcript = await _fetch_youtube_transcript(yt_url)
-                    luma_context = build_luma_context(fetched)
-                    logger.info(
-                        "Luma event fetched for '%s' (%d chars) — using rich prompt",
-                        event_title, len(luma_context),
-                    )
-                except Exception as exc:
-                    logger.info(
-                        "Luma fetch skipped for '%s' (%s) — falling back to metadata-only",
-                        event_title, exc,
-                    )
+    transcript = await _fetch_youtube_transcript(event_url)
+    if transcript:
+        logger.info(
+            "Transcript fetched for '%s' (%d chars) — using rich prompt",
+            event_title, len(transcript),
+        )
+    else:
+        logger.info("No transcript for '%s' — falling back to metadata-only prompt", event_title)
 
     # ── Prompt selection ──────────────────────────────────────────────────────
-    if transcript and luma_context:
-        # SUPER RICH: combine Luma context header + YouTube transcript body
-        combined = f"{luma_context}\n\nLive Stream Transcript:\n{transcript}"
-        prompt = _PROMPT_WITH_LUMA_CONTENT.format(luma_context=combined)
-        max_tokens = 512
-    elif transcript:
+    if transcript:
         prompt = _PROMPT_WITH_TRANSCRIPT.format(
             event_title=event_title, platform=platform, transcript=transcript,
         )
-        max_tokens = 512
-    elif luma_context:
-        prompt = _PROMPT_WITH_LUMA_CONTENT.format(luma_context=luma_context)
         max_tokens = 512
     else:
         prompt = _PROMPT_METADATA_ONLY.format(
