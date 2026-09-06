@@ -62,7 +62,7 @@ describe('computeScoutRelevance', () => {
     )
   })
 
-  it('gives a platform boost to YouTube/Luma over other platforms', () => {
+  it('gives a platform boost to YouTube over other platforms', () => {
     const agent = makeAgent()
     const youtube = makeEvent({ platform: 'YouTube', title: '', summary: '' })
     const eventbrite = makeEvent({ platform: 'Eventbrite', title: '', summary: '' })

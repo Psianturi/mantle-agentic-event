@@ -51,9 +51,6 @@ export interface Agent {
   parentNames?: { parent_1: string; parent_2: string }
   lineageBiography?: string
   spawnedOnV4?: boolean
-  lumaConnected?: boolean
-  lumaConnectedAt?: number
-  lumaLastRsvpAt?: number
   skillScores?: Record<string, number>
 }
 
@@ -75,7 +72,7 @@ export interface ScoutLogEntry {
 export interface ScoutedEvent {
   id: string
   title: string
-  platform: 'YouTube' | 'Luma' | 'Eventbrite' | 'Zoom'
+  platform: 'YouTube' | 'Eventbrite' | 'Zoom'
   url: string
   date: number
   description: string
@@ -140,11 +137,10 @@ export interface Event {
   chainId?: number
   url: string
   title: string
-  platform: 'YouTube' | 'Luma' | 'Eventbrite' | 'Zoom'
+  platform: 'YouTube' | 'Eventbrite' | 'Zoom'
   date: number
   summary: string
   status: 'pending' | 'completed' | 'failed' | 'scheduled'
-  lumaStartAt?: string   // ISO 8601 event start — only for Luma future events
 }
 
 export interface NFT {

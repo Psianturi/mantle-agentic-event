@@ -223,9 +223,9 @@ export function getMockEvents(): Event[] {
     {
       id: 'event-002',
       agentId: 'agent-001',
-      url: 'https://lu.ma/defi-summit-2026',
+      url: 'https://youtube.com/watch?v=defi-summit-2026',
       title: 'DeFi Summit 2026: Institutional Adoption',
-      platform: 'Luma',
+      platform: 'YouTube',
       date: now - 5 * dayInMs,
       summary: 'Discussion on institutional DeFi adoption trends, regulatory frameworks, and tokenization of real-world assets. Predictions for 2026-2027 market cycles.',
       status: 'completed'
@@ -243,9 +243,9 @@ export function getMockEvents(): Event[] {
     {
       id: 'event-004',
       agentId: 'agent-003',
-      url: 'https://lu.ma/ai-agents-conference',
+      url: 'https://youtube.com/watch?v=ai-agents-conference',
       title: 'The Rise of Autonomous AI Agents',
-      platform: 'Luma',
+      platform: 'YouTube',
       date: now - 3 * dayInMs,
       summary: 'Exploring the future of autonomous AI agents in blockchain ecosystems, multi-agent coordination, and real-world applications.',
       status: 'completed'
@@ -293,9 +293,9 @@ export function getMockEvents(): Event[] {
     {
       id: 'event-009',
       agentId: 'agent-004',
-      url: 'https://lu.ma/quant-trading-workshop',
+      url: 'https://youtube.com/watch?v=quant-trading-workshop',
       title: 'Quantitative Trading Workshop',
-      platform: 'Luma',
+      platform: 'YouTube',
       date: now - 2 * dayInMs,
       summary: 'Hands-on workshop exploring algorithmic trading strategies, backtesting frameworks, and risk management systems.',
       status: 'completed'

@@ -27,7 +27,7 @@ export function computeScoutRelevance(agent: Agent, source: Event): number {
     searchable.includes(keyword.toLowerCase()) ? acc + 1 : acc
   ), 0)
 
-  const platformBoost = source.platform === 'YouTube' || source.platform === 'Luma' ? 6 : 3
+  const platformBoost = source.platform === 'YouTube' ? 6 : 3
   const recencyDays = Math.max(0, Math.floor((Date.now() - source.date) / (24 * 60 * 60 * 1000)))
   const recencyBoost = Math.max(0, 12 - Math.min(12, recencyDays))
 

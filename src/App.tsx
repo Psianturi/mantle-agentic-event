@@ -443,12 +443,7 @@ function App() {
         platform: normalizePlatform(item.platform),
         date: item.attendedAt > 0 ? item.attendedAt * 1000 : Date.now(),
         summary: item.wisdomSummary,
-        status: deriveEventStatus(
-          normalizePlatform(item.platform),
-          item.lumaStatus,
-          item.lumaStartAt,
-        ),
-        lumaStartAt: item.lumaStartAt,
+        status: 'completed',
       }))
 
       const restoredNFTs: NFT[] = cloudHistory
@@ -648,11 +643,10 @@ function App() {
     } catch { return 'Event' }
   }
 
-  const derivePlatformFromUrl = (url: string): 'YouTube' | 'Luma' | 'Eventbrite' | 'Zoom' => {
+  const derivePlatformFromUrl = (url: string): 'YouTube' | 'Eventbrite' | 'Zoom' => {
     try {
       const host = new URL(url).hostname.replace('www.', '')
       if (host.includes('youtube') || host.includes('youtu.be')) return 'YouTube'
-      if (host.includes('lu.ma') || host.includes('luma.com')) return 'Luma'
       if (host.includes('eventbrite')) return 'Eventbrite'
       if (host.includes('zoom')) return 'Zoom'
       return 'YouTube'  // safe default
@@ -660,25 +654,10 @@ function App() {
   }
 
   const normalizePlatform = (platform: string): Event['platform'] => {
-    if (platform === 'Luma' || platform === 'Eventbrite' || platform === 'Zoom') {
+    if (platform === 'Eventbrite' || platform === 'Zoom') {
       return platform
     }
     return 'YouTube'
-  }
-
-  const deriveEventStatus = (
-    platform: Event['platform'],
-    lumaStatus?: 'scheduled' | 'completed' | 'unknown',
-    lumaStartAt?: string,
-  ): Event['status'] => {
-    if (platform !== 'Luma') return 'completed'
-    if (!lumaStartAt) return lumaStatus === 'scheduled' ? 'scheduled' : 'completed'
-
-    const startMs = new Date(lumaStartAt).getTime()
-    if (Number.isNaN(startMs)) {
-      return lumaStatus === 'scheduled' ? 'scheduled' : 'completed'
-    }
-    return startMs > Date.now() ? 'scheduled' : 'completed'
   }
 
   const handleAttendEvent = async () => {
@@ -743,25 +722,6 @@ function App() {
       addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Connecting to Agent Engine (Cloud Run)...`, 'info')
       await new Promise(resolve => setTimeout(resolve, 400))
 
-      // ── Luma RSVP: auto-register if agent has Luma session + URL is Luma ──
-      if (platform === 'Luma' && !agent.lumaConnected) {
-        addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Luma event detected — connect Luma account to enable autonomous RSVP`, 'info')
-      }
-      if (platform === 'Luma' && agent.lumaConnected) {
-        addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Luma event detected — initiating autonomous RSVP...`, 'info')
-        try {
-          const rsvpResult = await cloudRunService.lumaRsvp(agent.id, eventUrl.trim())
-          if (rsvpResult.rsvp_confirmed) {
-            addLog(agent.id, 'secretary', `[${agent.name} - Secretary] RSVP confirmed for "${rsvpResult.event_title || eventTitle}"`, 'success')
-          } else {
-            addLog(agent.id, 'secretary', `[${agent.name} - Secretary] RSVP status: ${rsvpResult.status}`, 'warning')
-          }
-        } catch (rsvpErr) {
-          // Non-fatal: RSVP failure doesn't block Scouting Brief processing
-          addLog(agent.id, 'secretary', `[${agent.name} - Secretary] RSVP skipped — ${rsvpErr instanceof Error ? rsvpErr.message : 'connection error'}`, 'warning')
-        }
-      }
-
       addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Sending event to Gemini AI for analysis...`, 'info')
       addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Preparing on-chain mint. NFT recipient: ${agent.walletAddress.slice(0, 10)}...${agent.walletAddress.slice(-4)}`, 'info')
       toast.info('Processing event...', { description: 'Gemini AI is analyzing. This takes 15-40s.' })
@@ -780,31 +740,19 @@ function App() {
         modeB: true,  // Enable autonomous signing by default for demo impact
       })
 
-      const isScoutingBrief = result.lumaStatus === 'scheduled'
-      const resolvedTitle = result.txHash ? eventTitle : eventTitle  // title may have been resolved by backend
+      const resolvedTitle = eventTitle
       const signingMode = result.txHash ? (result.txHash.includes('agent') ? 'Agent' : 'Backend') : 'Unknown'
 
-      if (isScoutingBrief) {
-        addLog(agent.id, 'secretary', `[${agent.name} - Secretary] Future Luma event detected — switching to Scouting mode`, 'info')
-        addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Pre-Event Scouting Brief generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
-        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Scouting Brief saved — no NFT minted until event completes.`, 'info')
-        toast.success(`Scouting Brief registered for "${resolvedTitle}"`, {
-          description: `Future event — agent prepared a predictive analysis. No XP until event completes.`,
-        })
-      } else {
-        addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Wisdom generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
-        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Transaction signed by ${signingMode}. TX: ${result.txHash.slice(0, 18)}...`, 'info')
-        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on ${agentChain?.shortName ?? 'chain'}! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
-        addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units`, 'info')
-      }
+      addLog(agent.id, 'scribe', `[${agent.name} - Scribe] Wisdom generated: "${result.wisdomSummary.slice(0, 80)}..."`, 'success')
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Transaction signed by ${signingMode}. TX: ${result.txHash.slice(0, 18)}...`, 'info')
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] NFT minted on ${agentChain?.shortName ?? 'chain'}! Token #${result.tokenId} | Block ${result.blockNumber}`, 'success')
+      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] Gas used: ${Number(result.gasUsed || 0).toLocaleString()} units`, 'info')
 
       const nicheTag = agent.niche === 'Blockchain/DeFi' ? '#DeFi #Web3 #Mantle' : agent.niche === 'Trading/Investment' ? '#Trading #Crypto #DeFi' : agent.niche === 'Technology' ? '#Tech #AI #Web3' : '#Health #Wellness #Web3'
       const shortWisdom = result.wisdomSummary.length > 110 ? result.wisdomSummary.slice(0, 110) + '…' : result.wisdomSummary
-      if (!isScoutingBrief) {
-        const socialPostText = `My AI agent ${agent.name} just attended "${resolvedTitle}" and minted a Proof-of-Attendance NFT on @MantleNetwork!\n\nKey insight: "${shortWisdom}"\n\nNFT #${result.tokenId} ${nicheTag} #MAEF`
-        setLastSocialPost({ agentId: agent.id, text: socialPostText, eventTitle: resolvedTitle })
-        addLog(agent.id, 'social-lite', `[${agent.name} - Social-Lite] Post draft ready for "${resolvedTitle}"`, 'success')
-      }
+      const socialPostText = `My AI agent ${agent.name} just attended "${resolvedTitle}" and minted a Proof-of-Attendance NFT on @MantleNetwork!\n\nKey insight: "${shortWisdom}"\n\nNFT #${result.tokenId} ${nicheTag} #MAEF`
+      setLastSocialPost({ agentId: agent.id, text: socialPostText, eventTitle: resolvedTitle })
+      addLog(agent.id, 'social-lite', `[${agent.name} - Social-Lite] Post draft ready for "${resolvedTitle}"`, 'success')
 
       const newEvent: Event = {
         id: `event-${Date.now()}`,
@@ -815,8 +763,7 @@ function App() {
         platform,
         date: Date.now(),
         summary: result.wisdomSummary,
-        status: deriveEventStatus(platform, result.lumaStatus, result.lumaStartAt),
-        lumaStartAt: result.lumaStartAt,
+        status: 'completed',
       }
 
       const newNFT: NFT = {
@@ -833,13 +780,8 @@ function App() {
         imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT',
       }
 
-      // Scouting Brief: 0 XP — eventsAttended and level unchanged
-      const newEventsAttended = isScoutingBrief
-        ? agent.eventsAttended
-        : (result.newTotalEvents ?? (agent.eventsAttended + 1))
-      const newLevel = isScoutingBrief
-        ? agent.level
-        : (result.newLevel ?? (result.levelUp ? agent.level + 1 : agent.level))
+      const newEventsAttended = result.newTotalEvents ?? (agent.eventsAttended + 1)
+      const newLevel = result.newLevel ?? (result.levelUp ? agent.level + 1 : agent.level)
       let refreshedBalance: number | undefined
       try {
         const nextBalance = await blockchain.getBalance(agent.walletAddress, agentChainId)
@@ -849,7 +791,7 @@ function App() {
       }
 
       setEvents(c => [...(c ?? []), newEvent])
-      if (!isScoutingBrief) setNFTs(c => [...(c ?? []), newNFT])
+      setNFTs(c => [...(c ?? []), newNFT])
       setAgents(c => (c ?? []).map(a =>
         a.id === agent.id
           ? {
