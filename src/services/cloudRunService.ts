@@ -998,10 +998,33 @@ export const cloudRunService = {
     return handleAPIResponse<BackendProposal[]>(response)
   },
 
-  async approveProposal(proposalId: string): Promise<BackendProposal> {
+  async createProposalApprovalChallenge(proposalId: string): Promise<{
+    nonce: string
+    message: string
+    expires_at: number
+  }> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/proposals/${encodeURIComponent(proposalId)}/approval-challenge`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    )
+    return handleAPIResponse<{ nonce: string; message: string; expires_at: number }>(response)
+  },
+
+  async approveProposal(
+    proposalId: string,
+    authorization: { nonce: string; signerWallet: string; signature: string },
+  ): Promise<BackendProposal> {
     const response = await fetchWithTimeout(
       `${GCP_BACKEND_URL}/api/v1/proposals/${encodeURIComponent(proposalId)}/approve`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nonce: authorization.nonce,
+          signer_wallet: authorization.signerWallet,
+          signature: authorization.signature,
+        }),
+      },
     )
     return handleAPIResponse<BackendProposal>(response)
   },

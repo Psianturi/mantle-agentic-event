@@ -114,9 +114,14 @@ GET  /api/v1/event/list?wallet=...      List all events for a wallet
 ```
 POST /api/v1/agent/{id}/propose         Generate a new strategic proposal (Gemini)
 GET  /api/v1/agent/{id}/proposals       List pending and executed proposals
-POST /api/v1/agent/{id}/proposals/{pid}/execute   Execute approved proposal on-chain
+POST /api/v1/proposals/{id}/approval-challenge    Create a one-time wallet-signature challenge
+POST /api/v1/proposals/{id}/approve               Execute a signed owner-approved proposal on-chain
 POST /api/v1/agent/{id}/proposals/{pid}/reject    Reject proposal (mark as rejected)
 ```
+
+`POST /api/v1/proposals/{id}/approve` requires `{ nonce, signer_wallet, signature }`.
+The connected owner wallet signs the server-issued challenge; a challenge is bound to
+one proposal, expires after 10 minutes, and cannot be replayed.
 
 ### Public (no auth)
 

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Agent, BackendProposal } from '@/lib/types'
 import { cloudRunService } from '@/services/cloudRunService'
+import { mantleService } from '@/lib/blockchain/mantleService'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -87,6 +88,7 @@ function ProposalCard({
   const isRejected = proposal.status === 'rejected'
   const isExpired = proposal.status === 'expired'
   const isPending = proposal.status === 'pending'
+  const isApproving = proposal.status === 'approving'
 
   return (
     <motion.div
@@ -117,6 +119,11 @@ function ProposalCard({
                 <Clock size={10} />
                 {formatTTL(proposal.expires_at)}
               </span>
+            )}
+            {isApproving && (
+              <Badge className="text-[10px] font-bold px-2 py-0 bg-amber-500/15 text-amber-400 border-amber-500/30">
+                Approval in progress
+              </Badge>
             )}
             {isApproved && (
               <Badge className="text-[10px] font-bold px-2 py-0 bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
@@ -316,7 +323,10 @@ export function ProposalModal({ open, onOpenChange, agent, onProposalCountChange
   const handleApprove = async (proposal: BackendProposal) => {
     setActioningId(proposal.proposal_id)
     try {
-      const updated = await cloudRunService.approveProposal(proposal.proposal_id)
+      const challenge = await cloudRunService.createProposalApprovalChallenge(proposal.proposal_id)
+      const signedAuthorization = await mantleService.signMessage(challenge.message)
+      const authorization = { ...signedAuthorization, nonce: challenge.nonce }
+      const updated = await cloudRunService.approveProposal(proposal.proposal_id, authorization)
       const next = proposals.map(p => p.proposal_id === updated.proposal_id ? updated : p)
       setProposals(next)
       notifyCount(next)

@@ -297,6 +297,17 @@ export class MantleBlockchainService {
     }
   }
 
+  async signMessage(message: string): Promise<{ signerWallet: string; signature: string }> {
+    if (!this.signer) {
+      throw new Error('Wallet signer is not initialized. Please reconnect your wallet.')
+    }
+
+    return {
+      signerWallet: await this.signer.getAddress(),
+      signature: await this.signer.signMessage(message),
+    }
+  }
+
   async getBalance(address: string, chainId = this.currentChainId): Promise<string> {
     try {
       const chain = this.getChainConfig(chainId)

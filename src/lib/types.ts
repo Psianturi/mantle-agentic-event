@@ -98,7 +98,7 @@ export interface BackendProposal {
   description: string
   category: 'defi' | 'governance' | 'education' | 'community'
   proposal_hash: string
-  status: 'pending' | 'approved' | 'rejected' | 'expired'
+  status: 'pending' | 'approving' | 'approved' | 'rejected' | 'expired'
   created_at: number
   expires_at: number
   tx_hash?: string
