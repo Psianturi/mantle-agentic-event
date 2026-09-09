@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Toaster } from '@/components/ui/sonner'
 import { Agent, NFT, TerminalLog, Event, SubAgentType, AgentProposal, MarketplaceAgent } from '@/lib/types'
-import { getMockAgents, getMockNFTs, getMockEvents, getMockProposals, getMockMarketplaceAgents } from '@/lib/mockData'
 import { cn } from '@/lib/utils'
 import { buildScoutedOpportunities } from '@/lib/scoutUtils'
 import { AnalyticsView } from '@/views/AnalyticsView'
@@ -32,8 +31,6 @@ import { FeaturedWisdomFeed, type WisdomFeedItem } from '@/components/FeaturedWi
 import { ContractDeploymentProgress } from '@/components/ContractDeploymentProgress'
 import { ContractVerificationTracker } from '@/components/ContractVerificationTracker'
 import { AgentEvolutionDialog } from '@/components/AgentEvolutionDialog'
-import { PendingProposals } from '@/components/PendingProposals'
-import { TransactionSignatureModal } from '@/components/TransactionSignatureModal'
 import { TopUpGasDialog } from '@/components/TopUpGasDialog'
 import { GenesisMintConfirmation } from '@/components/GenesisMintConfirmation'
 import { SecurityAuditLog } from '@/components/SecurityAuditLog'
@@ -41,7 +38,7 @@ import { GlobalSecurityAuditLog } from '@/components/GlobalSecurityAuditLog'
 import { AgentBreedingDialog } from '@/components/AgentBreedingDialog'
 import { ProactiveScoutingPanel } from '@/components/ProactiveScoutingPanel'
 import { ProposalModal } from '@/components/ProposalModal'
-import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, ShieldWarning, Storefront, Newspaper, Binoculars, House } from '@phosphor-icons/react'
+import { Robot, Wallet as WalletIcon, ChartLine, Globe, Plus, Brain, CloudArrowUp, FlowArrow, ShieldCheck, Storefront, Newspaper, Binoculars, House } from '@phosphor-icons/react'
 import maefLogo from '@/assets/maef-logo.png'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
@@ -57,13 +54,6 @@ import { NetworkMismatchAlert } from '@/components/NetworkMismatchAlert'
 import { DEFAULT_CHAIN_ID, getChain } from '@/lib/blockchain/chains'
 import { useNavigate } from 'react-router-dom'
 
-const simulationMessages = [
-  { type: 'secretary', messages: ['Scanning YouTube for new videos...', 'Checking channel uploads...', 'Watching latest livestream...', 'Queueing next video for analysis...'] },
-  { type: 'scribe', messages: ['Transcribing YouTube podcast...', 'Extracting key insights from video...', 'Analyzing speaker sentiment...', 'Processing audio content...'] },
-  { type: 'social-lite', messages: ['Monitoring Telegram channel...', 'Checking Discord notifications...', 'Analyzing community sentiment...', 'Engaging with community members...'] },
-  { type: 'mint-master', messages: ['Estimating Mantle gas fees...', 'Optimizing transaction parameters...', 'Preparing NFT metadata...', 'Calculating optimal mint timing...'] }
-]
-
 function App() {
   const navigate = useNavigate()
   type PendingAttendContext = {
@@ -74,10 +64,6 @@ function App() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [nfts, setNFTs] = useState<NFT[]>([])
   const [events, setEvents] = useState<Event[]>([])
-  const [mockAgents, setMockAgents] = useState<Agent[]>(() => getMockAgents())
-  const [mockNFTs, setMockNFTs] = useState<NFT[]>(() => getMockNFTs())
-  const [mockEvents, setMockEvents] = useState<Event[]>(() => getMockEvents())
-  const [mockProposals, setMockProposals] = useState<AgentProposal[]>(() => getMockProposals())
   const [logs, setLogs] = useState<TerminalLog[]>([])
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string>()
@@ -191,45 +177,7 @@ function App() {
   const [featuredWisdom, setFeaturedWisdom] = useState<WisdomFeedItem[]>([])
   const [featuredWisdomLoading, setFeaturedWisdomLoading] = useState(false)
   const blockchain = useBlockchain()
-  const [useMockData, setUseMockData] = useState(false)
 
-  useEffect(() => {
-    if (!useMockData) {
-      return
-    }
-
-    const interval = setInterval(() => {
-      if (agents && agents.length > 0) {
-        const activeAgents = agents.filter(a => a.status !== 'idle')
-        const targetAgent = activeAgents.length > 0 
-          ? activeAgents[Math.floor(Math.random() * activeAgents.length)]
-          : agents[Math.floor(Math.random() * agents.length)]
-        
-        const randomSubAgentType = simulationMessages[Math.floor(Math.random() * simulationMessages.length)]
-        const randomMessage = randomSubAgentType.messages[Math.floor(Math.random() * randomSubAgentType.messages.length)]
-        
-        const agentName = targetAgent.name
-        const formattedMessage = `[${agentName} - ${randomSubAgentType.type}] ${randomMessage}`
-        
-        const newLog: TerminalLog = {
-          id: `sim-log-${Date.now()}-${Math.random()}`,
-          agentId: targetAgent.id,
-          subAgentType: randomSubAgentType.type as SubAgentType,
-          message: formattedMessage,
-          timestamp: Date.now(),
-          type: Math.random() > 0.85 ? 'success' : 'info'
-        }
-        
-        setLogs((current) => {
-          const newLogs = [...current, newLog]
-          return newLogs.slice(-50)
-        })
-      }
-    }, 2500 + Math.random() * 2000)
-    
-    return () => clearInterval(interval)
-  }, [agents, useMockData])
-  
   const [spawnDialogOpen, setSpawnDialogOpen] = useState(false)
   const [wisdomDialogOpen, setWisdomDialogOpen] = useState(false)
   const [configDialogOpen, setConfigDialogOpen] = useState(false)
@@ -237,8 +185,6 @@ function App() {
   const [nftMetadataDialogOpen, setNFTMetadataDialogOpen] = useState(false)
   const [batchIPFSDialogOpen, setBatchIPFSDialogOpen] = useState(false)
   const [evolutionDialogOpen, setEvolutionDialogOpen] = useState(false)
-  const [signatureModalOpen, setSignatureModalOpen] = useState(false)
-  const [selectedProposal, setSelectedProposal] = useState<AgentProposal | null>(null)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null)
   const [eventUrl, setEventUrl] = useState('')
@@ -267,7 +213,7 @@ function App() {
   const [genesisMintDialogOpen, setGenesisMintDialogOpen] = useState(false)
   const [selectedAgentForTopUp, setSelectedAgentForTopUp] = useState<Agent | null>(null)
   const [pendingAttendContext, setPendingAttendContext] = useState<PendingAttendContext | null>(null)
-  const [marketplaceAgents, setMarketplaceAgents] = useLocalStorage<MarketplaceAgent[]>('maef-marketplace', getMockMarketplaceAgents())
+  const [marketplaceAgents, setMarketplaceAgents] = useLocalStorage<MarketplaceAgent[]>('maef-marketplace', [])
   const [purchasingAgentId, setPurchasingAgentId] = useState<string | null>(null)
   const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
   const [proposalModalAgent, setProposalModalAgent] = useState<Agent | null>(null)
@@ -285,13 +231,13 @@ function App() {
   
   const { tasks, startWorkflow, clearTasks } = useSubAgentTasks(activeAgentId, isProcessingEvent)
   const [replenishMap, setReplenishMap] = useLocalStorage<Record<string, boolean>>('maef-auto-replenish', {})
-  const displayedAgents = (useMockData ? mockAgents : (agents ?? [])).map(a => ({
+  const displayedAgents = (agents ?? []).map(a => ({
     ...a,
     autoReplenishGas: replenishMap?.[a.id] ?? a.autoReplenishGas ?? false
   }))
-  const displayedNFTs = useMockData ? mockNFTs : (nfts ?? [])
-  const displayedEvents = useMockData ? mockEvents : (events ?? [])
-  const displayedProposals = useMockData ? mockProposals : (proposals ?? [])
+  const displayedNFTs = nfts ?? []
+  const displayedEvents = events ?? []
+  const displayedProposals = proposals ?? []
 
   const handleHealthConfirmed = () => {
     setBackendConnected(true)
@@ -318,30 +264,6 @@ function App() {
       .catch(() => setFeaturedWisdom([]))
       .finally(() => setFeaturedWisdomLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Secret hotkey: press M three times within 1s to toggle mock mode
-  useEffect(() => {
-    let presses = 0
-    let timer: ReturnType<typeof setTimeout>
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'M' && e.shiftKey && !e.ctrlKey && !e.altKey) {
-        presses++
-        clearTimeout(timer)
-        if (presses >= 3) {
-          presses = 0
-          setUseMockData(m => {
-            const next = !m
-            toast(next ? '🔧 Mock mode ON' : '🌐 Live mode ON', { duration: 2000 })
-            return next
-          })
-        } else {
-          timer = setTimeout(() => { presses = 0 }, 1000)
-        }
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => { window.removeEventListener('keydown', handler); clearTimeout(timer) }
-  }, [])
 
   const handleSwitchNetwork = async () => {
     const eth = (window as any).okxwallet ?? (window as any).ethereum
@@ -667,32 +589,6 @@ function App() {
     setIsProcessingEvent(true)
     setActiveAgentId(agent.id)
     startWorkflow()
-
-    if (useMockData) {
-      // ── Mock / offline fallback (dev only) ──────────────────────────────
-      addLog(agent.id, 'secretary', `[${agent.name} - Secretary] [MOCK] Joining event: ${eventUrl}`, 'info')
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      addLog(agent.id, 'scribe', `[${agent.name} - Scribe] [MOCK] Generating AI summary...`, 'info')
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] [MOCK] Simulating NFT mint...`, 'info')
-      await new Promise(resolve => setTimeout(resolve, 1500))
-
-      const mockTx = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
-      const newEvent: Event = { id: `event-${Date.now()}`, agentId: agent.id, url: eventUrl.trim(), title: eventTitle, platform, date: Date.now(), summary: '[MOCK] AI summary placeholder.', status: 'completed' }
-      const newNFT: NFT = { id: `nft-${Date.now()}`, agentId: agent.id, eventId: newEvent.id, eventTitle, summary: newEvent.summary, date: Date.now(), transactionHash: mockTx, tokenId: `${1000 + displayedNFTs.length + 1}`, imageUrl: 'https://placehold.co/400x400/1a1b3a/00f3ff?text=MAEF+NFT' }
-      const newEventsAttended = agent.eventsAttended + 1
-
-      setMockEvents(c => [...c, newEvent])
-      setMockNFTs(c => [...c, newNFT])
-      setMockAgents(c => c.map(a => a.id === agent.id ? { ...a, eventsAttended: newEventsAttended, level: Math.floor(newEventsAttended / 2) + 1, wisdomUnlocked: newEventsAttended >= 5 } : a))
-      setEventUrl('')
-      setIsProcessingEvent(false)
-      setActiveAgentId(null)
-      clearTasks()
-      addLog(agent.id, 'mint-master', `[${agent.name} - Mint-Master] [MOCK] NFT simulated. TX: ${mockTx.slice(0, 16)}...`, 'success')
-      toast.success('[MOCK] Event simulated (no real tx)', { description: 'Switch to Live mode for real blockchain minting.' })
-      return
-    }
 
     // ── Real backend flow ─────────────────────────────────────────────────
     try {
@@ -1103,33 +999,8 @@ function App() {
     setEvolutionDialogOpen(true)
   }
 
-  const handleOpenSignatureModal = (proposal: AgentProposal) => {
-    setSelectedProposal(proposal)
-    setSignatureModalOpen(true)
-  }
-
-  const handleConfirmProposal = (proposalId: string) => {
-    const updateProposals = useMockData ? setMockProposals : setProposals
-    updateProposals((current) =>
-      (current ?? []).map((p) =>
-        p.id === proposalId ? { ...p, status: 'approved', executionDetails: {
-          transactionHash: `0x${Array.from({ length: 64 }, () =>
-            Math.floor(Math.random() * 16).toString(16)
-          ).join('')}`,
-          result: 'Transaction executed successfully on Mantle Network',
-          executedAt: Date.now()
-        } } : p
-      )
-    )
-    
-    toast.success('Proposal Executed', {
-      description: 'Transaction has been broadcasted to Mantle Network',
-    })
-  }
-
   const handleApproveProposal = (proposalId: string) => {
-    const updateProposals = useMockData ? setMockProposals : setProposals
-    updateProposals((current) =>
+    setProposals((current) =>
       (current ?? []).map((p) =>
         p.id === proposalId ? { ...p, status: 'approved' } : p
       )
@@ -1137,8 +1008,7 @@ function App() {
   }
 
   const handleRejectProposal = (proposalId: string) => {
-    const updateProposals = useMockData ? setMockProposals : setProposals
-    updateProposals((current) =>
+    setProposals((current) =>
       (current ?? []).map((p) =>
         p.id === proposalId ? { ...p, status: 'rejected' } : p
       )
@@ -1314,9 +1184,6 @@ function App() {
       ]
 
   const isViewOnly = !walletConnected
-  const visiblePendingProposals = displayedProposals.filter((proposal) =>
-    proposal.status === 'pending' && displayedAgents.some((agent) => agent.id === proposal.agentId)
-  )
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
@@ -1572,29 +1439,6 @@ function App() {
                 />
               ))}
 
-              {visiblePendingProposals.length > 0 && (
-                <div className="space-y-4">
-                  <Card className="p-4 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-2 border-amber-500/30 shadow-lg shadow-amber-500/10">
-                    <div className="flex items-start gap-3">
-                      <ShieldWarning size={28} weight="duotone" className="text-amber-500 flex-shrink-0 mt-0.5 animate-pulse" />
-                      <div className="flex-1">
-                        <h4 className="font-bold text-amber-500 mb-1 text-lg">⚠️ Human-in-the-Loop Active</h4>
-                        <p className="text-sm text-foreground/90">
-                          Your agents <span className="font-semibold">cannot move funds or execute trades without your explicit wallet signature</span>. All proposed actions below require your approval through a secure transaction signing process.
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <PendingProposals
-                    proposals={visiblePendingProposals}
-                    agents={displayedAgents}
-                    onApprove={handleApproveProposal}
-                    onReject={handleRejectProposal}
-                    onOpenSignatureModal={handleOpenSignatureModal}
-                  />
-                </div>
-              )}
 
               <div>
                 <div className="flex items-center justify-between mb-4">
@@ -1892,15 +1736,6 @@ function App() {
         events={events ?? []}
         agents={agents ?? []}
         onBatchComplete={handleBatchIPFSComplete}
-      />
-
-      <TransactionSignatureModal
-        open={signatureModalOpen}
-        onOpenChange={setSignatureModalOpen}
-        proposal={selectedProposal}
-        onConfirm={handleConfirmProposal}
-        onCancel={() => setSignatureModalOpen(false)}
-        walletAddress={walletAddress}
       />
 
       <AgentBreedingDialog
