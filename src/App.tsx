@@ -211,7 +211,6 @@ function App() {
   const [selectedAgentForTopUp, setSelectedAgentForTopUp] = useState<Agent | null>(null)
   const [pendingAttendContext, setPendingAttendContext] = useState<PendingAttendContext | null>(null)
   const [marketplaceAgents, setMarketplaceAgents] = useLocalStorage<MarketplaceAgent[]>('maef-marketplace', [])
-  const [purchasingAgentId, setPurchasingAgentId] = useState<string | null>(null)
   const [breedingDialogOpen, setBreedingDialogOpen] = useState(false)
   const [proposalModalAgent, setProposalModalAgent] = useState<Agent | null>(null)
   const [proposalCounts, setProposalCounts] = useState<Record<string, number>>({})
@@ -989,42 +988,6 @@ function App() {
     )
   }
 
-  const handleBuyAgent = async (marketplaceAgent: MarketplaceAgent) => {
-    if (!walletConnected) {
-      toast.error('Please connect your wallet first!')
-      return
-    }
-
-    if ((userBalance ?? 0) < marketplaceAgent.price) {
-      toast.error('Insufficient balance!', {
-        description: `You need ${marketplaceAgent.price} MNT but only have ${(userBalance ?? 0).toFixed(2)} MNT`
-      })
-      return
-    }
-
-    setPurchasingAgentId(marketplaceAgent.id)
-
-    await new Promise(resolve => setTimeout(resolve, 2000))
-
-    const newAgent: Agent = {
-      ...marketplaceAgent,
-      ownershipStatus: 'marketplace-acquired',
-      autoReplenishGas: false
-    }
-
-    setAgents((current) => [...(current ?? []), newAgent])
-    setMarketplaceAgents((current) => (current ?? []).filter(a => a.id !== marketplaceAgent.id))
-    setUserBalance((current) => (current ?? 0) - marketplaceAgent.price)
-
-    setPurchasingAgentId(null)
-
-    toast.success('Purchase Successful! Identity Wiped. Wisdom Inherited.', {
-      description: `Agent "${marketplaceAgent.name}" is now yours!`
-    })
-
-    addLog(newAgent.id, 'secretary', `[SYSTEM] Agent "${newAgent.name}" purchased. Memory reset, wisdom data preserved.`, 'success')
-  }
-
   const handleToggleAutoReplenish = (agent: Agent, enabled: boolean) => {
     setReplenishMap(prev => ({ ...(prev ?? {}), [agent.id]: enabled }))
     setAgents((current) =>
@@ -1643,11 +1606,7 @@ function App() {
 
 
           {mainView === 'marketplace' && (
-            <MarketplaceView
-              marketplaceAgents={marketplaceAgents ?? []}
-              purchasingAgentId={purchasingAgentId}
-              onBuy={handleBuyAgent}
-            />
+            <MarketplaceView marketplaceAgents={marketplaceAgents ?? []} />
           )}
 
 

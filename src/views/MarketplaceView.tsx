@@ -15,11 +15,9 @@ interface MarketplaceFiltersState {
 
 interface MarketplaceViewProps {
   marketplaceAgents: MarketplaceAgent[]
-  purchasingAgentId: string | null
-  onBuy: (agent: MarketplaceAgent) => void
 }
 
-export function MarketplaceView({ marketplaceAgents, purchasingAgentId, onBuy }: MarketplaceViewProps) {
+export function MarketplaceView({ marketplaceAgents }: MarketplaceViewProps) {
   const [marketplaceFilters, setMarketplaceFilters] = useState<MarketplaceFiltersState>({
     generation: [],
     niche: [],
@@ -124,12 +122,7 @@ export function MarketplaceView({ marketplaceAgents, purchasingAgentId, onBuy }:
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAndSortedMarketplace().map((agent) => (
-            <MarketplaceAgentCard
-              key={agent.id}
-              agent={agent}
-              onBuy={onBuy}
-              isPurchasing={purchasingAgentId === agent.id}
-            />
+            <MarketplaceAgentCard key={agent.id} agent={agent} />
           ))}
         </div>
       )}

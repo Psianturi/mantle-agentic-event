@@ -11,8 +11,6 @@ import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/
 
 interface MarketplaceAgentCardProps {
   agent: MarketplaceAgent
-  onBuy: (agent: MarketplaceAgent) => void
-  isPurchasing?: boolean
 }
 
 const NICHE_ICON: Record<string, string> = {
@@ -63,7 +61,7 @@ function ValueRow({
   )
 }
 
-export function MarketplaceAgentCard({ agent, onBuy, isPurchasing }: MarketplaceAgentCardProps) {
+export function MarketplaceAgentCard({ agent }: MarketplaceAgentCardProps) {
   const rarityTier = calculateRarityTier(agent as any)
   const rarityStyles = getRarityStyles(rarityTier)
   const rarityLabel = getRarityLabel(rarityTier)
