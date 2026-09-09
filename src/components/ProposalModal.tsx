@@ -197,8 +197,10 @@ function ProposalCard({
                 {proposal.autonomous_transfer_status === 'success' ? 'View Transfer' : 'View Tx'}
                 <ArrowSquareOut size={10} />
               </a>
-            ) : (
+            ) : proposal.autonomous_execution_triggered ? (
               <span className="text-[10px] text-violet-400/60 font-mono">pending…</span>
+            ) : (
+              <span className="text-[10px] text-muted-foreground font-mono">disabled by policy</span>
             )}
           </div>
           <p className="text-[11px] text-violet-300/70 mt-1 leading-relaxed">
@@ -206,7 +208,9 @@ function ProposalCard({
               ? `Agent autonomously transferred ${proposal.autonomous_transfer_amount_mnt ?? 0.1} MNT to Autonomous Vault`
               : proposal.autonomous_transfer_status === 'failed'
               ? 'Transfer failed — check agent gas balance'
-              : 'Agent wallet signing native MNT transfer to Autonomous Vault…'}
+              : proposal.autonomous_execution_triggered
+              ? 'Agent wallet signing native MNT transfer to Autonomous Vault…'
+              : 'Autonomous fund transfer is not configured — no transfer will occur.'}
           </p>
         </motion.div>
       )}
