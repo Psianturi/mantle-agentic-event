@@ -225,12 +225,6 @@ export interface MarketplaceFilters {
   sortBy?: 'price-asc' | 'price-desc' | 'level-desc' | 'generation-desc' | 'wisdom-desc' | 'rarity-desc'
 }
 
-export interface GasPriceInfo {
-  current: number
-  status: 'low' | 'medium' | 'high'
-  timestamp: number
-}
-
 export interface BreedingPair {
   parent1: Agent
   parent2: Agent

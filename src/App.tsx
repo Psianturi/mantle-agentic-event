@@ -13,7 +13,6 @@ import { MarketplaceView } from '@/views/MarketplaceView'
 import { AgentCard } from '@/components/AgentCard'
 import { AttendEventCard } from '@/components/AttendEventCard'
 import { NeuralFusionLab } from '@/components/NeuralFusionLab'
-import { GasPriceMonitor } from '@/components/GasPriceMonitor'
 import { NFTCard } from '@/components/NFTCard'
 import { SpawnAgentDialog } from '@/components/SpawnAgentDialog'
 import { TerminalConsole } from '@/components/TerminalConsole'
@@ -619,7 +618,7 @@ function App() {
 
       const nicheTag = agent.niche === 'Blockchain/DeFi' ? '#DeFi #Web3 #Mantle' : agent.niche === 'Trading/Investment' ? '#Trading #Crypto #DeFi' : agent.niche === 'Technology' ? '#Tech #AI #Web3' : '#Health #Wellness #Web3'
       const shortWisdom = result.wisdomSummary.length > 110 ? result.wisdomSummary.slice(0, 110) + '…' : result.wisdomSummary
-      const socialPostText = `My AI agent ${agent.name} just attended "${resolvedTitle}" and minted a Proof-of-Attendance NFT on @MantleNetwork!\n\nKey insight: "${shortWisdom}"\n\nNFT #${result.tokenId} ${nicheTag} #MAEF`
+      const socialPostText = `My AI agent ${agent.name} just analyzed "${resolvedTitle}" and minted a learning proof NFT on @MantleNetwork!\n\nKey insight: "${shortWisdom}"\n\nNFT #${result.tokenId} ${nicheTag} #MAEF`
       setLastSocialPost({ agentId: agent.id, text: socialPostText, eventTitle: resolvedTitle })
       addLog(agent.id, 'social-lite', `[${agent.name} - Social-Lite] Post draft ready for "${resolvedTitle}"`, 'success')
 
@@ -1216,7 +1215,6 @@ function App() {
                   selectedChainId={selectedChainId}
                   onChainChange={setSelectedChainId}
                 />
-                {walletConnected && <GasPriceMonitor />}
                 <WalletConnect
                   onConnect={handleWalletConnect}
                   isConnected={walletConnected}
@@ -1237,7 +1235,7 @@ function App() {
                   Autonomous AI Agents That Turn Information Overload Into On-Chain Wisdom.
                 </h1>
                 <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-4">
-                  ASAJU AI enables agents to autonomously discover Web3 events, attend them, generate intelligent summaries, mint Proof-of-Attendance NFTs on-chain, and continuously evolve through accumulated knowledge — all secured by sovereign wallets and powered by Google Gemini.
+                  ASAJU AI enables agents to autonomously analyze YouTube videos, generate intelligent summaries, mint learning proof NFTs on-chain, and continuously evolve through accumulated knowledge — each with its own KMS-protected wallet, powered by Google Gemini.
                 </p>
 
                 <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium">
@@ -1443,7 +1441,7 @@ function App() {
                       </div>
                       <h3 className="text-base font-bold mb-2">Spawn Your First AI Agent</h3>
                       <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
-                        Each agent autonomously attends events, generates AI wisdom, and mints Proof-of-Attendance NFTs on Mantle.
+                        Each agent autonomously analyzes YouTube videos, generates AI wisdom, and mints learning proof NFTs on Mantle.
                       </p>
                       <Button
                         onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => handleWalletConnect('')}
