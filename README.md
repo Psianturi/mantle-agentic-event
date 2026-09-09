@@ -1,6 +1,6 @@
-# ASAJU AI
+# ASAJU 
 
-ASAJU AI is a **testnet prototype for autonomous knowledge agents**. A user creates an agent with an independent wallet and gas reserve; the agent analyses selected YouTube content, retains a learning history, and records an on-chain attestation of that work.
+ASAJU is a **testnet prototype for autonomous knowledge agents**. A user creates an agent with an independent wallet and gas reserve; the agent analyses selected YouTube content, retains a learning history, and records an on-chain attestation of that work.
 
 The original **MAEF** contract name remains in source code and deployed contracts.
 
@@ -113,15 +113,21 @@ Agent levels are derived from accumulated successful mint records. They are a tr
 - The deployed Cloud Run revision booted without import traceback, reached FastAPI startup completion, and exposes a healthy `/health` response.
 - This verifies the build and runtime boot path. It does **not** yet prove that the post-cleanup production write path (`POST /api/v1/event/attend` -> Gemini -> mint -> Firestore) has completed a fresh successful transaction.
 
+### Verified this cleanup round (9 Sep 2026)
+
+- **Proposal approval now requires an owner-wallet signature.** `POST /approval-challenge` issues a single-use, 10-minute nonce bound to the proposal hash and the agent's recorded owner wallet. `POST /approve` recovers the signer from an EIP-191 signature, checks it against both the claimed wallet and the recorded owner, then atomically consumes the challenge before calling Web3/KMS — a replayed signature cannot trigger re-execution. Verified with a real local `pytest` run (not just static checks): 15/15 backend tests pass, including two new regression tests asserting an invalid signature never reaches `web3_service` and a replayed nonce is rejected with `401`.
+- **IPFS removed entirely**, not just disabled. The removed browser-side service built an Infura Basic Auth header from `VITE_IPFS_PROJECT_ID`/`VITE_IPFS_PROJECT_SECRET` — since Vite inlines every `VITE_*` value into the production bundle, those credentials shipped to every visitor. Confirmed via a production build diff (values present in `dist/assets/*.js` before the fix, absent after). The feature was never wired to the production mint path (V4's `tokenURI()` is level-based, not per-token), so removal has no functional loss.
+- **All simulated/fabricated success states removed from the frontend:** the old proposal "Sign & Execute" modal only ran a `setTimeout` and never called a wallet; a legacy handler generated a random fake transaction hash on approval; the Marketplace's Buy/List flow mutated local state after a delay with no wallet interaction; a gas-price display generated its numbers with `Math.random()`. All of these have been deleted rather than left dormant, so they cannot be reactivated with a stray UI change.
+
 ### Remaining work
 
 1. **End-to-end write-path proof:** execute and record a reproducible YouTube attend -> Mode B mint -> Firestore smoke test on the current deployment.
-2. **Wallet authorization hardening:** protect state-changing and cost-incurring API calls with wallet-signature-based authorization; a wallet address or agent ID alone must not be treated as identity.
+2. **`reject_proposal` authorization:** the same challenge/signature mechanism used for approval has not yet been applied to rejection. Impact is low (no funds or keys are touched), but the inconsistency should be closed.
 3. **Wallet compatibility:** improve injected EIP-1193 provider selection and replace MetaMask-specific UI language where appropriate.
-4. **IPFS upload boundary:** move provider credentials and uploads behind a server-side or short-lived signed-upload boundary. Do not expose project secrets through frontend environment variables.
-5. **Metric reconciliation:** `total_wisdom_nfts` and `total_events_attended` currently come from different Firestore sources and should not be compared as equivalent counts.
-6. **Frontend maintainability:** [`src/App.tsx`](src/App.tsx) remains a large state-and-handler surface and has no frontend test suite.
-7. **Wisdom Digest decision:** periodic synthesis is a proposed product direction, not a deployed feature. Its trigger, cadence, and scope must be decided before implementation.
+4. **Metric reconciliation:** `total_wisdom_nfts` and `total_events_attended` currently come from different Firestore sources and should not be compared as equivalent counts.
+5. **Frontend maintainability:** [`src/App.tsx`](src/App.tsx) remains a large state-and-handler surface and has no frontend test suite.
+6. **Wisdom Digest decision:** periodic synthesis is a proposed product direction, not a deployed feature. Its trigger, cadence, and scope must be decided before implementation.
+7. **Shared gas-status cache:** each agent card polls its own gas balance independently; a shared per-`(wallet, chain)` cache would cut redundant backend/RPC calls when the same agent renders in multiple places.
 
 
 
@@ -326,14 +332,10 @@ The production Python 3.11 container has successfully built and booted after the
 ## Roadmap and Decision Gates
 
 1. **Publish a reproducible write-path proof:** record the source URL, transaction hash, token ID, and persisted event record from one current production run.
-2. **Harden user authorization:** introduce wallet-signature sessions, ownership checks on every mutable route, on-chain receipt verification for funding, and rate limits for LLM-backed calls.
-3. **Protect IPFS uploads:** replace browser-embedded provider credentials with a server-side or signed-upload design.
+2. **Finish user authorization hardening:** proposal approval is wallet-signature-gated and verified (see above); rejection and any future mutable routes still need the same treatment, plus distributed rate limiting once Cloud Run scales beyond one instance.
+3. **Build the Market Data Layer:** CoinGecko + CoinMarketCap-backed price/sentiment context for agent research, cached server-side (keys live in GCP Secret Manager, never in `VITE_*`).
 4. **Decide Wisdom Digest before building it:** choose time-based, threshold-based, or hybrid triggering; choose a cadence; and decide whether the unit is per agent or per agent-and-topic. No digest implementation has started.
 5. **Design policy-constrained execution only after the above:** no real-fund trading or autonomous treasury action is currently enabled. `AUTONOMOUS_VAULT_ADDRESS` remains intentionally unset.
-6. **Improve product reliability:** wallet compatibility, metric reconciliation, `App.tsx` decomposition, and a frontend test suite.
+6. **Improve product reliability:** wallet compatibility, metric reconciliation, shared gas-status cache, `App.tsx` decomposition, and a frontend test suite.
+7. **Navigation/IA redesign:** deferred until Wisdom Digest and Market Data Layer are settled, so the dashboard structure is designed once for the product's near-final shape rather than twice.
 
-## Artizen Submission Positioning
-
-ASAJU is best presented as an autonomous knowledge-agent prototype for AI users who understand blockchain basics. It demonstrates how an agent can develop a persistent learning history, use a dedicated wallet, and produce inspectable on-chain records while keeping consequential actions under human control.
-
-For a submission, lead with the user problem and outcome, then link the live app, contract explorers, a short end-to-end demo video, and one reproducible transaction. Do not lead with ERC-721A, fee mechanics, or an unqualified claim of autonomous trading.
