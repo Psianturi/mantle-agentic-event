@@ -113,9 +113,6 @@ export interface MissionStatusResponse {
     transactionHash?: string
     tokenId?: string
     gasUsed?: number
-    metadataURI?: string
-    imageCID?: string
-    metadataCID?: string
   }
   error?: string
 }

@@ -21,15 +21,8 @@ export const config = {
     factoryAddress: import.meta.env.VITE_AGENT_FACTORY_CONTRACT_ADDRESS || '',
   },
 
-  ipfs: {
-    gatewayUrl: import.meta.env.VITE_IPFS_GATEWAY_URL || 'https://ipfs.io',
-    apiUrl: import.meta.env.VITE_IPFS_API_URL || 'http://localhost:5001',
-  },
-
   features: {
-    useMockData: import.meta.env.DEV && !import.meta.env.VITE_GCP_BACKEND_URL,
     enableBlockchain: import.meta.env.VITE_ENABLE_BLOCKCHAIN !== 'false',
-    enableIpfs: import.meta.env.VITE_ENABLE_IPFS !== 'false',
     enableBreeding: import.meta.env.VITE_ENABLE_BREEDING !== 'false',
     enableMarketplace: import.meta.env.VITE_ENABLE_MARKETPLACE !== 'false',
     enablePolling: true,

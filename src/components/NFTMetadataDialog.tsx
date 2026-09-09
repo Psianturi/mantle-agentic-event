@@ -83,59 +83,6 @@ export function NFTMetadataDialog({ open, onOpenChange, nft }: NFTMetadataDialog
                 <p className="text-lg font-mono font-semibold text-secondary">#{nft.tokenId}</p>
               </div>
 
-              {nft.metadataCID && (
-                <div className="glass-card p-4 rounded-lg border border-primary/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-mono text-muted-foreground uppercase tracking-wider">Metadata CID (IPFS)</h3>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => copyToClipboard(nft.metadataCID!, 'metadataCID')}
-                      className="h-7 px-2"
-                    >
-                      {copiedField === 'metadataCID' ? (
-                        <Check className="text-green-500" size={16} />
-                      ) : (
-                        <Copy size={16} />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-sm font-mono text-accent break-all">{nft.metadataCID}</p>
-                  {nft.metadataURI && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-2 border-accent/30 hover:border-accent/50"
-                      onClick={() => window.open(nft.metadataURI, '_blank')}
-                    >
-                      <ArrowSquareOut className="mr-2" size={16} />
-                      View on IPFS
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {nft.imageCID && (
-                <div className="glass-card p-4 rounded-lg border border-primary/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-mono text-muted-foreground uppercase tracking-wider">Image CID (IPFS)</h3>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => copyToClipboard(nft.imageCID!, 'imageCID')}
-                      className="h-7 px-2"
-                    >
-                      {copiedField === 'imageCID' ? (
-                        <Check className="text-green-500" size={16} />
-                      ) : (
-                        <Copy size={16} />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-sm font-mono text-accent break-all">{nft.imageCID}</p>
-                </div>
-              )}
-
               <div className="glass-card p-4 rounded-lg border border-primary/20">
                 <h3 className="text-sm font-mono text-muted-foreground uppercase tracking-wider mb-2">Summary</h3>
                 <p className="text-sm leading-relaxed">{nft.summary}</p>
@@ -163,7 +110,7 @@ export function NFTMetadataDialog({ open, onOpenChange, nft }: NFTMetadataDialog
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Storage</p>
                     <Badge variant="outline" className="border-accent/30 text-accent">
-                      IPFS
+                      On-chain
                     </Badge>
                   </div>
                   <div>

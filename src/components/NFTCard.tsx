@@ -53,12 +53,6 @@ export function NFTCard({ nft, onClick }: NFTCardProps) {
             <div className="px-2 py-1 rounded-md bg-primary/20 backdrop-blur-sm border border-primary/40 text-xs font-mono text-primary font-semibold">
               MANTLE NFT
             </div>
-            {nft.metadataCID && (
-              <div className="px-2 py-1 rounded-md bg-accent/20 backdrop-blur-sm border border-accent/40 text-xs font-mono text-accent font-semibold flex items-center gap-1">
-                <Database size={12} weight="duotone" />
-                IPFS
-              </div>
-            )}
           </div>
         </div>
 

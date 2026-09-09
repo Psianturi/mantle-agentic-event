@@ -60,7 +60,6 @@ export function ArchitectureFlow({ currentPhase = 0 }: ArchitectureFlowProps) {
       color: 'from-accent to-accent/50',
       details: [
         'AI summarization of event',
-        'IPFS metadata upload',
         'NFT minting on Mantle',
         'Transaction confirmation'
       ]

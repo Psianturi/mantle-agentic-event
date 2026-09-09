@@ -1,7 +1,6 @@
 import { ethers, BrowserProvider, Contract, JsonRpcProvider, TransactionReceipt } from 'ethers'
 import { GAS_LIMITS } from './config'
 import { MAEF_NFT_ABI } from './abi'
-import { ipfsService } from '@/lib/ipfs/ipfsService'
 import { DEFAULT_CHAIN_ID, getChain } from './chains'
 
 type EthProvider = {
@@ -62,24 +61,6 @@ export function detectWallets(): DetectedWallet[] {
 // Priority: OKX Wallet → Bitget Wallet → window.ethereum (MetaMask, Rabby, Coinbase, etc.)
 function resolveProvider(): EthProvider | undefined {
   return window.okxwallet ?? window.bitkeep?.ethereum ?? window.ethereum
-}
-
-export interface MintNFTParams {
-  agentWallet: string
-  eventTitle: string
-  eventUrl: string
-  platform: string
-  agentName: string
-  summary: string
-  niche?: string
-}
-
-export interface NFTMintResult {
-  success: boolean
-  tokenId?: string
-  transactionHash?: string
-  error?: string
-  gasUsed?: string
 }
 
 export interface SpawnAgentOnChainResult {
@@ -316,111 +297,6 @@ export class MantleBlockchainService {
     }
   }
 
-  async mintNFT(params: MintNFTParams): Promise<NFTMintResult> {
-    if (!this.contract) {
-      return this.mockMintNFT(params)
-    }
-
-    try {
-      const metadataURI = await this.uploadMetadataToIPFS(params)
-      // Store metadataURI via setBaseMetadataURI after deploy, or pass via backend
-      // ERC721A contract uses dynamic tokenURI based on agent level
-
-      const tx = await this.contract.mintAttendanceNFT(
-        params.agentWallet,
-        params.eventTitle,
-        params.eventUrl,
-        params.platform,
-        params.agentName,
-        params.summary,
-        params.niche || 'General',
-        { gasLimit: GAS_LIMITS.MINT_NFT }
-      )
-
-      const receipt: TransactionReceipt = await tx.wait()
-
-      const mintEvent = receipt.logs
-        .map(log => {
-          try {
-            return this.contract?.interface.parseLog({
-              topics: [...log.topics],
-              data: log.data
-            })
-          } catch {
-            return null
-          }
-        })
-        .find(event => event?.name === 'NFTMinted')
-
-      const tokenId = mintEvent?.args?.[0]?.toString() || '0'
-      const gasUsed = receipt.gasUsed.toString()
-      const gasPrice = receipt.gasPrice || BigInt(0)
-      const gasCost = (Number(gasUsed) * Number(gasPrice)) / 1e18
-
-      return {
-        success: true,
-        tokenId,
-        transactionHash: receipt.hash,
-        gasUsed: gasCost.toFixed(6)
-      }
-    } catch (error) {
-      console.error('NFT minting error:', error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred'
-      }
-    }
-  }
-
-  private mockMintNFT(params: MintNFTParams): Promise<NFTMintResult> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const tokenId = Math.floor(Math.random() * 10000) + 1000
-        const mockTxHash = `0x${Array.from({ length: 64 }, () =>
-          Math.floor(Math.random() * 16).toString(16)
-        ).join('')}`
-        const gasUsed = (Math.random() * 0.005 + 0.008).toFixed(6)
-
-        resolve({
-          success: true,
-          tokenId: tokenId.toString(),
-          transactionHash: mockTxHash,
-          gasUsed
-        })
-      }, 2000)
-    })
-  }
-
-  private async uploadMetadataToIPFS(params: MintNFTParams): Promise<string> {
-    if (!ipfsService.isInitialized()) {
-      // Fallback to mock URI if IPFS not configured (dev mode)
-      const mockHash = `Qm${Array.from({ length: 44 }, () =>
-        '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'[
-          Math.floor(Math.random() * 58)
-        ]
-      ).join('')}`
-      console.warn('IPFS not configured — using mock URI for dev mode')
-      return `ipfs://${mockHash}`
-    }
-
-    const metadata = {
-      name: `${params.eventTitle} - Proof of Attendance`,
-      description: `${params.agentName} attended ${params.eventTitle} on ${params.platform}. ${params.summary}`,
-      image: `https://placehold.co/600x600/1a1b3a/00f3ff?text=MAEF+POA&font=montserrat`,
-      attributes: [
-        { trait_type: 'Agent Name', value: params.agentName },
-        { trait_type: 'Agent Wallet', value: params.agentWallet },
-        { trait_type: 'Event Platform', value: params.platform },
-        { trait_type: 'Event URL', value: params.eventUrl },
-        { trait_type: 'Timestamp', value: Date.now() }
-      ],
-      summary: params.summary
-    }
-
-    const result = await ipfsService.uploadJSON(metadata)
-    return `ipfs://${result.cid}`
-  }
-
   async getBalance(address: string, chainId = this.currentChainId): Promise<string> {
     try {
       const chain = this.getChainConfig(chainId)
@@ -430,34 +306,6 @@ export class MantleBlockchainService {
     } catch (error) {
       console.error('Error fetching balance:', error)
       return '0.0'
-    }
-  }
-
-  async estimateGas(params: MintNFTParams): Promise<string> {
-    if (!this.contract) {
-      const mockGas = (Math.random() * 0.005 + 0.008).toFixed(6)
-      return mockGas
-    }
-
-    try {
-      const gasEstimate = await this.contract.mintAttendanceNFT.estimateGas(
-        params.agentWallet,
-        params.eventTitle,
-        params.eventUrl,
-        params.platform,
-        params.agentName,
-        params.summary,
-        params.niche || 'General'
-      )
-
-      const gasPrice = await this.provider?.getFeeData()
-      const gasCost =
-        (Number(gasEstimate) * Number(gasPrice?.gasPrice || 0)) / 1e18
-
-      return gasCost.toFixed(6)
-    } catch (error) {
-      console.error('Gas estimation error:', error)
-      return '0.01'
     }
   }
 

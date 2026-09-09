@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { mantleService, MintNFTParams, NFTMintResult } from '@/lib/blockchain/mantleService'
+import { mantleService } from '@/lib/blockchain/mantleService'
 
 export interface BlockchainState {
   isConnected: boolean
@@ -60,24 +60,6 @@ export function useBlockchain() {
     })
   }, [])
 
-  const mintNFT = useCallback(
-    async (params: MintNFTParams): Promise<NFTMintResult> => {
-      if (!state.isConnected) {
-        throw new Error('Wallet not connected')
-      }
-
-      return await mantleService.mintNFT(params)
-    },
-    [state.isConnected]
-  )
-
-  const estimateGas = useCallback(
-    async (params: MintNFTParams): Promise<string> => {
-      return await mantleService.estimateGas(params)
-    },
-    []
-  )
-
   const refreshBalance = useCallback(async (chainId?: number) => {
     if (state.address) {
       const balance = await mantleService.getBalance(state.address, chainId)
@@ -103,8 +85,6 @@ export function useBlockchain() {
     ...state,
     connectWallet,
     disconnectWallet,
-    mintNFT,
-    estimateGas,
     refreshBalance,
     getExplorerUrl,
     getAddressExplorerUrl,

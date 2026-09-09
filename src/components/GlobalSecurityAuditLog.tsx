@@ -36,8 +36,7 @@ const generateMockEntries = (agents: Agent[]): SecurityAuditEntry[] => {
       'New agent spawned and deployed to Mantle Network.',
       'Event attendance completed and NFT minted.',
       'Wisdom threshold reached - strategic analysis available.',
-      'Sub-agent delegation workflow completed.',
-      'IPFS metadata uploaded successfully.'
+      'Sub-agent delegation workflow completed.'
     ]},
     { icon: '⚠️', type: 'governance', severity: 'warning', messages: [
       'Low gas balance detected - replenishment recommended.',
