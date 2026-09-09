@@ -41,10 +41,10 @@ interface ActivityEntry {
 // ── Lifecycle stages (circular loop) ──────────────────────────────────────────
 const LIFECYCLE_STAGES = [
   { icon: Robot, label: 'Create Agent', color: '#00F3FF', angle: 0 },
-  { icon: Binoculars, label: 'Discover Event', color: '#9D00FF', angle: 60 },
-  { icon: Globe, label: 'Attend', color: '#00F3FF', angle: 120 },
+  { icon: Binoculars, label: 'Choose Video', color: '#9D00FF', angle: 60 },
+  { icon: Globe, label: 'Analyze', color: '#00F3FF', angle: 120 },
   { icon: Brain, label: 'Learn', color: '#9D00FF', angle: 180 },
-  { icon: Signature, label: 'Mint Proof', color: '#00F3FF', angle: 240 },
+  { icon: Signature, label: 'Mint Learning Proof', color: '#00F3FF', angle: 240 },
   { icon: Dna, label: 'Evolve', color: '#9D00FF', angle: 300 },
 ]
 
@@ -55,7 +55,7 @@ const PILLARS = [
     color: '#00F3FF',
     title: 'Owns its wallet',
     desc: 'Cryptographic identity, encrypted keys, gas reserve. It signs — not you.',
-    badges: ['KMS-encrypted', 'Self-custody', 'Mode B self-sign'],
+    badges: ['Encrypted key', 'No seed phrase shared', 'Signs its own transactions'],
   },
   {
     icon: Cube,
@@ -127,7 +127,7 @@ export function LandingPage() {
           id: `act-${w.agentId}-${i}`,
           agentName: w.agentName,
           action: 'minted',
-          detail: `Minted Proof-of-Attendance for "${w.eventTitle}"`,
+          detail: `Minted learning proof for "${w.eventTitle}"`,
           chainId: w.chainId ?? 5003,
           timestamp: w.attendedAt * 1000,
         }))
@@ -216,7 +216,7 @@ export function LandingPage() {
                 </h1>
 
                 <p className="text-base sm:text-lg text-slate-400 max-w-xl leading-relaxed mb-8">
-                  Spawn AI agents with their own wallets and gas reserves. They attend events, learn, and mint permanent proof — all signed by themselves.
+                  Spawn AI agents with their own wallets and gas reserves. They analyze YouTube videos, learn, and mint permanent proof — all signed by themselves.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-10">
@@ -285,7 +285,7 @@ export function LandingPage() {
             <p className="text-xs font-mono uppercase tracking-widest text-cyan-400/60 mb-3">Agent Lifecycle</p>
             <h2 className="text-2xl sm:text-4xl font-black mb-3 text-white">From spawn to sovereign</h2>
             <p className="text-sm text-slate-400 max-w-xl mx-auto">
-  Create an agent, discover real-world events, attend autonomously, learn from the experience, mint verifiable proof, and evolve through accumulated knowledge.
+  Create an agent, choose a YouTube video, let it analyze the content, learn from what it found, mint a verifiable learning proof, and evolve through accumulated knowledge.
 </p>
           </div>
 
@@ -484,7 +484,7 @@ export function LandingPage() {
         <section className="max-w-screen-xl mx-auto px-4 sm:px-6 py-20">
           <div className="text-center mb-14">
             <p className="text-xs font-mono uppercase tracking-widest text-violet-400/60 mb-3">Why On-Chain</p>
-            <h2 className="text-2xl sm:text-4xl font-black mb-3 text-white">Not just AI. Sovereign AI.</h2>
+            <h2 className="text-2xl sm:text-4xl font-black mb-3 text-white">Not just AI. An agent with its own wallet.</h2>
             <p className="text-sm text-slate-400 max-w-xl mx-auto">
               Most AI agents live in a database. Yours live on a blockchain.
             </p>

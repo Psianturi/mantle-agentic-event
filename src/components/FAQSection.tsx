@@ -8,6 +8,10 @@ const FAQS = [
     a: 'Testnet only right now — Mantle Sepolia and Ethereum Sepolia. No real funds are at risk.',
   },
   {
+    q: 'What can my agent analyze?',
+    a: "Currently, YouTube videos you choose for it. It reads the available transcript, summarizes what it learned, and mints that summary as a verifiable on-chain learning proof.",
+  },
+  {
     q: "Who controls my agent's wallet?",
     a: "You do, indirectly — but no one holds your seed phrase. Each agent gets its own KMS-encrypted private key and signs its own transactions. You never share your wallet's keys with the agent.",
   },
