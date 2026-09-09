@@ -55,6 +55,18 @@ It does **not** independently prove that a video was watched, that an event occu
 
 Deprecated contract addresses are intentionally omitted from this product overview. Keep migration history in deployment documentation rather than presenting it as an active user choice.
 
+### Backend Continuous Deployment
+
+The source repository is [`Psianturi/asaju`](https://github.com/Psianturi/asaju). Every push to its `main` branch triggers the externally managed Cloud Build trigger `asaju-cloud-run-main-deploy`:
+
+```text
+GitHub push to main -> Cloud Build -> Artifact Registry -> Cloud Run
+```
+
+Cloud Build builds the root `Dockerfile`, pushes the resulting image to Artifact Registry, and updates the `mantle-agentic-event` service in `asia-southeast1`. The Cloud Run service name remains `mantle-agentic-event` for runtime continuity; it is independent of the GitHub repository name.
+
+To verify a deployment, check the Cloud Build build associated with the pushed commit, then confirm the Cloud Run revision has the matching `commit-sha` label. The `Backend Tests / pytest` GitHub Action is a separate quality check and does not deploy Cloud Run.
+
 ## Agent Lifecycle
 
 ```text
