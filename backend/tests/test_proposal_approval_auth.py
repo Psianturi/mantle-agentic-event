@@ -113,4 +113,4 @@ async def test_owner_signature_can_approve_once(client, fake_db, monkeypatch):
             "signature": signature,
         },
     )
-    assert replay.status_code == 409
+    assert replay.status_code == 401

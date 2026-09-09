@@ -15,9 +15,10 @@ import copy
 
 
 class FakeDocSnapshot:
-    def __init__(self, doc_id: str, data: dict | None):
+    def __init__(self, doc_id: str, data: dict | None, reference=None):
         self.id = doc_id
         self._data = data
+        self.reference = reference
         self.exists = data is not None
 
     def to_dict(self) -> dict | None:
@@ -30,7 +31,11 @@ class FakeDocRef:
         self._doc_id = doc_id
 
     async def get(self) -> FakeDocSnapshot:
-        return FakeDocSnapshot(self._doc_id, self._collection._docs.get(self._doc_id))
+        return FakeDocSnapshot(
+            self._doc_id,
+            self._collection._docs.get(self._doc_id),
+            reference=self,
+        )
 
     async def set(self, data: dict) -> None:
         self._collection._docs[self._doc_id] = copy.deepcopy(data)

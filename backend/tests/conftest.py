@@ -56,6 +56,7 @@ def make_agent(
 async def fake_db(monkeypatch):
     db = FakeFirestoreClient()
     monkeypatch.setattr("routers.agents.get_db", lambda: db)
+    monkeypatch.setattr("routers.proposals.get_db", lambda: db)
     yield db
 
 
