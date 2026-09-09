@@ -1,35 +1,29 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Wallet as WalletIcon, Globe, CloudArrowUp, ShieldCheck } from '@phosphor-icons/react'
+import { Wallet as WalletIcon, Globe, ShieldCheck } from '@phosphor-icons/react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { NFTCard } from '@/components/NFTCard'
 import { VerificationDashboard } from '@/components/VerificationDashboard'
-import { Event, NFT } from '@/lib/types'
+import { NFT } from '@/lib/types'
 import { getChain } from '@/lib/blockchain/chains'
 import type { ContractVerificationData } from '@/lib/blockchain/verificationService'
 
 interface VaultViewProps {
-  displayedEvents: Event[]
   displayedNFTs: NFT[]
   selectedChainId: number
   verificationData: ContractVerificationData[] | null
   setMainView: (view: 'dashboard' | 'analytics' | 'vault' | 'marketplace') => void
-  isViewOnly: boolean
   onOpenMetadata: (nft: NFT) => void
-  onOpenBatchIPFS: () => void
   startTransition: React.TransitionStartFunction
 }
 
 export function VaultView({
-  displayedEvents,
   displayedNFTs,
   selectedChainId,
   verificationData,
   setMainView,
-  isViewOnly,
   onOpenMetadata,
-  onOpenBatchIPFS,
   startTransition,
 }: VaultViewProps) {
   const [nftPage, setNftPage] = useState(0)
@@ -61,17 +55,7 @@ export function VaultView({
             </div>
           </div>
         </div>
-        {displayedEvents.filter(e => e.status === 'completed').length > 0 && (
-          <Button
-            onClick={onOpenBatchIPFS}
-            disabled={isViewOnly}
-            size="sm"
-            className="bg-gradient-to-r from-primary to-accent hover:opacity-90 font-semibold shadow-lg shadow-primary/30"
-          >
-            <CloudArrowUp className="mr-2" weight="duotone" size={16} />
-            Batch Upload to IPFS
-          </Button>
-        )}
+        {/* Batch IPFS upload disabled — needs a backend endpoint, not browser credentials */}
       </div>
 
       {

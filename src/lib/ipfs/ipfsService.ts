@@ -1,95 +1,25 @@
 ﻿import { NFTMetadata, IPFSUploadResult } from '../types'
 
-const INFURA_API_BASE = 'https://ipfs.infura.io:5001/api/v0'
+// Browser uploads removed: Vite inlines VITE_* into the bundle, so the Infura
+// credentials shipped to every visitor. Uploads belong behind a backend endpoint.
+const UPLOAD_DISABLED_MESSAGE =
+  'IPFS uploads from the browser are disabled: credentials must never ship to the client. ' +
+  'Use a backend upload endpoint instead.'
 
 class IPFSService {
   private gateway: string
-  private authHeader: string | null = null
 
   constructor() {
     const gatewayEnv = import.meta.env.VITE_IPFS_GATEWAY_URL
     this.gateway = gatewayEnv ? `${gatewayEnv}/ipfs/` : 'https://ipfs.io/ipfs/'
-    this.initializeAuth()
   }
 
-  private initializeAuth() {
-    const projectId = import.meta.env.VITE_IPFS_PROJECT_ID
-    const projectSecret = import.meta.env.VITE_IPFS_PROJECT_SECRET
-
-    if (!projectId || !projectSecret) {
-      console.warn('IPFS credentials not configured. Set VITE_IPFS_PROJECT_ID and VITE_IPFS_PROJECT_SECRET in .env')
-      return
-    }
-
-    this.authHeader = 'Basic ' + btoa(`${projectId}:${projectSecret}`)
+  async uploadJSON(_data: unknown): Promise<IPFSUploadResult> {
+    throw new Error(UPLOAD_DISABLED_MESSAGE)
   }
 
-  private buildHeaders(): HeadersInit {
-    const headers: HeadersInit = {}
-    if (this.authHeader) {
-      headers['Authorization'] = this.authHeader
-    }
-    return headers
-  }
-
-  async uploadJSON(data: unknown): Promise<IPFSUploadResult> {
-    if (!this.authHeader) {
-      throw new Error('IPFS credentials not configured')
-    }
-
-    const jsonString = JSON.stringify(data, null, 2)
-    const blob = new Blob([jsonString], { type: 'application/json' })
-    const formData = new FormData()
-    formData.append('file', blob)
-
-    const response = await fetch(`${INFURA_API_BASE}/add`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: formData,
-    })
-
-    if (!response.ok) {
-      throw new Error(`IPFS upload failed: ${response.status} ${response.statusText}`)
-    }
-
-    const result = await response.json() as { Hash: string; Name: string; Size: string }
-    const cid = result.Hash
-
-    return {
-      cid,
-      path: result.Name,
-      size: parseInt(result.Size, 10),
-      url: `${this.gateway}${cid}`,
-    }
-  }
-
-  async uploadImage(imageBlob: Blob): Promise<IPFSUploadResult> {
-    if (!this.authHeader) {
-      throw new Error('IPFS credentials not configured')
-    }
-
-    const formData = new FormData()
-    formData.append('file', imageBlob, 'nft-image.png')
-
-    const response = await fetch(`${INFURA_API_BASE}/add`, {
-      method: 'POST',
-      headers: this.buildHeaders(),
-      body: formData,
-    })
-
-    if (!response.ok) {
-      throw new Error(`IPFS image upload failed: ${response.status} ${response.statusText}`)
-    }
-
-    const result = await response.json() as { Hash: string; Name: string; Size: string }
-    const cid = result.Hash
-
-    return {
-      cid,
-      path: result.Name,
-      size: parseInt(result.Size, 10),
-      url: `${this.gateway}${cid}`,
-    }
+  async uploadImage(_imageBlob: Blob): Promise<IPFSUploadResult> {
+    throw new Error(UPLOAD_DISABLED_MESSAGE)
   }
 
   async generateNFTImage(metadata: {
@@ -417,8 +347,9 @@ class IPFSService {
     return `${this.gateway}${cid}`
   }
 
+  /** Always false — browser uploads are disabled. */
   isInitialized(): boolean {
-    return this.authHeader !== null
+    return false
   }
 }
 

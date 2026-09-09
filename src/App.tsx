@@ -22,7 +22,6 @@ import { WisdomReportDialog } from '@/components/WisdomReportDialog'
 import { AgentConfigDialog } from '@/components/AgentConfigDialog'
 import { AgentChatDialog } from '@/components/AgentChatDialog'
 import { NFTMetadataDialog } from '@/components/NFTMetadataDialog'
-import { BatchIPFSUploadDialog } from '@/components/BatchIPFSUploadDialog'
 import { DataFlowBackground } from '@/components/DataFlowBackground'
 import { BackendHealthModal } from '@/components/BackendHealthModal'
 import { ArchitectureFlow } from '@/components/ArchitectureFlow'
@@ -43,7 +42,6 @@ import maefLogo from '@/assets/maef-logo.png'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { useBlockchain } from '@/hooks/useBlockchain'
-import { ipfsService } from '@/lib/ipfs/ipfsService'
 import { useSubAgentTasks } from '@/hooks/useSubAgentTasks'
 import { CloudRunAPIError, cloudRunService, validateEventUrl } from '@/services/cloudRunService'
 import { ContractVerificationData, verificationService } from '@/lib/blockchain/verificationService'
@@ -183,7 +181,6 @@ function App() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false)
   const [chatDialogOpen, setChatDialogOpen] = useState(false)
   const [nftMetadataDialogOpen, setNFTMetadataDialogOpen] = useState(false)
-  const [batchIPFSDialogOpen, setBatchIPFSDialogOpen] = useState(false)
   const [evolutionDialogOpen, setEvolutionDialogOpen] = useState(false)
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [selectedNFT, setSelectedNFT] = useState<NFT | null>(null)
@@ -971,29 +968,6 @@ function App() {
     setChatDialogOpen(true)
   }
 
-  const handleBatchIPFSComplete = (results: Array<{
-    eventId: string
-    metadataCID: string
-    imageCID: string
-    metadataURI: string
-  }>) => {
-    setNFTs((current) =>
-      (current ?? []).map((nft) => {
-        const result = results.find(r => r.eventId === nft.eventId)
-        if (result) {
-          return {
-            ...nft,
-            metadataCID: result.metadataCID,
-            imageCID: result.imageCID,
-            metadataURI: result.metadataURI,
-            imageUrl: `https://ipfs.io/ipfs/${result.imageCID}`
-          }
-        }
-        return nft
-      })
-    )
-  }
-
   const handleViewEvolution = (agent: Agent) => {
     setSelectedAgent(agent)
     setEvolutionDialogOpen(true)
@@ -1658,14 +1632,11 @@ function App() {
           {/* -- NFT Vault ------------------------------- */}
           {mainView === 'vault' && (
             <VaultView
-              displayedEvents={displayedEvents}
               displayedNFTs={displayedNFTs}
               selectedChainId={selectedChainId}
               verificationData={verificationData}
               setMainView={setMainView}
-              isViewOnly={isViewOnly}
               onOpenMetadata={(nft) => { setSelectedNFT(nft); setNFTMetadataDialogOpen(true) }}
-              onOpenBatchIPFS={() => setBatchIPFSDialogOpen(true)}
               startTransition={startTransition}
             />
           )}
@@ -1728,14 +1699,6 @@ function App() {
         open={nftMetadataDialogOpen}
         onOpenChange={setNFTMetadataDialogOpen}
         nft={selectedNFT}
-      />
-
-      <BatchIPFSUploadDialog
-        open={batchIPFSDialogOpen}
-        onOpenChange={setBatchIPFSDialogOpen}
-        events={events ?? []}
-        agents={agents ?? []}
-        onBatchComplete={handleBatchIPFSComplete}
       />
 
       <AgentBreedingDialog
