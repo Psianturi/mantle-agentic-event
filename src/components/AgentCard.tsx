@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature, Dna, Lightbulb, Trash, Warning } from '@phosphor-icons/react'
+import { Robot, Lightning, TrendUp, Brain, UserCircle, PencilSimple, ChatCircle, Coins, GearSix, CurrencyCircleDollar, TreeStructure, Wallet, ShoppingCart, Crown, Signature, Dna, Lightbulb, Trash, Warning, Copy, Check } from '@phosphor-icons/react'
 import { motion } from 'framer-motion'
 import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/utils'
 import { GasStatusBadge } from './GasStatusBadge'
@@ -56,6 +56,13 @@ const subAgentLabels = {
 
 export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution, onTopUpGas, onListMarketplace, onToggleAutoReplenish, pendingProposalCount, onOpenProposals, onDeleteAgent, onRetrySpawn }: AgentCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [walletCopied, setWalletCopied] = useState(false)
+
+  const copyWalletAddress = async () => {
+    await navigator.clipboard.writeText(agent.walletAddress)
+    setWalletCopied(true)
+    setTimeout(() => setWalletCopied(false), 1500)
+  }
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
 
@@ -144,9 +151,22 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
                   )}
                 </h3>
                 <div className="flex items-center gap-1.5">
-                  <p className="text-xs text-muted-foreground font-mono">
-                    {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
-                  </p>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); copyWalletAddress() }}
+                          className="flex items-center gap-1 text-xs text-muted-foreground font-mono hover:text-foreground transition-colors"
+                        >
+                          {agent.walletAddress.slice(0, 6)}...{agent.walletAddress.slice(-4)}
+                          {walletCopied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="font-mono text-xs">{walletCopied ? 'Copied!' : `${agent.walletAddress} — click to copy for top-up`}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                   <ChainBadge chainId={(agent as any).chainId ?? DEFAULT_CHAIN_ID} />
                 </div>
               </div>
