@@ -22,8 +22,8 @@ export function AnalyticsView({ agents, events, nfts }: AnalyticsViewProps) {
           <ChartLine className="text-primary" weight="duotone" size={22} />
         </div>
         <div>
-          <h2 className="text-xl font-bold">Event Analytics</h2>
-          <p className="text-sm text-muted-foreground">Agent performance, event trends, platform insights</p>
+          <h2 className="text-xl font-bold">Learning Analytics</h2>
+          <p className="text-sm text-muted-foreground">Agent performance, learning trends, platform insights</p>
         </div>
       </div>
       <AnalyticsCharts agents={agents} events={events} nfts={nfts} />

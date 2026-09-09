@@ -423,7 +423,7 @@ export function SubAgentDelegation({ agents, isActive, currentTasks = [], active
             <div>
               <h3 className="text-lg font-bold">Autonomous Agent Pipeline</h3>
               <p className="text-xs text-muted-foreground">
-                AI agents collaborate to discover events, generate intelligence, and mint on-chain Proof-of-Attendance NFTs.
+                AI agents collaborate to analyze videos, generate intelligence, and mint on-chain learning proof NFTs.
               </p>
             </div>
           </div>

@@ -64,7 +64,7 @@ export function VaultView({
             <WalletIcon size={56} className="mx-auto mb-4 text-muted-foreground opacity-50 animate-float" weight="duotone" />
             <h3 className="text-base font-bold mb-2">No NFTs Yet</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
-              Attend events with your agents to mint Proof-of-Attendance NFTs on {getChain(selectedChainId)?.name ?? 'the selected network'}
+              Have your agents analyze YouTube videos to mint learning proof NFTs on {getChain(selectedChainId)?.name ?? 'the selected network'}
             </p>
             <Button
               onClick={() => startTransition(() => setMainView('dashboard'))}

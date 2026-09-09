@@ -54,7 +54,7 @@ export function AttendEventCard({
         )}
       </h2>
       <p className="text-sm text-muted-foreground mb-4">
-        Choose one of your AI agents, paste a YouTube video URL, and let the agent autonomously watch, analyze the content, and mint an on-chain Proof-of-Attendance NFT.
+        Choose one of your AI agents, paste a YouTube video URL, and let the agent autonomously watch, analyze the content, and mint an on-chain learning proof NFT.
       </p>
       <div className="grid grid-cols-3 gap-3 mb-5">
         <div className="rounded-lg border border-primary/20 p-3 text-center">

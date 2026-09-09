@@ -37,7 +37,7 @@ export function NFTMetadataDialog({ open, onOpenChange, nft }: NFTMetadataDialog
             NFT Metadata
           </DialogTitle>
           <DialogDescription>
-            On-chain proof of attendance details
+            On-chain learning proof details
           </DialogDescription>
         </DialogHeader>
 
@@ -55,7 +55,7 @@ export function NFTMetadataDialog({ open, onOpenChange, nft }: NFTMetadataDialog
 
             <div className="space-y-4">
               <div className="glass-card p-4 rounded-lg border border-primary/20">
-                <h3 className="text-sm font-mono text-muted-foreground uppercase tracking-wider mb-2">Event Title</h3>
+                <h3 className="text-sm font-mono text-muted-foreground uppercase tracking-wider mb-2">Video Title</h3>
                 <p className="text-lg font-semibold">{nft.eventTitle}</p>
               </div>
 

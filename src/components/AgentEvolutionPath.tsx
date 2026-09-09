@@ -12,13 +12,13 @@ const getEvolutionLevels = (agent: Agent): EvolutionLevel[] => {
     {
       level: 1,
       title: 'Event Summarization & NFT Minting',
-      description: 'Basic autonomous event attendance and proof-of-knowledge NFT creation',
+      description: 'Basic autonomous video analysis and learning proof NFT creation',
       eventsRequired: 0,
       unlocked: agent.level >= 1,
       features: [
-        'Attend digital events automatically',
+        'Analyze YouTube videos automatically',
         'Generate AI-powered summaries',
-        'Mint Proof-of-Attendance NFTs',
+        'Mint learning proof NFTs',
         'Basic sub-agent coordination'
       ]
     },
