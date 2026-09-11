@@ -113,3 +113,19 @@ def get_mantle_rpc_url() -> str:
     except RuntimeError:
         logger.warning("MANTLE_RPC_URL secret not found, using public Sepolia RPC")
         return "https://rpc.sepolia.mantle.xyz"
+
+
+def get_coingecko_api_key() -> str | None:
+    """Return COINGECKO_API_KEY if configured, None otherwise (keyless demo calls only)."""
+    try:
+        return _get_secret("COINGECKO_API_KEY")
+    except RuntimeError:
+        return None
+
+
+def get_coinmarketcap_api_key() -> str | None:
+    """Return COINMARKETCAP_API_KEY if configured, None otherwise (CMC endpoints disabled)."""
+    try:
+        return _get_secret("COINMARKETCAP_API_KEY")
+    except RuntimeError:
+        return None
