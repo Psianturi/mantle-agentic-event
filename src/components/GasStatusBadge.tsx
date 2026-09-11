@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Warning, CheckCircle, XCircle } from '@phosphor-icons/react'
-import { monitoringService, GasStatusResponse } from '@/services/monitoringService'
+import { monitoringService } from '@/services/monitoringService'
+import { useGasStatus } from '@/hooks/useGasStatus'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 
@@ -13,32 +13,7 @@ interface GasStatusBadgeProps {
 }
 
 export function GasStatusBadge({ agentWallet, chainId = 5003, className, showLabel = true }: GasStatusBadgeProps) {
-  const [gasStatus, setGasStatus] = useState<GasStatusResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-
-  useEffect(() => {
-    const fetchGasStatus = async () => {
-      try {
-        setLoading(true)
-        setError(false)
-        const status = await monitoringService.getAgentGasStatus(agentWallet, chainId)
-        setGasStatus(status)
-      } catch (err) {
-        console.error('Failed to fetch gas status:', err)
-        setError(true)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchGasStatus()
-    
-    // Poll every 30 seconds
-    const interval = setInterval(fetchGasStatus, 30000)
-    
-    return () => clearInterval(interval)
-  }, [agentWallet, chainId])
+  const { gasStatus, loading, error } = useGasStatus(agentWallet, chainId)
 
   if (loading) {
     return (
