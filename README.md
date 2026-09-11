@@ -55,17 +55,7 @@ It does **not** independently prove that a video was watched, that an event occu
 
 Deprecated contract addresses are intentionally omitted from this product overview. Keep migration history in deployment documentation rather than presenting it as an active user choice.
 
-### Backend Continuous Deployment
-
-The source repository is [`Psianturi/asaju`](https://github.com/Psianturi/asaju). Every push to its `main` branch triggers the externally managed Cloud Build trigger `asaju-cloud-run-main-deploy`:
-
-```text
-GitHub push to main -> Cloud Build -> Artifact Registry -> Cloud Run
-```
-
-Cloud Build builds the root `Dockerfile`, pushes the resulting image to Artifact Registry, and updates the `mantle-agentic-event` service in `asia-southeast1`. The Cloud Run service name remains `mantle-agentic-event` for runtime continuity; it is independent of the GitHub repository name.
-
-To verify a deployment, check the Cloud Build build associated with the pushed commit, then confirm the Cloud Run revision has the matching `commit-sha` label. The `Backend Tests / pytest` GitHub Action is a separate quality check and does not deploy Cloud Run.
+Every push to `main` deploys automatically to Cloud Run.
 
 ## Agent Lifecycle
 
@@ -114,34 +104,6 @@ Agent levels are derived from accumulated successful mint records. They are a tr
 - **Mode B gas autonomy:** agents need native-token balance for autonomous signing. A low balance requires a user-funded top-up before retry.
 - **Auto Scout:** disabled by default and only runs for agents whose owner opted in. Scheduler requests are OIDC-protected.
 - **Content scope:** the backend accepts HTTPS YouTube URLs only. Luma, Eventbrite, and Zoom integrations were removed because they did not have end-to-end integrations.
-
----
-
-## Verification and Known Gaps
-
-### Verified after the YouTube-only cleanup
-
-- Cloud Build successfully installed backend dependencies in the production Python 3.11 image, including `web3` and `eth_account`.
-- The deployed Cloud Run revision booted without import traceback, reached FastAPI startup completion, and exposes a healthy `/health` response.
-- This verifies the build and runtime boot path. It does **not** yet prove that the post-cleanup production write path (`POST /api/v1/event/attend` -> Gemini -> mint -> Firestore) has completed a fresh successful transaction.
-
-### Verified this cleanup round (9 Sep 2026)
-
-- **Proposal approval now requires an owner-wallet signature.** `POST /approval-challenge` issues a single-use, 10-minute nonce bound to the proposal hash and the agent's recorded owner wallet. `POST /approve` recovers the signer from an EIP-191 signature, checks it against both the claimed wallet and the recorded owner, then atomically consumes the challenge before calling Web3/KMS — a replayed signature cannot trigger re-execution. Verified with a real local `pytest` run (not just static checks): 15/15 backend tests pass, including two new regression tests asserting an invalid signature never reaches `web3_service` and a replayed nonce is rejected with `401`.
-- **IPFS removed entirely**, not just disabled. The removed browser-side service built an Infura Basic Auth header from `VITE_IPFS_PROJECT_ID`/`VITE_IPFS_PROJECT_SECRET` — since Vite inlines every `VITE_*` value into the production bundle, those credentials shipped to every visitor. Confirmed via a production build diff (values present in `dist/assets/*.js` before the fix, absent after). The feature was never wired to the production mint path (V4's `tokenURI()` is level-based, not per-token), so removal has no functional loss.
-- **All simulated/fabricated success states removed from the frontend:** the old proposal "Sign & Execute" modal only ran a `setTimeout` and never called a wallet; a legacy handler generated a random fake transaction hash on approval; the Marketplace's Buy/List flow mutated local state after a delay with no wallet interaction; a gas-price display generated its numbers with `Math.random()`. All of these have been deleted rather than left dormant, so they cannot be reactivated with a stray UI change.
-
-### Remaining work
-
-1. **End-to-end write-path proof:** execute and record a reproducible YouTube attend -> Mode B mint -> Firestore smoke test on the current deployment.
-2. **`reject_proposal` authorization:** the same challenge/signature mechanism used for approval has not yet been applied to rejection. Impact is low (no funds or keys are touched), but the inconsistency should be closed.
-3. **Wallet compatibility:** improve injected EIP-1193 provider selection and replace MetaMask-specific UI language where appropriate.
-4. **Metric reconciliation:** `total_wisdom_nfts` and `total_events_attended` currently come from different Firestore sources and should not be compared as equivalent counts.
-5. **Frontend maintainability:** [`src/App.tsx`](src/App.tsx) remains a large state-and-handler surface and has no frontend test suite.
-6. **Wisdom Digest decision:** periodic synthesis is a proposed product direction, not a deployed feature. Its trigger, cadence, and scope must be decided before implementation.
-7. **Shared gas-status cache:** each agent card polls its own gas balance independently; a shared per-`(wallet, chain)` cache would cut redundant backend/RPC calls when the same agent renders in multiple places.
-
-
 
 ---
 
@@ -339,15 +301,10 @@ MINTER_WALLET=0xCBA7951a8b5AE81303AC5E1017e34bF50A342D22 \
 - **Runtime liveness:** [Cloud Run health](https://mantle-agentic-event-21898396920.asia-southeast1.run.app/health)
 - **Contracts:** [Mantle Sepolia explorer](https://explorer.sepolia.mantle.xyz/address/0x66fD8b5411856D42c08D9356e879a6e7dF0c9419) and [Ethereum Sepolia explorer](https://sepolia.etherscan.io/address/0x9FEF11E45cFD550b33F13A31E8d80BE61cda80f4)
 
-The production Python 3.11 container has successfully built and booted after the YouTube-only cleanup. A fresh production write-path transaction after that cleanup remains the next evidence artifact to publish: YouTube source -> Gemini summary -> Mode B mint -> Firestore record.
+## Roadmap
 
-## Roadmap and Decision Gates
-
-1. **Publish a reproducible write-path proof:** record the source URL, transaction hash, token ID, and persisted event record from one current production run.
-2. **Finish user authorization hardening:** proposal approval is wallet-signature-gated and verified (see above); rejection and any future mutable routes still need the same treatment, plus distributed rate limiting once Cloud Run scales beyond one instance.
-3. **Build the Market Data Layer:** CoinGecko + CoinMarketCap-backed price/sentiment context for agent research, cached server-side (keys live in GCP Secret Manager, never in `VITE_*`).
-4. **Decide Wisdom Digest before building it:** choose time-based, threshold-based, or hybrid triggering; choose a cadence; and decide whether the unit is per agent or per agent-and-topic. No digest implementation has started.
-5. **Design policy-constrained execution only after the above:** no real-fund trading or autonomous treasury action is currently enabled. `AUTONOMOUS_VAULT_ADDRESS` remains intentionally unset.
-6. **Improve product reliability:** wallet compatibility, metric reconciliation, shared gas-status cache, `App.tsx` decomposition, and a frontend test suite.
-7. **Navigation/IA redesign:** deferred until Wisdom Digest and Market Data Layer are settled, so the dashboard structure is designed once for the product's near-final shape rather than twice.
+1. **Market intelligence:** bring price and sentiment context (CoinGecko, CoinMarketCap) into agent research.
+2. **Wisdom Digest:** move from one NFT per video toward periodic, synthesized knowledge records — cadence and scope still under decision.
+3. **Policy-constrained execution:** any future real-fund action stays behind explicit, auditable policy limits. No autonomous treasury action is enabled today.
+4. **Product reliability and navigation:** ongoing hardening of wallet compatibility, metrics, and the dashboard's information architecture as the above features settle.
 
