@@ -342,6 +342,31 @@ class Web3Service:
             # Never let a monitoring check break the actual transaction it's guarding.
             logger.warning("MINTER_SERVICE balance health check failed (non-fatal): %s", exc)
 
+    def get_minter_balance_status(self, chain_id: int = 5003) -> dict:
+        """Same threshold logic as check_minter_balance_health, but returns data
+        instead of only logging — for the operator observability endpoint."""
+        try:
+            w3 = self._init_w3(chain_id)
+            contract = self._init_contract(chain_id)
+            private_key = get_minter_service_private_key()
+            minter_address = Account.from_key(private_key).address
+
+            balance_wei = w3.eth.get_balance(minter_address)
+            balance = float(Web3.from_wei(balance_wei, "ether"))
+            spawn_fee_wei = self._read_spawn_fee_wei(contract)
+            spawn_fee = float(Web3.from_wei(spawn_fee_wei, "ether"))
+            threshold = spawn_fee * 4
+
+            return {
+                "chain_id": chain_id,
+                "address": minter_address,
+                "balance": balance,
+                "threshold": threshold,
+                "healthy": balance >= threshold,
+            }
+        except Exception as exc:
+            return {"chain_id": chain_id, "error": str(exc)[:200]}
+
     # ── Synchronous implementations (run in thread pool) ─────────────────────
 
     def _sync_mint(

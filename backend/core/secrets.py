@@ -129,3 +129,12 @@ def get_coinmarketcap_api_key() -> str | None:
         return _get_secret("COINMARKETCAP_API_KEY")
     except RuntimeError:
         return None
+
+
+def get_operator_api_key() -> str | None:
+    """Return OPERATOR_API_KEY — gates the internal-only operator health endpoint.
+    None if unset, which the caller treats as "endpoint disabled", not "open"."""
+    try:
+        return _get_secret("OPERATOR_API_KEY")
+    except RuntimeError:
+        return None
