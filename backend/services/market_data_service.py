@@ -118,19 +118,39 @@ async def get_ohlc(coin_id: str, days: int = 7) -> list:
     return await _cached(key, _TTL_OHLC, fetch)
 
 
-async def get_mantle_dex_pools(page: int = 1) -> list:
-    """Live DEX pool prices on Mantle (GeckoTerminal via CoinGecko). Cached 5 min."""
-    key = f"mantle_dex_pools:{page}"
+# High-volume networks worth watching alongside ASAJU's own chain (mantle).
+# IDs verified live against /onchain/networks/{id}/pools, not guessed from docs.
+DEX_NETWORKS: dict[str, str] = {
+    "eth": "Ethereum",
+    "bsc": "BNB Chain",
+    "arbitrum": "Arbitrum",
+    "base": "Base",
+    "polygon_pos": "Polygon",
+    "optimism": "Optimism",
+    "solana": "Solana",
+    "mantle": "Mantle",
+}
+
+
+async def get_dex_pools(network: str = "mantle", page: int = 1) -> list:
+    """Live DEX pool prices on one network (GeckoTerminal via CoinGecko). Cached 5 min."""
+    key = f"dex_pools:{network}:{page}"
 
     async def fetch():
         try:
-            data = await _coingecko_get("/onchain/networks/mantle/pools", {"page": page})
+            data = await _coingecko_get(f"/onchain/networks/{network}/pools", {"page": page})
             return data.get("data", [])
         except Exception as exc:
-            logger.warning("CoinGecko Mantle DEX pools fetch failed: %s", exc)
+            logger.warning("CoinGecko DEX pools fetch failed for %s: %s", network, exc)
             return []
 
     return await _cached(key, _TTL_PRICE, fetch)
+
+
+async def get_dex_pools_multi(networks: list[str] | None = None) -> dict:
+    """Top pools across several high-volume networks in one call, each independently cached."""
+    networks = networks or list(DEX_NETWORKS.keys())
+    return {net: await get_dex_pools(net) for net in networks}
 
 
 async def get_fear_greed_index() -> dict | None:
