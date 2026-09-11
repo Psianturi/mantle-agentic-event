@@ -7,7 +7,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
-from services.market_data_service import get_market_snapshot, get_ohlc
+from services.market_data_service import get_mantle_dex_pools, get_market_snapshot, get_ohlc
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/market", tags=["market"])
@@ -28,3 +28,9 @@ async def market_snapshot(
 async def market_ohlc(coin_id: str, days: int = Query(7, ge=1, le=90)) -> dict:
     candles = await get_ohlc(coin_id, days)
     return {"coin_id": coin_id, "days": days, "candles": candles}
+
+
+@router.get("/mantle-dex-pools")
+async def market_mantle_dex_pools(page: int = Query(1, ge=1)) -> dict:
+    pools = await get_mantle_dex_pools(page)
+    return {"page": page, "pools": pools}

@@ -118,6 +118,21 @@ async def get_ohlc(coin_id: str, days: int = 7) -> list:
     return await _cached(key, _TTL_OHLC, fetch)
 
 
+async def get_mantle_dex_pools(page: int = 1) -> list:
+    """Live DEX pool prices on Mantle (GeckoTerminal via CoinGecko). Cached 5 min."""
+    key = f"mantle_dex_pools:{page}"
+
+    async def fetch():
+        try:
+            data = await _coingecko_get("/onchain/networks/mantle/pools", {"page": page})
+            return data.get("data", [])
+        except Exception as exc:
+            logger.warning("CoinGecko Mantle DEX pools fetch failed: %s", exc)
+            return []
+
+    return await _cached(key, _TTL_PRICE, fetch)
+
+
 async def get_fear_greed_index() -> dict | None:
     """CMC Fear & Greed index — no CoinGecko equivalent exists. Cached 1 hour."""
     async def fetch():
