@@ -11,6 +11,7 @@ import { cn, calculateRarityTier, getRarityStyles, getRarityLabel } from '@/lib/
 import { GasStatusBadge } from './GasStatusBadge'
 import { ChainBadge } from './ChainBadge'
 import { DEFAULT_CHAIN_ID, getChain } from '@/lib/blockchain/chains'
+import { getAgentAvatar } from '@/lib/avatarUtils'
 
 interface AgentCardProps {
   agent: Agent
@@ -65,6 +66,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
   }
   const PersonalityIcon = personalityIcons[agent.personality]
   const progress = (agent.eventsAttended / 5) * 100
+  const avatar = getAgentAvatar(agent.id, agent.name)
 
   const rarityTier = calculateRarityTier(agent)
   const rarityStyles = getRarityStyles(rarityTier)
@@ -127,11 +129,12 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
           <div className="flex items-start justify-between mb-3">
             <div className="flex items-center gap-3" onClick={onClick}>
               <div className={cn(
-                'w-12 h-12 rounded-xl flex items-center justify-center relative',
-                'bg-gradient-to-br from-primary/30 to-secondary/30 border-2',
-                agent.status === 'active' ? 'border-primary' : 'border-primary/20'
+                'w-12 h-12 rounded-full flex items-center justify-center relative ring-2 font-black text-sm',
+                avatar.bgColor,
+                avatar.ringColor,
+                agent.status === 'active' && 'ring-primary',
               )}>
-                <Robot size={24} className="text-primary" weight="duotone" />
+                <span className={avatar.textColor}>{avatar.initials}</span>
                 {agent.status === 'active' && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full animate-pulse" />
                 )}

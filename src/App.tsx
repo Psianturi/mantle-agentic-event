@@ -1230,48 +1230,14 @@ function App() {
         <main className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 pb-24">
           {mainView === 'dashboard' && (
             <>
-              {/* Hero section */}
-              <div className="text-center py-8 px-4 mb-6">
-                <h1 className="text-2xl sm:text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                  Autonomous AI Agents That Turn Information Overload Into On-Chain Wisdom.
+              {/* Hero section — compact */}
+              <div className="text-center py-5 px-4 mb-4">
+                <h1 className="text-xl sm:text-2xl font-bold mb-2 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+                  Autonomous AI Agents
                 </h1>
-                <p className="text-sm text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-4">
-                  ASAJU AI enables agents to autonomously analyze YouTube videos, generate intelligent summaries, mint learning proof NFTs on-chain, and continuously evolve through accumulated knowledge — each with its own KMS-protected wallet, powered by Google Gemini.
+                <p className="text-xs text-muted-foreground max-w-xl mx-auto leading-relaxed">
+                  Agents analyze YouTube videos, generate summaries, mint proof on-chain, and evolve.
                 </p>
-
-                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium">
-                  🚀 AI Agents • On-Chain NFTs • Autonomous Learning • Mantle Network
-                </div>
-
-                {/* 4-step autonomous pipeline */}
-                <div className="flex items-center justify-center gap-1 sm:gap-2 flex-wrap mb-5">
-                  {([
-                    { emoji: '🔍', label: 'Discover', sub: 'Finds relevant events' },
-                    { emoji: '🧠', label: 'Learn', sub: 'Understands what it watches' },
-                    { emoji: '✍️', label: 'Sign', sub: 'Proves it on its own' },
-                    { emoji: '🏆', label: 'Earn NFT', sub: 'Permanent on-chain proof' },
-                  ] as const).map((step, i, arr) => (
-                    <div key={step.label} className="flex items-center gap-1 sm:gap-2">
-                      <div className="flex flex-col items-center gap-0.5 px-2.5 sm:px-3 py-2 rounded-xl bg-card/60 border border-border/40 min-w-[70px] sm:min-w-[88px] hover:border-primary/40 transition-colors">
-                        <span className="text-lg sm:text-xl leading-none mb-0.5">{step.emoji}</span>
-                        <span className="text-[10px] sm:text-[11px] font-bold text-foreground leading-tight">{step.label}</span>
-                        <span className="text-[8px] sm:text-[9px] text-muted-foreground leading-tight mt-0.5">{step.sub}</span>
-                      </div>
-                      {i < arr.length - 1 && (
-                        <span className="text-muted-foreground/40 text-sm hidden sm:inline">→</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Tech stack badges */}
-                <div className="flex flex-wrap items-center justify-center gap-1.5">
-                  {(['Google Gemini', 'Skill Scores', 'Mantle Network', 'Secure Wallets', 'Autonomous Agents', 'On-Chain NFTs'] as const).map(tag => (
-                    <span key={tag} className="text-[9px] font-mono text-muted-foreground/50 px-2 py-0.5 rounded-full bg-card/40 border border-border/30">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
               </div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60 font-mono flex items-center gap-1.5">
@@ -1304,7 +1270,8 @@ function App() {
               </div>
 
               <div className="space-y-5">
-              <MarketSnapshotCard />
+              {/* Market Snapshot — only relevant for trading/DeFi niches, not for tech/wellness agents */}
+              {displayedAgents.some(a => a.niche !== 'Health/Wellness') && <MarketSnapshotCard />}
               <AttendEventCard
                 selectedAgent={selectedAgent ?? displayedAgents[0]}
                 displayedAgents={displayedAgents}
@@ -1566,22 +1533,6 @@ function App() {
                   onCooldownBoost={handleCooldownBoost}
                 />
               )}
-
-              {/* ── How the Agentic Economy Works ─────────── */}
-              <Card className="glass-card-hover border border-primary/20 overflow-hidden">
-                <div className="p-5 flex items-center gap-3 border-b border-primary/10">
-                  <div className="w-9 h-9 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
-                    <FlowArrow className="text-primary" weight="duotone" size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold">How the Agentic Economy Works</h3>
-                    <p className="text-xs text-muted-foreground">System architecture — from event to on-chain NFT</p>
-                  </div>
-                </div>
-                <div className="p-5">
-                  <ArchitectureFlow currentPhase={displayedAgents.length > 0 ? (displayedAgents[0].eventsAttended >= 5 ? 4 : Math.min(Math.floor(displayedAgents[0].eventsAttended / 1.5) + 1, 3)) : 0} />
-                </div>
-              </Card>
               </div>
             </>
           )}
