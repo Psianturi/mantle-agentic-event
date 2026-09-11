@@ -348,13 +348,17 @@ export function ProposalModal({ open, onOpenChange, agent, onProposalCountChange
   const handleReject = async (proposal: BackendProposal) => {
     setActioningId(proposal.proposal_id)
     try {
-      const updated = await cloudRunService.rejectProposal(proposal.proposal_id)
+      const challenge = await cloudRunService.createProposalApprovalChallenge(proposal.proposal_id, 'reject')
+      const signedAuthorization = await mantleService.signMessage(challenge.message)
+      const authorization = { ...signedAuthorization, nonce: challenge.nonce }
+      const updated = await cloudRunService.rejectProposal(proposal.proposal_id, authorization)
       const next = proposals.map(p => p.proposal_id === updated.proposal_id ? updated : p)
       setProposals(next)
       notifyCount(next)
       toast.info('Proposal rejected')
-    } catch {
-      toast.error('Failed to reject proposal')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to reject proposal'
+      toast.error('Rejection failed', { description: msg })
     } finally {
       setActioningId(null)
     }

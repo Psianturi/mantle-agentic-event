@@ -21,7 +21,7 @@ import time
 
 from eth_account import Account
 from eth_account.messages import encode_defunct
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from google.cloud import firestore
 from pydantic import BaseModel, field_validator
 from web3 import Web3
@@ -114,21 +114,22 @@ def _approval_message(
     owner_wallet: str,
     nonce: str,
     expires_at: float,
+    action: str = "approve",
 ) -> str:
     return (
         "ASAJU AI Proposal Approval\n"
-        "Action: approve strategic proposal\n"
+        f"Action: {action} strategic proposal\n"
         f"Proposal ID: {proposal_id}\n"
         f"Proposal hash: {proposal_hash}\n"
         f"Agent wallet: {agent_wallet}\n"
         f"Owner wallet: {owner_wallet}\n"
         f"Nonce: {nonce}\n"
         f"Expires at: {int(expires_at)}\n"
-        "This signature authorizes one approval only and does not transfer funds from your wallet."
+        f"This signature authorizes one {action} only and does not transfer funds from your wallet."
     )
 
 
-def _enforce_approval_rate_limit(request: Request, proposal_id: str) -> None:
+def _enforce_proposal_action_rate_limit(request: Request, proposal_id: str) -> None:
     client_host = request.client.host if request.client else "unknown"
     key = f"{client_host}:{proposal_id}"
     now = time.time()
@@ -148,16 +149,22 @@ async def _consume_approval_challenge(
     challenge_ref,
     proposal_ref,
     now: float,
+    *,
+    expected_action: str,
+    next_status: str,
+    status_timestamp_field: str,
 ) -> dict:
-    """Atomically consume a valid challenge and reserve its proposal for execution."""
+    """Atomically consume a valid, action-matched challenge and reserve its proposal."""
 
     def validate_and_mark(challenge_data: dict | None, proposal_data: dict | None) -> dict:
         if not challenge_data or challenge_data.get("used_at"):
             raise HTTPException(status_code=401, detail="Approval authorization has already been used")
         if challenge_data.get("expires_at", 0) < now:
             raise HTTPException(status_code=401, detail="Approval authorization has expired")
+        if challenge_data.get("action") != expected_action:
+            raise HTTPException(status_code=401, detail="Approval authorization was issued for a different action")
         if not proposal_data or proposal_data.get("status") != "pending":
-            raise HTTPException(status_code=409, detail="Proposal is no longer pending approval")
+            raise HTTPException(status_code=409, detail="Proposal is no longer pending")
         if proposal_data.get("expires_at", 0) < now:
             raise HTTPException(status_code=409, detail="Proposal has expired")
         return proposal_data
@@ -172,7 +179,7 @@ async def _consume_approval_challenge(
             proposal_snapshot.to_dict() if proposal_snapshot.exists else None,
         )
         await challenge_ref.update({"used_at": now})
-        await proposal_ref.update({"status": "approving", "approval_started_at": now})
+        await proposal_ref.update({"status": next_status, status_timestamp_field: now})
         return proposal_data
 
     transaction = db.transaction()
@@ -186,10 +193,41 @@ async def _consume_approval_challenge(
             proposal_snapshot.to_dict() if proposal_snapshot.exists else None,
         )
         transaction.update(challenge_ref, {"used_at": now})
-        transaction.update(proposal_ref, {"status": "approving", "approval_started_at": now})
+        transaction.update(proposal_ref, {"status": next_status, status_timestamp_field: now})
         return proposal_data
 
     return await consume(transaction)
+
+
+async def _verify_proposal_action_signature(db, proposal_id: str, authorization: "ApprovalAuthorizationRequest"):
+    """Fetch the challenge, verify its signature and ownership. Returns (challenge_ref, challenge_data)."""
+    try:
+        challenge_ref = db.collection(APPROVAL_CHALLENGES_COLLECTION).document(authorization.nonce)
+        challenge_doc = await challenge_ref.get()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Approval authorization could not be verified") from exc
+
+    challenge_data = (challenge_doc.to_dict() or {}) if challenge_doc.exists else {}
+    if not challenge_doc.exists or challenge_data.get("proposal_id") != proposal_id:
+        raise HTTPException(status_code=401, detail="Approval authorization is invalid")
+
+    try:
+        recovered_wallet = Web3.to_checksum_address(
+            Account.recover_message(
+                encode_defunct(text=challenge_data.get("message", "")),
+                signature=authorization.signature,
+            )
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail="Approval signature is invalid") from exc
+
+    owner_wallet = challenge_data.get("owner_wallet", "")
+    if recovered_wallet != authorization.signer_wallet:
+        raise HTTPException(status_code=401, detail="Signature does not match the claimed wallet")
+    if not Web3.is_address(owner_wallet) or recovered_wallet != Web3.to_checksum_address(owner_wallet):
+        raise HTTPException(status_code=403, detail="Only the agent owner can act on this proposal")
+
+    return challenge_ref, challenge_data
 
 
 def _doc_to_response(doc_id: str, data: dict) -> ProposalResponse:
@@ -403,8 +441,11 @@ async def list_agent_proposals(agent_id: str) -> list[ProposalResponse]:
     "/api/v1/proposals/{proposal_id}/approval-challenge",
     response_model=ApprovalChallengeResponse,
 )
-async def create_approval_challenge(proposal_id: str) -> ApprovalChallengeResponse:
-    """Create a short-lived, single-use owner-wallet approval challenge."""
+async def create_approval_challenge(
+    proposal_id: str,
+    action: str = Query("approve", pattern="^(approve|reject)$"),
+) -> ApprovalChallengeResponse:
+    """Create a short-lived, single-use owner-wallet challenge for approve or reject."""
     db = get_db()
     proposal_ref = db.collection(PROPOSALS_COLLECTION).document(proposal_id)
 
@@ -418,7 +459,7 @@ async def create_approval_challenge(proposal_id: str) -> ApprovalChallengeRespon
     proposal_data = proposal_doc.to_dict() or {}
     now = time.time()
     if proposal_data.get("status") != "pending":
-        raise HTTPException(status_code=422, detail="Only pending proposals can be approved")
+        raise HTTPException(status_code=422, detail="Only pending proposals can be actioned")
     if proposal_data.get("expires_at", 0) < now:
         raise HTTPException(status_code=422, detail="Proposal has expired")
 
@@ -442,12 +483,14 @@ async def create_approval_challenge(proposal_id: str) -> ApprovalChallengeRespon
         owner_wallet,
         nonce,
         expires_at,
+        action=action,
     )
     await db.collection(APPROVAL_CHALLENGES_COLLECTION).document(nonce).set(
         {
             "proposal_id": proposal_id,
             "agent_id": agent_id,
             "owner_wallet": owner_wallet,
+            "action": action,
             "message": message,
             "expires_at": expires_at,
             "used_at": None,
@@ -468,7 +511,7 @@ async def approve_proposal(
     Validate proposal → call recordExecutedProposal() on V4 via MINTER_ROLE.
     V4 emits ProposalExecuted: +5 heritageScore on-chain.
     """
-    _enforce_approval_rate_limit(request, proposal_id)
+    _enforce_proposal_action_rate_limit(request, proposal_id)
     db = get_db()
 
     try:
@@ -488,35 +531,14 @@ async def approve_proposal(
         raise HTTPException(status_code=400, detail="Proposal missing wallet or hash")
 
     agent_id = data.get("agent_id", "")
-    try:
-        challenge_ref = db.collection(APPROVAL_CHALLENGES_COLLECTION).document(authorization.nonce)
-        challenge_doc = await challenge_ref.get()
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="Approval authorization could not be verified") from exc
-
-    challenge_data = (challenge_doc.to_dict() or {}) if challenge_doc.exists else {}
-    if not challenge_doc.exists or challenge_data.get("proposal_id") != proposal_id:
-        raise HTTPException(status_code=401, detail="Approval authorization is invalid")
-
-    try:
-        recovered_wallet = Web3.to_checksum_address(
-            Account.recover_message(
-                encode_defunct(text=challenge_data.get("message", "")),
-                signature=authorization.signature,
-            )
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=401, detail="Approval signature is invalid") from exc
-
-    owner_wallet = challenge_data.get("owner_wallet", "")
-    if recovered_wallet != authorization.signer_wallet:
-        raise HTTPException(status_code=401, detail="Signature does not match the claimed wallet")
-    if not Web3.is_address(owner_wallet) or recovered_wallet != Web3.to_checksum_address(owner_wallet):
-        raise HTTPException(status_code=403, detail="Only the agent owner can approve this proposal")
+    challenge_ref, _ = await _verify_proposal_action_signature(db, proposal_id, authorization)
 
     proposal_ref = db.collection(PROPOSALS_COLLECTION).document(proposal_id)
     now = time.time()
-    await _consume_approval_challenge(db, challenge_ref, proposal_ref, now)
+    await _consume_approval_challenge(
+        db, challenge_ref, proposal_ref, now,
+        expected_action="approve", next_status="approving", status_timestamp_field="approval_started_at",
+    )
 
     # Resolve the chain only after the signature is valid and the proposal has
     # been atomically reserved, so unauthorised requests never reach Web3/KMS.
@@ -597,8 +619,15 @@ async def approve_proposal(
 
 
 @router.post("/api/v1/proposals/{proposal_id}/reject", response_model=ProposalResponse)
-async def reject_proposal(proposal_id: str) -> ProposalResponse:
-    """Mark a pending proposal as rejected (no on-chain action)."""
+async def reject_proposal(
+    proposal_id: str,
+    authorization: ApprovalAuthorizationRequest,
+    request: Request,
+) -> ProposalResponse:
+    """Mark a pending proposal as rejected (no on-chain action). Owner-signature gated,
+    same as approval — a rejection changes the agent's proposal history, so it should
+    not be callable by anyone who merely knows the proposal_id."""
+    _enforce_proposal_action_rate_limit(request, proposal_id)
     db = get_db()
 
     try:
@@ -610,17 +639,15 @@ async def reject_proposal(proposal_id: str) -> ProposalResponse:
         raise HTTPException(status_code=404, detail="Proposal not found")
 
     data = doc.to_dict() or {}
-    if data.get("status") != "pending":
-        raise HTTPException(
-            status_code=422,
-            detail=f"Proposal is '{data.get('status')}' — only pending proposals can be rejected",
-        )
+    challenge_ref, _ = await _verify_proposal_action_signature(db, proposal_id, authorization)
 
-    try:
-        await doc.reference.update({"status": "rejected", "rejected_at": time.time()})
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="Database update failed") from exc
+    proposal_ref = db.collection(PROPOSALS_COLLECTION).document(proposal_id)
+    now = time.time()
+    await _consume_approval_challenge(
+        db, challenge_ref, proposal_ref, now,
+        expected_action="reject", next_status="rejected", status_timestamp_field="rejected_at",
+    )
 
     data["status"] = "rejected"
-    logger.info("Proposal %s rejected by user", proposal_id)
+    logger.info("Proposal %s rejected by owner", proposal_id)
     return _doc_to_response(proposal_id, data)

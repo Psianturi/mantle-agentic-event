@@ -998,13 +998,16 @@ export const cloudRunService = {
     return handleAPIResponse<BackendProposal[]>(response)
   },
 
-  async createProposalApprovalChallenge(proposalId: string): Promise<{
+  async createProposalApprovalChallenge(
+    proposalId: string,
+    action: 'approve' | 'reject' = 'approve',
+  ): Promise<{
     nonce: string
     message: string
     expires_at: number
   }> {
     const response = await fetchWithTimeout(
-      `${GCP_BACKEND_URL}/api/v1/proposals/${encodeURIComponent(proposalId)}/approval-challenge`,
+      `${GCP_BACKEND_URL}/api/v1/proposals/${encodeURIComponent(proposalId)}/approval-challenge?action=${action}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' } },
     )
     return handleAPIResponse<{ nonce: string; message: string; expires_at: number }>(response)
@@ -1029,10 +1032,21 @@ export const cloudRunService = {
     return handleAPIResponse<BackendProposal>(response)
   },
 
-  async rejectProposal(proposalId: string): Promise<BackendProposal> {
+  async rejectProposal(
+    proposalId: string,
+    authorization: { nonce: string; signerWallet: string; signature: string },
+  ): Promise<BackendProposal> {
     const response = await fetchWithTimeout(
       `${GCP_BACKEND_URL}/api/v1/proposals/${encodeURIComponent(proposalId)}/reject`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nonce: authorization.nonce,
+          signer_wallet: authorization.signerWallet,
+          signature: authorization.signature,
+        }),
+      },
     )
     return handleAPIResponse<BackendProposal>(response)
   },

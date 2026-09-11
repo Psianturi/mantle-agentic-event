@@ -1,12 +1,21 @@
-"""Regression tests for owner-wallet authorization of proposal approval."""
+"""Regression tests for owner-wallet authorization of proposal approval/rejection."""
 
 from eth_account import Account
 from eth_account.messages import encode_defunct
 import pytest
 
+from routers.proposals import _approval_attempts
 from tests.conftest import make_agent, make_wallet
 
 pytestmark = pytest.mark.asyncio
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limit():
+    """_approval_attempts is a module-level dict shared across the whole test
+    session — without this, tests calling approve/reject on the same proposal_id
+    accumulate attempts and later tests get spuriously rate-limited (429)."""
+    _approval_attempts.clear()
 
 
 async def _seed_pending_proposal(fake_db, owner_wallet: str) -> None:
@@ -33,10 +42,14 @@ async def _seed_pending_proposal(fake_db, owner_wallet: str) -> None:
     )
 
 
-async def _challenge(client) -> dict:
-    response = await client.post("/api/v1/proposals/proposal-1/approval-challenge")
+async def _challenge(client, action: str = "approve") -> dict:
+    response = await client.post(f"/api/v1/proposals/proposal-1/approval-challenge?action={action}")
     assert response.status_code == 200
     return response.json()
+
+
+def _sign(owner: Account, message: str) -> str:
+    return Account.sign_message(encode_defunct(text=message), owner.key).signature.hex()
 
 
 async def test_approval_with_invalid_signature_never_calls_web3(client, fake_db, monkeypatch):
@@ -114,3 +127,82 @@ async def test_owner_signature_can_approve_once(client, fake_db, monkeypatch):
         },
     )
     assert replay.status_code == 401
+
+
+async def test_reject_with_invalid_signature_is_rejected(client, fake_db):
+    owner_wallet = make_wallet()
+    await _seed_pending_proposal(fake_db, owner_wallet)
+    challenge = await _challenge(client, action="reject")
+
+    response = await client.post(
+        "/api/v1/proposals/proposal-1/reject",
+        json={
+            "nonce": challenge["nonce"],
+            "signer_wallet": owner_wallet,
+            "signature": "0x" + "00" * 65,
+        },
+    )
+
+    assert response.status_code == 401
+    proposal = (await fake_db.collection("proposals").document("proposal-1").get()).to_dict()
+    assert proposal["status"] == "pending"
+
+
+async def test_owner_signature_can_reject_once(client, fake_db):
+    owner = Account.create()
+    await _seed_pending_proposal(fake_db, owner.address)
+    challenge = await _challenge(client, action="reject")
+    signature = _sign(owner, challenge["message"])
+
+    response = await client.post(
+        "/api/v1/proposals/proposal-1/reject",
+        json={"nonce": challenge["nonce"], "signer_wallet": owner.address, "signature": signature},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "rejected"
+
+    replay = await client.post(
+        "/api/v1/proposals/proposal-1/reject",
+        json={"nonce": challenge["nonce"], "signer_wallet": owner.address, "signature": signature},
+    )
+    assert replay.status_code == 401
+
+
+async def test_approve_challenge_cannot_be_used_to_reject(client, fake_db):
+    owner = Account.create()
+    await _seed_pending_proposal(fake_db, owner.address)
+    challenge = await _challenge(client, action="approve")
+    signature = _sign(owner, challenge["message"])
+
+    response = await client.post(
+        "/api/v1/proposals/proposal-1/reject",
+        json={"nonce": challenge["nonce"], "signer_wallet": owner.address, "signature": signature},
+    )
+
+    assert response.status_code == 401
+    proposal = (await fake_db.collection("proposals").document("proposal-1").get()).to_dict()
+    assert proposal["status"] == "pending"
+
+
+async def test_reject_challenge_cannot_be_used_to_approve(client, fake_db, monkeypatch):
+    owner = Account.create()
+    await _seed_pending_proposal(fake_db, owner.address)
+    challenge = await _challenge(client, action="reject")
+    signature = _sign(owner, challenge["message"])
+    called = False
+
+    async def _unexpected_web3_call(**kwargs):
+        nonlocal called
+        called = True
+        return {}
+
+    monkeypatch.setattr("routers.proposals.web3_service.send_record_executed_proposal_tx", _unexpected_web3_call)
+
+    response = await client.post(
+        "/api/v1/proposals/proposal-1/approve",
+        json={"nonce": challenge["nonce"], "signer_wallet": owner.address, "signature": signature},
+    )
+
+    assert response.status_code == 401
+    assert called is False
