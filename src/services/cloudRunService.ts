@@ -194,6 +194,21 @@ export interface AgentDetailsResponse {
   error?: string
 }
 
+export interface MarketSnapshot {
+  prices: Record<string, { usd: number; usd_market_cap?: number; usd_24h_change?: number }>
+  fear_greed: { value: number; value_classification: string; update_time: string } | null
+  news: unknown[]
+  generated_at: number
+}
+
+export interface DexPool {
+  attributes: {
+    name: string
+    base_token_price_usd: string
+    quote_token_price_usd: string
+  }
+}
+
 export class CloudRunAPIError extends Error {
   constructor(
     message: string,
@@ -1049,6 +1064,22 @@ export const cloudRunService = {
       },
     )
     return handleAPIResponse<BackendProposal>(response)
+  },
+
+  async getMarketSnapshot(coins: string[] = ['bitcoin', 'ethereum', 'mantle']): Promise<MarketSnapshot> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/market/snapshot?coins=${encodeURIComponent(coins.join(','))}`,
+      { method: 'GET' },
+    )
+    return handleAPIResponse<MarketSnapshot>(response)
+  },
+
+  async getMantleDexPools(): Promise<{ network: string; page: number; pools: DexPool[] }> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/market/dex-pools/mantle`,
+      { method: 'GET' },
+    )
+    return handleAPIResponse<{ network: string; page: number; pools: DexPool[] }>(response)
   },
 
 }

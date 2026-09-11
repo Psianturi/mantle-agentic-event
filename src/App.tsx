@@ -12,6 +12,7 @@ import { VaultView } from '@/views/VaultView'
 import { MarketplaceView } from '@/views/MarketplaceView'
 import { AgentCard } from '@/components/AgentCard'
 import { AttendEventCard } from '@/components/AttendEventCard'
+import { MarketSnapshotCard } from '@/components/MarketSnapshotCard'
 import { NeuralFusionLab } from '@/components/NeuralFusionLab'
 import { NFTCard } from '@/components/NFTCard'
 import { SpawnAgentDialog } from '@/components/SpawnAgentDialog'
@@ -1303,6 +1304,7 @@ function App() {
               </div>
 
               <div className="space-y-5">
+              <MarketSnapshotCard />
               <AttendEventCard
                 selectedAgent={selectedAgent ?? displayedAgents[0]}
                 displayedAgents={displayedAgents}
