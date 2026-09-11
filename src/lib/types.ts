@@ -108,6 +108,11 @@ export interface BackendProposal {
   autonomous_transfer_tx?: string
   autonomous_transfer_status?: 'success' | 'failed'
   autonomous_transfer_amount_mnt?: number
+  market_context?: {
+    prices: Record<string, { usd: number; usd_24h_change?: number }>
+    fear_greed: { value: number; value_classification: string } | null
+    generated_at: number
+  } | null
 }
 
 export interface AgentProposal {

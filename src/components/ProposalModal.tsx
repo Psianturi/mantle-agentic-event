@@ -21,6 +21,7 @@ import {
   Users,
   Warning,
   ArrowClockwise,
+  ChartLine,
 } from '@phosphor-icons/react'
 
 interface ProposalModalProps {
@@ -145,9 +146,21 @@ function ProposalCard({
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+      <p className="text-xs text-muted-foreground leading-relaxed mb-3">
         {proposal.description}
       </p>
+
+      {proposal.market_context && (
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70 mb-4">
+          <ChartLine size={11} />
+          <span>
+            Informed by live market data as of{' '}
+            {new Date(proposal.market_context.generated_at * 1000).toLocaleString([], {
+              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+            })}
+          </span>
+        </div>
+      )}
 
       {isApproved && proposal.tx_hash && (
         <motion.div

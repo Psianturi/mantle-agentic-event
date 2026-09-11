@@ -31,6 +31,7 @@ from core.database import get_db
 from core.kms_service import decrypt_private_key
 from google.cloud.firestore_v1.base_query import FieldFilter
 from services.llm_service import generate_agent_proposal
+from services.market_data_service import get_market_snapshot
 from services.web3_service import web3_service
 
 logger = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ class ProposalResponse(BaseModel):
     autonomous_transfer_tx: str | None = None
     autonomous_transfer_status: str | None = None
     autonomous_transfer_amount_mnt: float | None = None
+    market_context: dict | None = None  # audit trail: raw snapshot the LLM saw, if any
 
 
 class ApprovalChallengeResponse(BaseModel):
@@ -249,6 +251,7 @@ def _doc_to_response(doc_id: str, data: dict) -> ProposalResponse:
         autonomous_transfer_tx=data.get("autonomous_transfer_tx"),
         autonomous_transfer_status=data.get("autonomous_transfer_status"),
         autonomous_transfer_amount_mnt=data.get("autonomous_transfer_amount_mnt"),
+        market_context=data.get("market_context"),
     )
 
 
@@ -355,6 +358,14 @@ async def generate_proposal(agent_id: str) -> ProposalResponse:
     except Exception as exc:
         logger.warning("Could not fetch event history for proposal: %s", exc)
 
+    # Best-effort market context — a provider outage must never block proposal
+    # generation, so failures here are swallowed and logged, not raised.
+    market_context: dict | None = None
+    try:
+        market_context = await get_market_snapshot()
+    except Exception as exc:
+        logger.warning("Market snapshot unavailable for proposal (agent %s): %s", agent_id, exc)
+
     # Generate proposal via Gemini
     try:
         proposal_data = await generate_agent_proposal(
@@ -364,6 +375,7 @@ async def generate_proposal(agent_id: str) -> ProposalResponse:
             generation=generation,
             genetic_traits=genetic_traits,
             event_summaries=event_summaries[:6],
+            market_context=market_context,
         )
     except Exception as exc:
         logger.error("Gemini proposal generation failed for agent %s: %s", agent_id, exc)
@@ -382,6 +394,9 @@ async def generate_proposal(agent_id: str) -> ProposalResponse:
         "status": "pending",
         "created_at": now,
         "expires_at": now + PROPOSAL_TTL_SECONDS,
+        # Raw snapshot the LLM actually saw — objective audit record, independent
+        # of whether the generated text mentions it.
+        "market_context": market_context,
     }
 
     try:

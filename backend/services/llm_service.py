@@ -12,6 +12,7 @@ Docker image size and full async support.
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -577,6 +578,43 @@ _PROPOSAL_FALLBACKS = [
 ]
 
 
+def _format_market_context(market_context: dict | None) -> str:
+    """Render a cached market snapshot as prompt text. Empty string if unavailable
+    — proposal generation must never fail just because a market provider is down."""
+    if not market_context:
+        return ""
+
+    prices = market_context.get("prices") or {}
+    fear_greed = market_context.get("fear_greed")
+    generated_at = market_context.get("generated_at")
+    if not prices and not fear_greed:
+        return ""
+
+    lines = []
+    for coin_id, p in prices.items():
+        change = p.get("usd_24h_change")
+        change_text = f" ({change:+.1f}% 24h)" if change is not None else ""
+        lines.append(f"  {coin_id.upper()}: ${p.get('usd')}{change_text}")
+    if fear_greed:
+        lines.append(f"  Fear & Greed Index: {fear_greed.get('value')} ({fear_greed.get('value_classification')})")
+
+    snapshot_time = (
+        datetime.fromtimestamp(generated_at, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        if generated_at else "unknown time"
+    )
+
+    return f"""
+Live Market Context (snapshot at {snapshot_time}):
+{chr(10).join(lines)}
+
+Only factor this into your reasoning if genuinely relevant — especially for "defi"
+category proposals. If you do reference it, explicitly note "based on live market
+data as of {snapshot_time}" in your description so the reasoning stays auditable.
+For "governance", "education", or "community" proposals where market conditions
+aren't directly relevant, ignore this section entirely.
+"""
+
+
 async def generate_agent_proposal(
     agent_name: str,
     niche: str,
@@ -584,6 +622,7 @@ async def generate_agent_proposal(
     generation: int,
     genetic_traits: list[str],
     event_summaries: list[str],
+    market_context: dict | None = None,
 ) -> dict:
     """
     Gemini generates a strategic proposal for the agent based on its history.
@@ -600,6 +639,7 @@ async def generate_agent_proposal(
 
     traits_text = ", ".join(genetic_traits) if genetic_traits else "none"
     events_text = "\n".join(f"  - {s}" for s in event_summaries) if event_summaries else "  - (no events attended yet)"
+    market_text = _format_market_context(market_context)
 
     prompt = f"""You are a strategic advisor for an autonomous AI agent on the Mantle blockchain.
 
@@ -612,9 +652,11 @@ Agent Profile:
 
 Recent Wisdom (events attended):
 {events_text}
-
+{market_text}
 Generate ONE strategic proposal this agent should present to its human owner for approval.
 The proposal must be actionable, specific to the agent's niche, and executable within 7 days.
+This is a recommendation for human review, not autonomous execution — do not propose
+moving funds or executing trades directly.
 
 Respond ONLY with valid JSON in this exact format:
 {{
