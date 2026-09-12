@@ -351,6 +351,7 @@ function App() {
   // whatever chain the wallet is already on. Manual connect clicks omit it,
   // so they keep using selectedChainId (the user's ChainSelector choice).
   const handleWalletConnect = async (address: string, chainIdOverride?: number) => {
+    setDataLoaded(false)
     try {
       const initialChainId = chainIdOverride ?? selectedChainId
       const connectedAddress = await blockchain.connectWallet(initialChainId)
@@ -480,6 +481,8 @@ function App() {
       toast.error('Failed to connect wallet', {
         description: error instanceof Error ? error.message : 'Please try again'
       })
+    } finally {
+      setDataLoaded(true)
     }
   }
 
@@ -490,6 +493,7 @@ function App() {
     setWalletAddress(undefined)
     setWalletChainId(undefined)
     setAgents([])
+    setDataLoaded(false)
     setNFTs([])
     setEvents([])
     toast.info('Wallet disconnected')
