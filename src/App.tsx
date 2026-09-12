@@ -245,6 +245,7 @@ function App() {
     setProposalCounts(prev => ({ ...prev, [agentId]: count }))
   }, [])
   const [platformMetrics, setPlatformMetrics] = useState<{ total_agents: number; total_wisdom_nfts: number; total_events_attended: number; average_agent_level: number } | null>(null)
+  const [dataLoaded, setDataLoaded] = useState(false)
   useEffect(() => {
     cloudRunService.getPublicMetrics()
       .then(data => setPlatformMetrics(data))
@@ -1273,7 +1274,19 @@ function App() {
                 </span>
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                {stats.map((stat, i) => (
+                {isPlatformView ? !platformMetrics : !dataLoaded ? (
+                  Array.from({ length: 4 }).map((_, sk) => (
+                    <Card key={`stat-skeleton-${sk}`} className="glass-card-hover p-4 relative overflow-hidden">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="h-2.5 w-16 rounded bg-muted/40 mb-2 animate-pulse" />
+                          <div className="h-6 w-12 rounded bg-muted/40 animate-pulse" />
+                        </div>
+                        <div className="w-11 h-11 rounded-xl bg-muted/20 animate-pulse" />
+                      </div>
+                    </Card>
+                  ))
+                ) : stats.map((stat, i) => (
                   <motion.div
                     key={stat.label}
                     initial={{ opacity: 0, y: 20 }}
