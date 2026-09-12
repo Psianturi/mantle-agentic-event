@@ -40,7 +40,7 @@ export function AttendEventCard({
         <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/40 flex items-center justify-center">
           <Globe className="text-primary" weight="duotone" size={22} />
         </div>
-        <span>Attend Event</span>
+        <span>Analyze YouTube Video</span>
         {displayedAgents.length > 1 && (
           <select
             value={attendAgentId}
@@ -63,7 +63,7 @@ export function AttendEventCard({
         </div>
         <div className="rounded-lg border border-primary/20 p-3 text-center">
           <div className="text-lg">🔗</div>
-          <p className="font-semibold text-sm mt-2">Paste Event URL</p>
+          <p className="font-semibold text-sm mt-2">Paste YouTube URL</p>
         </div>
         <div className="rounded-lg border border-primary/20 p-3 text-center">
           <div className="text-lg">🏆</div>
@@ -72,7 +72,7 @@ export function AttendEventCard({
       </div>
       <div className="flex gap-3 mb-3">
         <Input
-          placeholder="Paste a YouTube video URL to start autonomous attendance..."
+          placeholder="Paste a YouTube URL — agent will analyze and mint proof"
           value={eventUrl}
           onChange={(e) => onEventUrlChange(e.target.value)}
           className="flex-1 border-primary/30 focus:border-primary bg-background/50 font-mono text-sm"
@@ -82,11 +82,11 @@ export function AttendEventCard({
           disabled={walletConnected && (!eventUrl.trim() || isProcessingEvent)}
           className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
         >
-          {!walletConnected ? 'Connect & Attend' : isProcessingEvent ? 'Processing...' : 'Launch Autonomous Attendance'}
+          {!walletConnected ? 'Connect & Analyze' : isProcessingEvent ? 'Processing...' : 'Analyze & Mint Proof'}
         </Button>
       </div>
       <p className="text-xs text-muted-foreground mb-1">
-        Your AI agent will automatically attend, analyze the event, mint an NFT, and gain experience.
+        Your agent will analyze the video, mint an NFT, and gain experience.
       </p>
       <p className="text-xs text-muted-foreground/60">
         Examples: YouTube Live • Tutorial • Conference Talk • Podcast
@@ -104,7 +104,7 @@ export function AttendEventCard({
             {scoutingAgentId === activeAgent.id ? 'Secretary searching...' : 'Run Auto Scout'}
           </Button>
           <span className="text-xs text-muted-foreground">
-            {activeAgent.name} discovers &amp; attends a {activeAgent.niche} event autonomously
+            {activeAgent.name} discovers &amp; analyzes a {activeAgent.niche} video autonomously
           </span>
         </div>
       )}
