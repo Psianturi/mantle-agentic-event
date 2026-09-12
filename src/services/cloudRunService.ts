@@ -196,8 +196,8 @@ export interface AgentDetailsResponse {
 
 export interface MarketSnapshot {
   prices: Record<string, { usd: number; usd_market_cap?: number; usd_24h_change?: number }>
-  fear_greed: { value: number; value_classification: string; update_time: string } | null
-  news: unknown[]
+  fear_greed: { value: number; value_classification: string; update_time?: string } | null
+  news?: unknown[]
   generated_at: number
 }
 

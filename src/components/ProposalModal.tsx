@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Agent, BackendProposal } from '@/lib/types'
 import { cloudRunService } from '@/services/cloudRunService'
+import { MarketContextPanel } from '@/components/MarketSnapshotCard'
 import { mantleService } from '@/lib/blockchain/mantleService'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -21,7 +22,6 @@ import {
   Users,
   Warning,
   ArrowClockwise,
-  ChartLine,
 } from '@phosphor-icons/react'
 
 interface ProposalModalProps {
@@ -151,14 +151,8 @@ function ProposalCard({
       </p>
 
       {proposal.market_context && (
-        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70 mb-4">
-          <ChartLine size={11} />
-          <span>
-            Informed by live market data as of{' '}
-            {new Date(proposal.market_context.generated_at * 1000).toLocaleString([], {
-              month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-            })}
-          </span>
+        <div className="mb-4 rounded-xl border border-cyan-400/15 bg-cyan-400/[0.03] p-3">
+          <MarketContextPanel snapshot={proposal.market_context} compact />
         </div>
       )}
 
