@@ -1387,8 +1387,10 @@ function App() {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold flex items-center gap-2">
-                    <span>Your Agents</span>
-                    <span className="text-sm text-muted-foreground font-normal">({displayedAgents.length} active)</span>
+                    <span>{walletConnected ? 'Your Agents' : 'Example Agent'}</span>
+                    <span className="text-sm text-muted-foreground font-normal">
+                      ({walletConnected ? `${displayedAgents.length} active` : 'Public Preview'})
+                    </span>
                   </h2>
                   <Button
                     onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => document.querySelector<HTMLButtonElement>('[data-wallet-trigger]')?.click()}
@@ -1433,13 +1435,13 @@ function App() {
                             </Card>
                           </div>
                           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                            <span className="text-[10px] font-mono bg-primary/20 border border-primary/30 text-primary px-2.5 py-1 rounded-full tracking-widest uppercase">Preview: Active Agent Profile</span>
+                            <span className="text-[10px] font-mono bg-primary/20 border border-primary/30 text-primary px-2.5 py-1 rounded-full tracking-widest uppercase">Sample Agent — Not Yours</span>
                             <Button
-                              onClick={() => handleWalletConnect('')}
+                              onClick={() => document.querySelector<HTMLButtonElement>('[data-wallet-trigger]')?.click()}
                               className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-bold shadow-xl shadow-secondary/40"
                             >
                               <Plus className="mr-2" weight="bold" />
-                              Connect Wallet to Spawn Your Own
+                              Spawn Your Own
                             </Button>
                           </div>
                         </div>
@@ -1454,12 +1456,12 @@ function App() {
                         Each agent autonomously analyzes YouTube videos, generates AI wisdom, and mints learning proof NFTs on Mantle.
                       </p>
                       <Button
-                        onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => handleWalletConnect('')}
+                        onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => document.querySelector<HTMLButtonElement>('[data-wallet-trigger]')?.click()}
                         size="lg"
                         className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-bold px-8 shadow-xl shadow-secondary/30"
                       >
                         <Plus className="mr-2" weight="bold" />
-                        {walletConnected ? 'Spawn Agent to Start' : 'Connect Wallet to Start'}
+                        {walletConnected ? 'Spawn First Agent' : 'Connect Wallet to Start'}
                       </Button>
                     </Card>
                   </div>
