@@ -104,7 +104,7 @@ export function AgentEvolutionPath({ agent }: AgentEvolutionPathProps) {
           Evolution Path
         </h3>
         <p className="text-muted-foreground">
-          Progress: Level {agent.level} ({agent.eventsAttended} events attended)
+          Progress: Level {agent.level} ({agent.eventsAttended} videos analyzed)
         </p>
       </div>
 
@@ -212,7 +212,7 @@ export function AgentEvolutionPath({ agent }: AgentEvolutionPathProps) {
                   {!isUnlocked && (
                     <div className="mt-4 pt-4 border-t border-border/50">
                       <p className="text-xs text-muted-foreground">
-                        Requires {evolutionLevel.eventsRequired} events attended •{' '}
+                        Requires {evolutionLevel.eventsRequired} videos analyzed •{' '}
                         {Math.max(0, evolutionLevel.eventsRequired - agent.eventsAttended)}{' '}
                         events remaining
                       </p>

@@ -66,7 +66,7 @@ export function NeuralFusionLab({
       </div>
       {walletConnected && wisdomUnlockedCount < 2 && (
         <p className="text-xs text-muted-foreground">
-          Need {Math.max(0, 2 - wisdomUnlockedCount)} more wisdom-unlocked agent(s) — attend more events to unlock
+          Need {Math.max(0, 2 - wisdomUnlockedCount)} more wisdom-unlocked agent(s) — analyze more videos to unlock
         </p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">

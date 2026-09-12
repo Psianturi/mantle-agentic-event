@@ -16,7 +16,7 @@ const taskTemplates: Record<SubAgentType, string[]> = {
     'Scanning YouTube for new videos',
     'Auto-filling registration form',
     'Verifying access credentials',
-    'Scheduling event attendance',
+    'Scheduling YouTube analysis',
     'Confirming registration',
     'Checking event requirements'
   ],

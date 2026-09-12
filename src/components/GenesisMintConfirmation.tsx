@@ -82,7 +82,7 @@ export function GenesisMintConfirmation({ open, onOpenChange, userBalance, onCon
                 <p className="font-semibold mb-1">Agent Gas Provision Explained:</p>
                 <p className="leading-relaxed">
                   0.5 MNT will be deposited directly into your agent's autonomous smart account. 
-                  This allows the agent to execute transactions independently (event attendance, NFT minting) without requiring your signature each time.
+                  This allows the agent to execute transactions independently (video analysis, NFT minting) without requiring your signature each time.
                 </p>
               </div>
             </div>
@@ -96,7 +96,7 @@ export function GenesisMintConfirmation({ open, onOpenChange, userBalance, onCon
                 <ul className="space-y-1 list-disc list-inside leading-relaxed">
                   <li>Unique Smart Account on Mantle Network</li>
                   <li>4 Specialized Sub-Agents (Secretary, Scribe, Social-Lite, Mint-Master)</li>
-                  <li>Autonomous event attendance & NFT minting</li>
+                    <li>Autonomous YouTube analysis & NFT minting</li>
                   <li>Wisdom Report unlocked after 5 events</li>
                 </ul>
               </div>

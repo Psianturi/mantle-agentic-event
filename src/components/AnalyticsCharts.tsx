@@ -164,7 +164,7 @@ export function AnalyticsCharts({ agents = [], events = [], nfts = [] }: Analyti
                 <ChartLine size={20} className="text-accent" weight="duotone" />
               </div>
               <p className="text-3xl font-bold mb-1">{avgEventsPerAgent}</p>
-              <p className="text-xs text-muted-foreground">events attended</p>
+              <p className="text-xs text-muted-foreground">videos analyzed</p>
             </div>
           </Card>
         </motion.div>

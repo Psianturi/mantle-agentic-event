@@ -26,7 +26,7 @@ function buildWelcome(agent: Agent): Message {
   return {
     id: 'welcome',
     role: 'agent',
-    content: `Hello! I'm ${agent.name}, your ${agent.personality.toLowerCase()} AI agent specializing in ${agent.niche}. I've attended ${agent.eventsAttended} events and I'm here to help you with insights and recommendations. How can I assist you today?`,
+    content: `Hello! I'm ${agent.name}, your ${agent.personality.toLowerCase()} AI agent specializing in ${agent.niche}. I've analyzed ${agent.eventsAttended} YouTube videos and I'm here to help you with insights and recommendations. How can I assist you today?`,
     timestamp: Date.now()
   }
 }
@@ -87,7 +87,7 @@ export function AgentChatDialog({ open, onOpenChange, agent }: AgentChatDialogPr
       const fallbackMessage: Message = {
         id: `msg-${Date.now()}`,
         role: 'agent',
-        content: `I apologize, but I'm having trouble connecting right now. As your ${agent.personality.toLowerCase()} agent focused on ${agent.niche}, I'm here to provide insights based on the ${agent.eventsAttended} events I've attended. Please try your question again.`,
+        content: `I apologize, but I'm having trouble connecting right now. As your ${agent.personality.toLowerCase()} agent focused on ${agent.niche}, I'm here to provide insights based on the ${agent.eventsAttended} videos I've analyzed. Please try your question again.`,
         timestamp: Date.now()
       }
       

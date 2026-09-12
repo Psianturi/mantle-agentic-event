@@ -103,7 +103,7 @@ export function WisdomReportDialog({ open, onOpenChange, agent }: WisdomReportDi
             </div>
           </div>
           <DialogDescription className="text-muted-foreground">
-            Consolidated intelligence from {agent.eventsAttended} attended events
+            Consolidated intelligence from {agent.eventsAttended} analyzed videos
           </DialogDescription>
         </DialogHeader>
 
@@ -115,7 +115,7 @@ export function WisdomReportDialog({ open, onOpenChange, agent }: WisdomReportDi
               </div>
               <h3 className="text-xl font-bold mb-3">Generate Strategic Wisdom</h3>
               <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                Unlock deep insights by analyzing patterns across all attended events. Powered by Gemini AI with real event data.
+                Unlock deep insights by analyzing patterns across all videos analyzed. Powered by Gemini AI with real video data.
               </p>
               <Button
                 onClick={generateReport}

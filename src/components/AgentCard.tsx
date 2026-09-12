@@ -465,7 +465,7 @@ export function AgentCard({ agent, onClick, onConfigure, onChat, onViewEvolution
             <div className="mb-5" onClick={onClick}>
               <div className="flex items-center gap-1.5 mb-2">
                 <Brain size={13} className="text-accent" weight="duotone" />
-                <span className="text-xs text-muted-foreground font-medium">Skills earned from events attended</span>
+                <span className="text-xs text-muted-foreground font-medium">Skills earned from videos analyzed</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {Object.entries(agent.skillScores)

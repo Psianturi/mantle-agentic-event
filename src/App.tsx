@@ -797,7 +797,7 @@ function App() {
       setPendingAttendContext(null)
       setTopUpDialogOpen(false)
       toast.info('Retrying autonomous mint...', {
-        description: 'Mode B event attendance is being retried after top-up.'
+        description: 'Mode B signing is being retried after top-up.'
       })
       await handleAttendEvent()
     }
@@ -809,7 +809,7 @@ function App() {
       setWisdomDialogOpen(true)
     } else {
       toast.error('Wisdom not yet unlocked', {
-        description: `Agent needs to attend ${5 - agent.eventsAttended} more event(s)`
+        description: `Agent needs to analyze ${5 - agent.eventsAttended} more YouTube video(s) to unlock Wisdom`
       })
     }
   }
@@ -896,7 +896,7 @@ function App() {
     try {
       const result = await cloudRunService.runAutoScout(agentId)
       if (result.status === 'no_new_events') {
-        toast.info('No new events found', { description: result.message ?? 'All discovered events already attended.' })
+        toast.info('No new videos found', { description: result.message ?? 'All discovered videos already analyzed.' })
         return
       }
       if (result.status === 'skipped') {

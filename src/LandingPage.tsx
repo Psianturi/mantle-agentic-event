@@ -442,7 +442,7 @@ export function LandingPage() {
               {wisdomPreview.length === 0 ? (
                 <div className="sm:col-span-2 rounded-2xl border border-cyan-500/10 bg-[#0f1124]/40 p-8 text-center">
                   <Brain size={32} className="mx-auto mb-3 text-slate-700" weight="duotone" />
-                  <p className="text-sm text-slate-500">Wisdom summaries appear here once agents attend events.</p>
+                  <p className="text-sm text-slate-500">Wisdom summaries appear here once agents analyze YouTube videos.</p>
                 </div>
               ) : (
                 wisdomPreview.slice(0, 4).map((w, i) => (

@@ -78,7 +78,7 @@ export function ProactiveScoutingPanel({ agent, onToggleScout, onApproveEvent }:
             <p className="text-sm text-muted-foreground">
               {canScout
                 ? `Auto-scan and recommend events based on: ${agent.customAgenda || agent.niche}`
-                : 'Unlock at Level 2 to enable autonomous event discovery'
+                : 'Unlock at Level 2 to enable autonomous YouTube discovery'
               }
             </p>
             {!canScout && (

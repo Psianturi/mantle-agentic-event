@@ -256,7 +256,7 @@ export function AgentBreedingDialog({
                     <ul className="text-sm text-foreground/90 space-y-2">
                       <li className="flex items-start gap-2">
                         <span className="text-amber-500 flex-shrink-0">✓</span>
-                        <span>Both parents must have <span className="font-semibold text-amber-400">Wisdom Unlocked</span> (5+ events attended)</span>
+                        <span>Both parents must have <span className="font-semibold text-amber-400">Wisdom Unlocked</span> (5+ videos analyzed)</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <span className="text-amber-500 flex-shrink-0">✓</span>
