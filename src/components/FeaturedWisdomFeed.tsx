@@ -1,11 +1,12 @@
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Robot, Brain, Star, ArrowSquareOut, Fire, MagnifyingGlass } from '@phosphor-icons/react'
+import { Robot, Brain, Star, ArrowSquareOut, Fire, MagnifyingGlass, ThumbsUp, ThumbsDown } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
 export interface WisdomFeedItem {
+  eventId: string
   eventTitle: string
   wisdomSummary: string
   agentName: string
@@ -24,6 +25,11 @@ interface FeaturedWisdomFeedProps {
   items: WisdomFeedItem[]
   loading: boolean
   explorerBase?: string
+  /** Called when the owner rates a card's wisdom. Owner-only UX — the backend enforces wallet ownership. */
+  onRateWisdom?: (agentId: string, eventId: string, rating: 'up' | 'down') => void
+  /** Currently-rated eventId per agentId, for visual state. */
+  ratedMap?: Record<string, 'up' | 'down' | null>
+  userWallet?: string
 }
 
 const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
@@ -61,7 +67,13 @@ function QualityBar({ score }: { score: number }) {
   )
 }
 
-function WisdomCard({ item, index }: { item: WisdomFeedItem; index: number }) {
+function WisdomCard({ item, index, onRateWisdom, ratedMap, userWallet }: {
+  item: WisdomFeedItem
+  index: number
+  onRateWisdom?: (agentId: string, eventId: string, rating: 'up' | 'down') => void
+  ratedMap?: Record<string, 'up' | 'down' | null>
+  userWallet?: string
+}) {
   const cat = CATEGORY_CONFIG[item.category] ?? CATEGORY_CONFIG.quality
   const date = new Date(item.attendedAt * 1000).toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -69,6 +81,8 @@ function WisdomCard({ item, index }: { item: WisdomFeedItem; index: number }) {
   const explorerUrl = item.txHash
     ? `https://explorer.sepolia.mantle.xyz/tx/${item.txHash}`
     : null
+  const currentRating = ratedMap?.[item.eventId]
+  const canRate = Boolean(onRateWisdom && userWallet)
 
   return (
     <motion.div
@@ -122,6 +136,29 @@ function WisdomCard({ item, index }: { item: WisdomFeedItem; index: number }) {
             <span>{date}</span>
           </div>
           <QualityBar score={item.wisdomQualityScore} />
+          {/* Feedback: owner-only rating of this wisdom. No auth gate needed —
+              backend enforces ownership; buttons hidden for non-owners. */}
+          {canRate && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] text-muted-foreground font-mono">Rate wisdom:</span>
+              {(['up', 'down'] as const).map(r => (
+                <button
+                  key={r}
+                  onClick={() => onRateWisdom!(item.agentId, item.eventId, r)}
+                  className={cn(
+                    'w-6 h-6 rounded-lg flex items-center justify-center border transition-all',
+                    currentRating === r
+                      ? r === 'up'
+                        ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                        : 'bg-rose-500/20 border-rose-500/50 text-rose-400'
+                      : 'border-white/10 text-muted-foreground/50 hover:border-primary/40 hover:text-primary',
+                  )}
+                >
+                  {r === 'up' ? <ThumbsUp size={12} weight="fill" /> : <ThumbsDown size={12} weight="fill" />}
+                </button>
+              ))}
+            </div>
+          )}
           {explorerUrl && (
             <a
               href={explorerUrl}
@@ -167,7 +204,7 @@ function SkeletonCard() {
   )
 }
 
-export function FeaturedWisdomFeed({ items, loading, explorerBase }: FeaturedWisdomFeedProps) {
+export function FeaturedWisdomFeed({ items, loading, explorerBase, onRateWisdom, ratedMap, userWallet }: FeaturedWisdomFeedProps) {
   const stats = {
     trending: items.filter(i => i.category === 'trending').length,
     quality: items.filter(i => i.category === 'quality').length,
@@ -226,7 +263,14 @@ export function FeaturedWisdomFeed({ items, loading, explorerBase }: FeaturedWis
             </motion.div>
           ) : (
             items.map((item, i) => (
-              <WisdomCard key={`${item.agentId}-${item.eventTitle}`} item={item} index={i} />
+              <WisdomCard
+                key={item.eventId}
+                item={item}
+                index={i}
+                onRateWisdom={onRateWisdom}
+                ratedMap={ratedMap}
+                userWallet={userWallet}
+              />
             ))
           )}
         </AnimatePresence>

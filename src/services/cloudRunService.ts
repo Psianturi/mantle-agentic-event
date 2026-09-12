@@ -716,6 +716,34 @@ export const cloudRunService = {
     }
   },
 
+  /**
+   * Record owner feedback on an agent's attended event wisdom.
+   * Owner-only (backend verifies wallet ownership). Best-effort: returns
+   * the agent's current top_feedback_tags so UI can update instantly.
+   */
+  async submitEventFeedback(
+    agentId: string,
+    eventId: string,
+    userWallet: string,
+    rating: 'up' | 'down',
+  ): Promise<{ topFeedbackTags: Array<{ tag: string; score: number }> }> {
+    const response = await fetchWithTimeout(
+      `${GCP_BACKEND_URL}/api/v1/feedback`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          agent_id: agentId,
+          event_id: eventId,
+          user_wallet: userWallet,
+          rating,
+        }),
+      },
+      15000,
+    )
+    const raw = await handleAPIResponse<{ status: string; top_feedback_tags: Array<{ tag: string; score: number }> }>(response)
+    return { topFeedbackTags: raw.top_feedback_tags ?? [] }
+  },
+
   async chatWithAgent(agentId: string, message: string, conversationHistory: string[]): Promise<string> {
     const response = await fetchWithTimeout(
       `${GCP_BACKEND_URL}/api/v1/agent/${agentId}/chat`,
@@ -939,6 +967,7 @@ export const cloudRunService = {
       )
 
       const raw = await handleAPIResponse<Array<{
+        event_id: string
         event_title: string
         wisdom_summary: string
         agent_name: string
@@ -958,6 +987,7 @@ export const cloudRunService = {
         .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'")
 
       return raw.map(w => ({
+        eventId: w.event_id,
         eventTitle: decodeHtml(w.event_title),
         wisdomSummary: decodeHtml(w.wisdom_summary),
         agentName: w.agent_name,

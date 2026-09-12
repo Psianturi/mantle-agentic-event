@@ -146,6 +146,8 @@ export interface Event {
   date: number
   summary: string
   status: 'pending' | 'completed' | 'failed' | 'scheduled'
+  /** Owner's explicit rating of this event's wisdom (from backend feedback). */
+  feedback?: 'up' | 'down' | null
 }
 
 export interface NFT {

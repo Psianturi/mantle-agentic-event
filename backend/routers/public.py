@@ -49,6 +49,7 @@ def _is_internal_test(agent_name: str, event_title: str = "") -> bool:
 
 class FeaturedWisdomItem(BaseModel):
     """A single featured wisdom card for public showcase."""
+    event_id: str       # agent_events doc id — needed to submit feedback
     event_title: str
     wisdom_summary: str
     agent_name: str
@@ -153,6 +154,7 @@ async def get_featured_wisdom() -> list[FeaturedWisdomItem]:
             wisdom_score = score_wisdom_quality(event.get("wisdom_summary", ""))
             
             item = FeaturedWisdomItem(
+                event_id=event.get("doc_id", ""),
                 event_title=event_title,
                 wisdom_summary=event.get("wisdom_summary", ""),
                 agent_name=agent_name or "Anonymous Agent",

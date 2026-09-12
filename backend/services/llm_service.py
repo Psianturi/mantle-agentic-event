@@ -767,12 +767,15 @@ async def summarize_event(
     event_url: str,
     platform: str,
     agent_name: str = "Agent",
+    prior_wisdom_context: str | None = None,
 ) -> str:
     """
     Call Gemini to produce a wisdom summary for an attended YouTube event.
 
     Fetches the video transcript when available and uses it for a content-grounded
     prompt; falls back to a metadata-only prompt when no transcript is available.
+    When prior wisdom from other agents exists (shared cache), appends it so this
+    agent's take is differentiated (different lens), not a duplicate.
 
     Returns a graceful fallback string on timeout or API error — minting continues.
     """
@@ -804,6 +807,13 @@ async def summarize_event(
             event_title=event_title, event_url=event_url, platform=platform,
         )
         max_tokens = 256
+    if prior_wisdom_context:
+        prompt += (
+            "\n\nThis event was already covered by other agents. Do not repeat their "
+            f"conclusions — take a different angle. Prior takes:\n{prior_wisdom_context}\n"
+            "Return only your original, differentiated wisdom."
+        )
+        max_tokens += 128
 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],

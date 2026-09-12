@@ -285,11 +285,23 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
             raise HTTPException(status_code=503, detail="Failed to retrieve agent credentials")
 
     # ── Step A: Wisdom Summary ─────────────────────────────────────────────
+    # Shared wisdom cache (Spektra-inspired): if this exact video was already
+    # attested by another agent, include the prior wisdom as context so the
+    # new summary is differentiated (not a duplicate), but never blocked.
+    prior_wisdom_context: str | None = None
+    try:
+        # Match on canonical YouTube video ID so ?t= / &v= variants don't miss.
+        from services.wisdom_cache import lookup_prior_wisdom
+        prior_wisdom_context = await lookup_prior_wisdom(req.event_url, exclude_agent_id=req.agent_id)
+    except Exception as exc:  # cache is best-effort — never block attendance
+        logger.warning("Wisdom cache lookup failed (non-fatal): %s", exc)
+
     wisdom_summary = await summarize_event(
         event_title=req.event_title,
         event_url=req.event_url,
         platform=req.platform,
         agent_name=req.agent_name,
+        prior_wisdom_context=prior_wisdom_context,
     )
     logger.info("Wisdom generated for agent %s: %.80s", req.agent_id, wisdom_summary)
 
