@@ -174,6 +174,33 @@ function App() {
 
   const [featuredWisdom, setFeaturedWisdom] = useState<WisdomFeedItem[]>([])
   const [featuredWisdomLoading, setFeaturedWisdomLoading] = useState(false)
+
+  // Owner-rating map: eventId -> 'up' | 'down'. Frontend visual state only -
+  // server is the source of truth and replays via topFeedbackTags in feedback response.
+  const [ratedMap, setRatedMap] = useState<Record<string, 'up' | 'down'>>({})
+
+  const handleRateWisdom = useCallback(async (eventId: string, rating: 'up' | 'down', agentId: string) => {
+    if (!walletAddress) {
+      toast.error('Connect your wallet to rate agent wisdom');
+      return;
+    }
+    // Optimistic update so the UI reflects immediately.
+    setRatedMap(prev => ({ ...prev, [eventId]: rating }));
+    try {
+      await cloudRunService.submitEventFeedback(agentId, eventId, walletAddress, rating);
+      toast.success('Recorded - future scouts will adapt to this');
+    } catch (err) {
+      // Roll back optimistic update on failure.
+      setRatedMap(prev => {
+        const next = { ...prev }
+        delete next[eventId]
+        return next
+      });
+      const msg = err instanceof Error ? err.message : 'Feedback failed'
+      toast.error(msg)
+    }
+  }, [walletAddress])
+
   const blockchain = useBlockchain()
 
   const [spawnDialogOpen, setSpawnDialogOpen] = useState(false)
@@ -1509,7 +1536,13 @@ function App() {
                         Refresh
                       </button>
                     </div>
-                    <FeaturedWisdomFeed items={dedupedWisdom} loading={featuredWisdomLoading} />
+                <FeaturedWisdomFeed
+                  items={dedupedWisdom}
+                  loading={featuredWisdomLoading}
+                  userWallet={walletAddress}
+                  ratedMap={ratedMap}
+                  onRateWisdom={(agentId, eventId, rating) => handleRateWisdom(eventId, rating, agentId)}
+                />
                   </div>
                 )
               })()}

@@ -1,12 +1,14 @@
-"""Shared Wisdom Cache — cross-agent reuse of prior YouTube wisdom.
+"""Shared Wisdom Cache — same-owner agent reuse of prior YouTube wisdom.
 
-Adapted from Spektra's video_corpus, but deliberately much simpler: Firestore
-lookup by canonical video ID, no vector index, no embeddings. The goal is
-cache reuse + differentiated summaries — not full semantic recall.
+Read-only for the attend flow: never blocks, never overwrites. When the
+attending user owns multiple agents that have already attended the same
+YouTube video, the prior summary is supplied as context so this agent's
+take is differentiated (different lens) rather than a copy.
 
-Read-only for attend flow: never blocks, never overwrites. A new agent
-attending a video that another agent already saw gets the prior summary as
-context to produce a *different* take (different lens), not a copy.
+Privacy: cache reuse is strictly per-owner (`user_wallet`). One user's
+agents never see another user's wisdom — that's the explicit product
+boundary, not an implementation detail. Without user_wallet, the cache
+returns None (no leakage).
 """
 import logging
 import re
@@ -31,25 +33,50 @@ def _canonical_video_id(url: str) -> str | None:
     return None
 
 
-async def lookup_prior_wisdom(event_url: str, exclude_agent_id: str | None = None) -> str | None:
+async def lookup_prior_wisdom(
+    event_url: str,
+    exclude_agent_id: str | None = None,
+    user_wallet: str | None = None,
+) -> str | None:
     """
     Return a compact context string of prior wisdom for this video, or None.
 
     Only YouTube URLs are eligible (the only platform with a stable video ID).
     Excludes the requesting agent so an agent never quotes itself.
+
+    Privacy: when user_wallet is provided, only events owned by that wallet are
+    considered. Without it, the cache is empty — same-owner only.
     """
+    if not user_wallet:
+        return None
     video_id = _canonical_video_id(event_url)
     if not video_id:
         return None
 
     db = get_db()
-    query = db.collection(EVENTS_COLLECTION).where("event_url", ">=", f"https://youtu.be/{video_id}").where("event_url", "<=", f"https://youtu.be/{video_id}\uf8ff")
+    # Per-owner isolation: query both the canonical URL form and same-user
+    # constraints in one pass. The user_wallet filter is the privacy boundary.
     try:
-        docs = await query.get()
+        docs = await (
+            db.collection(EVENTS_COLLECTION)
+            .where("event_url", ">=", f"https://youtu.be/{video_id}")
+            .where("event_url", "<=", f"https://youtu.be/{video_id}\uf8ff")
+            .where("user_wallet", "==", user_wallet)
+            .get()
+        )
     except Exception:
-        # Range queries on event_url can be brittle — fall back to a simple
-        # equality match on the full URL, then canonicalize client-side.
-        docs = await db.collection(EVENTS_COLLECTION).where("event_url", "==", event_url).get()
+        # Fall back to exact-URL match if range+equality compound fails
+        # (Firestore sometimes rejects compound queries that mix range + inequality on different fields).
+        try:
+            docs = (
+                await db.collection(EVENTS_COLLECTION)
+                .where("event_url", "==", event_url)
+                .where("user_wallet", "==", user_wallet)
+                .get()
+            )
+        except Exception as exc:
+            logger.warning("wisdom cache lookup failed (non-fatal): %s", exc)
+            return None
 
     prior: list[dict] = []
     for doc in docs:

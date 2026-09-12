@@ -292,7 +292,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
     try:
         # Match on canonical YouTube video ID so ?t= / &v= variants don't miss.
         from services.wisdom_cache import lookup_prior_wisdom
-        prior_wisdom_context = await lookup_prior_wisdom(req.event_url, exclude_agent_id=req.agent_id)
+        prior_wisdom_context = await lookup_prior_wisdom(req.event_url, exclude_agent_id=req.agent_id, user_wallet=agent_data.get('user_wallet'))
     except Exception as exc:  # cache is best-effort — never block attendance
         logger.warning("Wisdom cache lookup failed (non-fatal): %s", exc)
 
@@ -402,6 +402,7 @@ async def attend_event(req: AttendRequest) -> AttendResponse:
         # ── Persist event record in Firestore ─────────────────────────────
         try:
             event_doc = {
+                "user_wallet": agent_data.get("user_wallet", ""),
                 "agent_id": req.agent_id,
                 "agent_wallet": req.agent_wallet,
                 "agent_name": req.agent_name,
