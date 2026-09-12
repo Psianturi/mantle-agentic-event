@@ -1391,12 +1391,13 @@ function App() {
                     <span className="text-sm text-muted-foreground font-normal">({displayedAgents.length} active)</span>
                   </h2>
                   <Button
-                    onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => handleWalletConnect('')}
+                    onClick={walletConnected ? () => setSpawnDialogOpen(true) : () => document.querySelector<HTMLButtonElement>('[data-wallet-trigger]')?.click()}
                     size="sm"
-                    className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold shadow-lg shadow-secondary/20"
+                    disabled={!walletConnected}
+                    className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold shadow-lg shadow-secondary/20 disabled:opacity-40"
                   >
                     <Plus className="mr-1.5" weight="bold" size={15} />
-                    {walletConnected ? 'Spawn Agent' : 'Connect Wallet'}
+                    Spawn Agent
                   </Button>
                 </div>
                 {displayedAgents.length === 0 ? (

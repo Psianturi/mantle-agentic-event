@@ -82,7 +82,7 @@ export function AttendEventCard({
           disabled={walletConnected && (!eventUrl.trim() || isProcessingEvent)}
           className="bg-gradient-to-r from-secondary to-accent hover:opacity-90 font-semibold px-6 shadow-lg shadow-secondary/30"
         >
-          {!walletConnected ? 'Connect & Analyze' : isProcessingEvent ? 'Processing...' : 'Analyze & Mint Proof'}
+          {!walletConnected ? 'Connect to Analyze' : isProcessingEvent ? 'Analyzing...' : 'Analyze & Mint Proof'}
         </Button>
       </div>
       <p className="text-xs text-muted-foreground mb-1">

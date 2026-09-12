@@ -68,6 +68,7 @@ export function WalletConnect({ onConnect, isConnected, address, balance, onDisc
     <>
       <Button
         onClick={() => setShowDialog(true)}
+        data-wallet-trigger
         className="bg-gradient-to-r from-primary to-accent hover:opacity-90 font-semibold shadow-lg shadow-primary/30"
       >
         <Wallet className="mr-2" weight="duotone" />
